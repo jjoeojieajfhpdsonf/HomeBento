@@ -173,6 +173,7 @@ function metrics(s, st, d, max = 3) {
 		if (s.kind === "qbittorrent") out = [m(nf((data.down || 0) / 1e6, 1), "↓ MB/s"), m(nf((data.up || 0) / 1e6, 1), "↑ MB/s"), m(data.downloading, t("m.loading")), m(data.seeding, t("m.seeding"))];
 		if (s.kind === "prowlarr") out = [m(data.enabled, t("m.indexers")), m(data.failing, t("m.failing"), data.failing ? "warn" : ""), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
 		if (s.kind === "solar") out = [m(data.pv !== null ? nf(data.pv / 1000, 1) : null, "kW"), m(data.todayWh !== null ? nf(data.todayWh / 1000, 1) : null, t("m.todayKwh")), m(data.battery !== null ? `${data.battery} %` : null, t("m.battery")), m(data.use !== null ? nf(data.use / 1000, 1) : null, t("m.houseKw"))];
+		if (s.kind === "magicmirror") out = [m(data.modules, t("m.modules")), m(data.version, "Version"), m(data.started ? fmtDuration(Date.now() - data.started) : null, t("m.running"))];
 		if (s.kind === "mmmanager") out = [m(data.process === "online" ? t("mm.online") : data.process, t("m.state"), data.process && data.process !== "online" ? "warn" : ""), m(data.version, "Version"), m(data.restarts, t("m.restarts"))];
 	}
 	if (!out) {
@@ -193,7 +194,7 @@ function listStat(s, st, d) {
 		if (st && st.container && st.container.status) return st.container.status;
 		return st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000 ? t("status.since", { t: fmtDuration(Date.now() - st.since) }) : "";
 	}
-	const say = (x) => (x.l === "CPU" ? `CPU ${x.v}` : x.l === "Version" ? `v${x.v}` : x.l === t("m.state") ? x.v : `${x.v} ${x.l}`);
+	const say = (x) => (x.l === "CPU" ? `CPU ${x.v}` : x.l === "Version" ? `v${x.v}` : x.l === t("m.state") ? x.v : x.l === t("m.running") ? t("status.since", { t: x.v }) : `${x.v} ${x.l}`);
 	return m.filter((x) => x.v !== "–" && !/^(Response|Antwort|up 24 h|online 24 h)$/.test(x.l)).slice(0, 3).map(say).join(" · ");
 }
 

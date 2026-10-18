@@ -692,6 +692,11 @@ async function serviceSheet(sid) {
 		if (s.container) parts.push(containerPart(s, d.container, fill));
 		const ts = tailscalePart(s, fill);
 		if (ts) parts.push(h("div", { class: "sec" }, "Tailscale"), ts);
+		// MagicMirror: which modules are on
+		if (s.kind === "magicmirror" && integ && integ.data && integ.data.active) {
+			const mm = integ.data;
+			parts.push(h("div", { class: "sec" }, t("mm.modules", { a: mm.modules, b: mm.total })), h("div", { class: "box mm-mods" }, mm.active.map((x) => h("div", {}, h("span", {}, x.name), h("span", { class: "faint" }, x.position ? x.position.replace(/_/g, " ") : t("mm.background"))))));
+		}
 		if (s.kind === "mmmanager") parts.push(h("div", { class: "acts" }, h("button", { class: "btn", onclick: (e) => act(e.currentTarget, s, "restart", fill) }, t("mm.restart"))));
 		parts.push(h("div", { class: "sec" }, t("sheet.events")));
 		parts.push(

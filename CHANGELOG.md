@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1 – 2026-10-18
+
+- MagicMirror integration: active modules, version and uptime from MagicMirror itself (/version, /startup, /config/); the details list the active modules with their position.
+
 ## 0.10.0 – 2026-10-18
 
 - Update containers from the Updates tile: pull the image, recreate the container with the same configuration (volumes, ports, environment, networks, labels), check that it comes up, and bring the old one back otherwise. Progress shows in a log.
