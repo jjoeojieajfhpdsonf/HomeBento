@@ -83,7 +83,6 @@ Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 | Sonarr, Radarr | upcoming episodes and movies in one calendar, queue, library size, health warnings | API key – read from the linked container automatically |
 | Prowlarr | active indexers, health warnings | API key – read from the linked container automatically |
 | qBittorrent | speed, active downloads | user and password, unless the local network may skip the login |
-| Solar dashboard | power now, today's yield, day curve | – |
 | MagicMirror Manager | process state, version, restart | password, if the manager has one |
 
 More integrations come as plugins (one file each in `lib/plugins/`), with up to four key figures, a list for bigger tiles and the details, and warnings on the problem strip:
@@ -128,6 +127,22 @@ module.exports = {
 ```
 
 `json` throws on HTTP errors (401/403 become "Access denied"); `request` gives the raw answer. Both honour "allow own certificate" of the service.
+
+**Your own plugins** (for your own apps, kept out of this repository) go into the data folder: `data/plugins/*.js` – in Docker that's `./data/plugins` next to the compose file (or set `PLUGINS_DIR`). They're loaded after a restart, next to the built-in ones. A plugin can also fill one of the richer tiles instead of key figures – `tile: "solar"` (power now, day curve, today's balance) or `tile: "mystrom"` (plugs with a switch each) – and offer actions:
+
+```js
+module.exports = {
+	kind: "myplugs",
+	label: "My plugs",
+	tile: "mystrom",
+	async fetch({ url, json }) {
+		return json(`${url}/api/state`); // { devices: [{ mac, name, on, online, w, switchable }], watts, todayWh }
+	},
+	async action({ url, request, what, body }) {
+		if (what === "relay") await request(`${url}/api/relay/${body.mac}`, { method: "POST", body: { on: body.on } });
+	}
+};
+```
 
 ## Tailscale
 

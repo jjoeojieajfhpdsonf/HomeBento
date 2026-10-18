@@ -1380,6 +1380,28 @@ async function updateService(s, d) {
 }
 
 // Release notes; opening them counts as seen.
+// Release notes as GitHub writes them, made readable: no HTML leftovers, short #123 links for
+// issues and pull requests, no commit hashes, no empty lines between the points.
+function cleanNotes(body) {
+	return String(body)
+		.replace(/\r/g, "")
+		.replace(/<!--[\s\S]*?-->/g, "")
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<\/?(samp|sup|sub|b|i|em|strong|code|kbd|span|div|p|details|summary)[^>]*>/gi, "")
+		.replace(/<[^>]+>/g, "")
+		.replace(/&nbsp;/g, " ")
+		.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+		// "[a3f68](…/commit/…)", "(a3f68)" after a point
+		.replace(/\s*\[?\(?\b[0-9a-f]{5,12}\b\)?\]?\(https:\/\/github\.com\/[^)]+\/commit\/[0-9a-f]+\)/gi, "")
+		.replace(/\s*\(\b[0-9a-f]{5,12}\b\)\s*$/gim, "")
+		// links to issues and pull requests: #123
+		.replace(/(?<!\()https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:issues|pull)\/(\d+)(?:#[\w-]+)?/g, (u, n) => `[#${n}](${u})`)
+		.replace(/[ \t]+-[ \t]+by /g, " – by ")
+		.replace(/^(#{1,6})\s+/gm, "$1 ")
+		.replace(/[ \t]{2,}/g, " ")
+		.replace(/\n{3,}/g, "\n\n");
+}
+
 async function releaseSheet(tile, repo, tag) {
 	const n = await guard(() => api("GET", `/api/releases/notes?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`));
 	if (!n) return;
@@ -1389,7 +1411,7 @@ async function releaseSheet(tile, repo, tag) {
 	sheet.head(h("div", { class: "tt" }, h("b", {}, `${repo.split("/")[1]} ${n.tag}`), h("span", { class: "sub" }, `${repo}${n.date ? ` · ${new Date(n.date).toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` : ""}`)));
 	sheet.body.append(
 		n.name && n.name !== n.tag ? h("div", { class: "sec", style: "margin-top:4px" }, n.name) : null,
-		h("div", { class: "md rel-notes", html: n.body ? markdown(n.body.replace(/\r/g, "").replace(/<!--[\s\S]*?-->/g, "")) : `<p class="faint">${t("rel.noNotes")}</p>` }),
+		h("div", { class: "md rel-notes", html: n.body ? markdown(cleanNotes(n.body)) : `<p class="faint">${t("rel.noNotes")}</p>` }),
 		h("div", { class: "acts" },
 			(() => {
 				const d = S.live && S.live.releases && S.live.releases[repo];

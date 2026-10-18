@@ -766,7 +766,7 @@ const TEXT = {
 		"en.use": "Used",
 		"en.feed": "Fed in",
 		"en.import": "From the grid",
-		"en.needs": "Add the solar dashboard as a service",
+		"en.needs": "Add a solar source (a plugin with the solar tile) as a service",
 		"mm.needs": "Add MagicMirror as a service",
 		"mm.count": "{a} of {b} modules on",
 		"mm.restarts": "{n} restarts",

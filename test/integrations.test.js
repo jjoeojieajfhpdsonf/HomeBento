@@ -1,6 +1,6 @@
 "use strict";
 // The integrations against a small fake server that answers like Jellyfin, Sonarr, Radarr,
-// qBittorrent, the solar dashboard and MagicMirror Manager.
+// qBittorrent and MagicMirror Manager.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
@@ -123,14 +123,6 @@ test("qBittorrent: logs in when needed and keeps the cookie", async () => {
 	assert.match(bad.error, /Login failed/);
 	const bad5 = await new Integrations(store({ username: "v5", password: "nope" })).data({ id: "q6", kind: "qbittorrent", url: `${base}/qb` });
 	assert.match(bad5.error, /check user and password/);
-});
-
-test("solar dashboard: live values and a 15-minute curve", async () => {
-	const { data } = await new Integrations(store({})).data({ id: "p", kind: "solar", url: `${base}/solar` });
-	assert.equal(data.pv, 2206);
-	assert.equal(data.battery, 7);
-	assert.equal(data.todayWh, 4234);
-	assert.deepEqual(data.points, [[0, 0], [15, 10], [30, 200]]);
 });
 
 test("MagicMirror Manager: logs in with the password on 401", async () => {
