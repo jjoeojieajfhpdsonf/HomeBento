@@ -14,6 +14,7 @@ const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
 const { Releases, parseRepo, runningVersion, sameVersion } = require("./lib/releases");
+const widgets = require("./lib/widgets");
 const os = require("node:os");
 const { KINDS } = require("./lib/kinds");
 const { UserError } = require("./lib/errors");
@@ -164,8 +165,16 @@ route("GET", "/api/state", async (body, p, query, req) => ({
 	host: host.name,
 	auth: auth.enabled,
 	notify: !!NOTIFY_URL,
-	checkSeconds: CHECK_SECONDS
+	checkSeconds: CHECK_SECONDS,
+	// the addresses of this machine: services on it can be opened under whatever address HomeBento was opened with
+	selfHosts: selfHosts()
 }));
+
+function selfHosts() {
+	const out = new Set(["localhost", "127.0.0.1", "::1", os.hostname()]);
+	for (const list of Object.values(os.networkInterfaces())) for (const a of list || []) if (!a.internal || a.address === "127.0.0.1") out.add(a.address);
+	return [...out];
+}
 
 // Everything a board needs to show right now (polled every few seconds by the web app).
 route("GET", "/api/live", async (body, p, query, req) => {
@@ -226,7 +235,27 @@ route("GET", "/api/live", async (body, p, query, req) => {
 			}
 		}
 	}
-	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel };
+	// general tiles: weather, disks, network, calendars, news
+	const extra = {};
+	if (types.has("weather")) {
+		const place = await location();
+		extra.weather = {};
+		for (const t of board.tiles.filter((x) => x.type === "weather")) {
+			const p = t.place || place;
+			extra.weather[t.id] = p ? { place: p, ...(await widgets.weather(p.lat, p.lon)) } : { error: "no-place" };
+		}
+	}
+	if (types.has("disks")) extra.disks = host.disks();
+	if (types.has("network")) extra.net = host.history.slice(-180).map((p) => [p[0], p[4], p[5]]);
+	if (types.has("ical")) {
+		extra.ical = {};
+		await Promise.all(board.tiles.filter((x) => x.type === "ical" && (x.calendars || []).length).map(async (t) => (extra.ical[t.id] = await widgets.calendars(t.calendars))));
+	}
+	if (types.has("rss")) {
+		extra.rss = {};
+		await Promise.all(board.tiles.filter((x) => x.type === "rss" && (x.feeds || []).length).map(async (t) => (extra.rss[t.id] = await widgets.feeds(t.feeds))));
+	}
+	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel, ...extra };
 });
 
 route("GET", "/api/services/:id", async (body, p) => {
@@ -453,7 +482,30 @@ route("POST", "/api/boards/order", (body) => store.orderBoards(body.ids));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
 route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.id, body.tiles) }));
+// The place for the weather: set in the settings, else taken from the solar dashboard once.
+async function location() {
+	if (store.config.location) return store.config.location;
+	const solar = store.config.services.find((s) => s.kind === "solar" && s.url);
+	if (!solar || location.tried) return null;
+	location.tried = true;
+	try {
+		const st = await require("./lib/util").json(`${solar.url.replace(/\/+$/, "")}/api/state`, { insecure: solar.insecure, timeout: 8000 });
+		const s = st.settings || {};
+		if (Number.isFinite(s.lat) && Number.isFinite(s.lon)) {
+			store.setLocation({ name: s.location || s.placeLabel || "", lat: s.lat, lon: s.lon });
+			return store.config.location;
+		}
+	} catch {
+		// no solar dashboard answer
+	}
+	return null;
+}
+
+route("GET", "/api/geocode", async (body, p, query) => ({ items: await widgets.geocode(String(query.get("q") || "").slice(0, 80), query.get("lang") === "en" ? "en" : "de") }));
+route("GET", "/api/disks", () => ({ items: host.disks() }));
+
 route("POST", "/api/settings", (body) => {
+	if (body.location !== undefined) store.setLocation(body.location);
 	if (body.title !== undefined) store.setTitle(body.title);
 	if (body.layout !== undefined) store.setLayout(body.layout);
 });

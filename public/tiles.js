@@ -247,8 +247,8 @@ function markdown(src) {
 			.replace(/`([^`]+)`/g, "<code>$1</code>")
 			.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
 			.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>")
-			.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-			.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+			.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+			.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
 	const out = [];
 	let list = null;
 	const close = () => list && (out.push(`</${list}>`), (list = null));
@@ -490,7 +490,7 @@ const TILES = {
 		const rows = (ts.mappings || []).slice(0, tile.h * 3).map((m) => {
 			const svc = x.services().find((s) => ts.links && ts.links[s.id] === m.url);
 			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
-			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener">${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
+			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
 		});
 		return { c: "#9aa4b2", cls: "ts-tile", html: `${head}<div class="ts-items">${rows.join("") || `<div class="sm faint">${t("ts.none")}</div>`}</div><button class="md-clear" data-ts-manage>${t("ts.manage")}</button>` };
 	},
@@ -565,7 +565,7 @@ const TILES = {
 			} catch {
 				// invalid
 			}
-			return `<a href="${esc(l.url)}" target="_blank" rel="noopener"><span class="logo" style="--c:#9dbcff;width:22px;height:22px;border-radius:7px">${svg(GLYPHS.link)}</span>${esc(l.name || hostName)}</a>`;
+			return `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><span class="logo" style="--c:#9dbcff;width:22px;height:22px;border-radius:7px">${svg(GLYPHS.link)}</span>${esc(l.name || hostName)}</a>`;
 		});
 		return { c: "#9dbcff", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("links.title")}</span></div>${rows.length ? `<div class="links">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("links.empty")}</div>`}` };
 	}

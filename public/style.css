@@ -390,9 +390,13 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .mm-mods > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; font-size: 13px; border-top: 1px solid var(--line); }
 .mm-mods > div:nth-child(-n+2) { border-top: 0; }
 .mm-mods > div:nth-child(odd) { border-right: 1px solid var(--line); }
-.warn-list > div { display: flex; gap: 10px; align-items: baseline; padding: 10px 12px; font-size: 13.5px; color: #f7cd78; }
-.warn-list > div + div { border-top: 1px solid var(--line); }
+.warn-list { background: rgba(245,184,61,.06); box-shadow: inset 0 0 0 1px rgba(245,184,61,.14); }
+.warn-list > div { display: flex; gap: 11px; align-items: baseline; padding: 11px 14px; font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.warn-list > div + div { border-top: 1px solid rgba(245,184,61,.1); }
 .warn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; transform: translateY(-1px); }
+.sec-n { margin-left: 7px; padding: 1px 7px; border-radius: 999px; background: rgba(245,184,61,.14); color: var(--warn); font-size: 11px; font-weight: 650; }
+.sec-link { color: var(--accent); font-weight: 500; text-decoration: none; }
+.sec-link:hover { text-decoration: underline; }
 .events > div { display: flex; gap: 10px; padding: 9px 12px; font-size: 13px; align-items: baseline; }
 .events > div + div { border-top: 1px solid var(--line); }
 .events .when { color: var(--faint); font-size: 12px; width: 92px; flex: none; }

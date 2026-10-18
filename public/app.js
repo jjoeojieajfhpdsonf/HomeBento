@@ -327,7 +327,7 @@ document.addEventListener("click", (e) => {
 	}
 	const st = S.live && S.live.status[s.id];
 	if (!s.url || (st && st.status === "down")) return serviceSheet(s.id);
-	window.open(urlFor(s), "_blank", "noopener");
+	window.open(urlFor(s), "_blank", "noopener,noreferrer");
 });
 document.addEventListener("contextmenu", (e) => {
 	const row = e.target.closest(".svc-row");
@@ -500,7 +500,34 @@ function detailsOf(tile) {
 // Away from home (HomeBento opened through Tailscale) services open at their Tailscale address.
 const viaTailscale = () => /\.ts\.net$/.test(location.hostname) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(location.hostname);
 const tsLink = (s) => (S.state.tailscale && S.state.tailscale.links && S.state.tailscale.links[s.id]) || null;
-const urlFor = (s) => (viaTailscale() && tsLink(s)) || s.url;
+// Away: HomeBento opened by anything but a home network address (Tailscale IP or name, a domain …).
+const awayFromHome = () => {
+	const hn = location.hostname;
+	return !(/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?(fe80|fd|::1))/i.test(hn) || /\.(local|lan|home|internal|home\.arpa)$/i.test(hn) || !hn.includes("."));
+};
+// The address to open a service with, from where HomeBento was opened:
+// 1. away and an own address for away is set → that one
+// 2. through Tailscale and the service is shared with Tailscale Serve → its https address
+// 3. the service runs on this machine → the same port under the name HomeBento was opened with
+//    (http://192.168.0.31:8096 becomes http://100.101.1.2:8096 when opened through Tailscale)
+// 4. else the address as stored
+function urlFor(s) {
+	if (!s.url) return s.url;
+	if (s.urlAway && awayFromHome()) return s.urlAway;
+	if (viaTailscale() && tsLink(s)) return tsLink(s);
+	try {
+		const u = new URL(s.url);
+		const here = location.hostname;
+		const self = new Set(S.state.selfHosts || []);
+		if (u.hostname !== here && self.has(u.hostname.replace(/^\[|\]$/g, "")) && !self.has("") && here) {
+			u.hostname = here;
+			return u.toString().replace(/\/$/, s.url.endsWith("/") ? "/" : "");
+		}
+	} catch {
+		// keep it as it is
+	}
+	return s.url;
+}
 
 // One tap opens the service itself; a service that is down shows what's wrong instead.
 function openTile(tile) {
@@ -508,7 +535,7 @@ function openTile(tile) {
 	if (s && s.url) {
 		const st = S.live && S.live.status[s.id];
 		if (st && st.status === "down") return serviceSheet(s.id);
-		window.open(urlFor(s), "_blank", "noopener");
+		window.open(urlFor(s), "_blank", "noopener,noreferrer");
 		return;
 	}
 	return openTileDetails(tile);
@@ -649,7 +676,7 @@ function confirmSheet(text, yes = t("confirm.yes"), danger = false) {
 function headOf(s) {
 	return [
 		html(logo(s)),
-		h("div", { class: "tt" }, h("b", {}, s.name), s.url ? h("a", { href: s.url, target: "_blank", rel: "noopener" }, s.url.replace(/^https?:\/\//, "")) : null)
+		h("div", { class: "tt" }, h("b", {}, s.name), s.url ? h("a", { href: urlFor(s), target: "_blank", rel: "noopener noreferrer" }, urlFor(s).replace(/^https?:\/\//, "")) : null)
 	];
 }
 
@@ -672,21 +699,21 @@ async function serviceSheet(sid) {
 		if (st.status === "slow") parts.push(h("div", { class: "note warn" }, `${t("status.slow")} (${fmtMs(st.ms)})`));
 		const integ = S.live && S.live.data[sid];
 		if (integ && integ.error) parts.push(h("div", { class: "note warn" }, integ.error));
-		// what the service itself reports (Sonarr/Radarr/Prowlarr health checks)
-		const warnings = (integ && integ.data && integ.data.warnings) || [];
-		if (warnings.length) {
-			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${s.url.replace(/\/+$/, "")}/system/status` : null;
-			parts.push(
-				h("div", { class: "sec" }, t("sheet.warnings"), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", style: "color:var(--accent);font-weight:500" }, t("sheet.openIn", { n: s.name })) : null),
-				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", {}, w))))
-			);
-		}
 		parts.push(
 			h("div", { class: "kpis" },
 				kpi(t("sheet.response"), fmtMs(st.ms)),
 				kpi(t("sheet.uptime30"), d.uptime.month === null ? "–" : `${nf(d.uptime.month, d.uptime.month === 100 ? 0 : 2)} %`),
 				kpi(t("sheet.state"), `${statusText(st)}${st.since ? ` · ${fmtDuration(Date.now() - st.since)}` : ""}`))
 		);
+		// what the service itself reports (Sonarr/Radarr/Prowlarr health checks)
+		const warnings = (integ && integ.data && integ.data.warnings) || [];
+		if (warnings.length) {
+			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${urlFor(s).replace(/\/+$/, "")}/system/status` : null;
+			parts.push(
+				h("div", { class: "sec" }, h("span", {}, t("sheet.warnings"), h("span", { class: "sec-n" }, String(warnings.length))), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", class: "sec-link" }, t("sheet.openIn", { n: s.name })) : null),
+				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", {}, w))))
+			);
+		}
 		parts.push(h("div", { class: "sec" }, t("sheet.last24")), h("div", { class: "box" }, bars(d.hours, true), h("div", { class: "axis" }, h("span", {}, "−24 h"), h("span", {}, t("time.now")))));
 		parts.push(h("div", { class: "sec" }, t("sheet.last30")), h("div", { class: "box" }, bars(d.days.map((ok) => ({ ok, ms: null })), false), h("div", { class: "axis" }, h("span", {}, "−30 d"), h("span", {}, t("cal.today")))));
 		if (s.container) parts.push(containerPart(s, d.container, fill));
@@ -706,7 +733,7 @@ async function serviceSheet(sid) {
 		);
 		parts.push(
 			h("div", { class: "acts" },
-				s.url ? h("a", { class: "btn primary", href: urlFor(s), target: "_blank", rel: "noopener" }, html(UI.open), t("sheet.open")) : null,
+				s.url ? h("a", { class: "btn primary", href: urlFor(s), target: "_blank", rel: "noopener noreferrer" }, html(UI.open), t("sheet.open")) : null,
 				h("button", { class: "btn", onclick: async (e) => {
 					const b = e.currentTarget;
 					b.classList.add("busy");
@@ -960,6 +987,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 	sheet.head(h("div", { class: "tt" }, h("b", {}, isNew ? t("form.newService") : t("form.editService"))));
 	const name = h("input", { class: "input", value: cur.name, oninput: updatePreview, maxlength: 60 });
 	const url = h("input", { class: "input", value: cur.url, placeholder: t("form.urlPh"), inputmode: "url", autocapitalize: "off", spellcheck: "false" });
+	const urlAway = h("input", { class: "input", value: cur.urlAway || "", placeholder: t("form.urlAwayPh"), inputmode: "url", autocapitalize: "off", spellcheck: "false" });
 	const icon = h("input", { class: "input", value: cur.icon, placeholder: slug(cur.name) || "sonarr", oninput: updatePreview, autocapitalize: "off", spellcheck: "false" });
 	const kind = h("select", { class: "input", onchange: () => (drawSecrets(), updatePreview()) }, h("option", { value: "" }, t("form.kindNone")), Object.entries(S.state.kinds).map(([k, v]) => h("option", { value: k, selected: cur.kind === k }, L(v.label))));
 	const container = h("select", { class: "input" }, h("option", { value: "" }, t("form.noContainer")));
@@ -991,7 +1019,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 	const values = () => {
 		const secrets = {};
 		for (const [k, input] of Object.entries(inputs)) if (input.value !== "") secrets[k] = input.value;
-		return { id: isNew ? undefined : s.id, name: name.value, url: url.value.trim(), icon: icon.value.trim(), kind: kind.value || null, container: container.value || null, check: check.checked, insecure: insecure.checked, secrets };
+		return { id: isNew ? undefined : s.id, name: name.value, url: url.value.trim(), urlAway: urlAway.value.trim(), icon: icon.value.trim(), kind: kind.value || null, container: container.value || null, check: check.checked, insecure: insecure.checked, secrets };
 	};
 	const testBtn = h("button", { class: "btn", onclick: async () => {
 		testBtn.classList.add("busy");
@@ -1022,6 +1050,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 		h("div", { class: "box" },
 			h("div", { class: "field" }, h("label", {}, t("form.name")), h("div", { class: "icon-row" }, preview, name)),
 			h("div", { class: "field" }, h("label", {}, t("form.url")), url),
+			h("div", { class: "field" }, h("label", {}, t("form.urlAway")), urlAway, h("div", { class: "help" }, t("form.urlAwayHelp"))),
 			h("div", { class: "field" }, h("label", {}, t("form.icon")), icon, h("div", { class: "help" }, t("form.iconHelp")))),
 		h("div", { class: "sec" }, t("form.kind")),
 		h("div", { class: "box" }, h("div", { class: "field" }, kind, h("div", { class: "help" }, t("form.kindHelp"))), secretsBox),
@@ -1220,7 +1249,7 @@ async function releaseSheet(tile, repo, tag) {
 				const s = d && d.current === false && d.service && serviceById(d.service);
 				return s && s.container ? h("button", { class: "btn primary", onclick: () => (sheet.close(), updateService(s, d)) }, t("upd.button", { v: d.latest.tag })) : null;
 			})(),
-			h("a", { class: "btn", href: n.url, target: "_blank", rel: "noopener" }, html(UI.open), t("rel.onGithub")))
+			h("a", { class: "btn", href: n.url, target: "_blank", rel: "noopener noreferrer" }, html(UI.open), t("rel.onGithub")))
 	);
 }
 
@@ -1304,7 +1333,7 @@ async function mediaSheet(sid, ref) {
 				m.genres.length ? h("div", { class: "media-genres" }, m.genres.slice(0, 4).map((g) => h("span", { class: "chip" }, g))) : null,
 				facts.length ? h("div", { class: "media-facts" }, facts.join(" · ")) : null,
 				m.overview ? h("p", { class: "media-overview" }, m.overview) : null,
-				h("div", { class: "acts" }, m.links.map((l, i) => h("a", { class: `btn${i === 0 ? " primary" : ""}`, href: l.url, target: "_blank", rel: "noopener" }, html(UI.open), t("media.open", { n: l.name }))))))
+				h("div", { class: "acts" }, m.links.map((l, i) => h("a", { class: `btn${i === 0 ? " primary" : ""}`, href: l.url, target: "_blank", rel: "noopener noreferrer" }, html(UI.open), t("media.open", { n: l.name }))))))
 	);
 }
 
@@ -1555,7 +1584,7 @@ function paletteResults(q) {
 	const capA = t("pal.actions");
 	for (const s of (wantsAction && !list.some((x) => nameWords(x).length) ? [] : list).slice(0, words.length ? 8 : 6)) {
 		const status = st(s).status;
-		out.push({ cap: capS, icon: logo(s), title: s.name, hint: status === "down" ? t("status.down") : status === "slow" ? t("status.slow") : (s.url || "").replace(/^https?:\/\//, ""), run: () => (s.url ? window.open(urlFor(s), "_blank", "noopener") : serviceSheet(s.id)) });
+		out.push({ cap: capS, icon: logo(s), title: s.name, hint: status === "down" ? t("status.down") : status === "slow" ? t("status.slow") : (s.url || "").replace(/^https?:\/\//, ""), run: () => (s.url ? window.open(urlFor(s), "_blank", "noopener,noreferrer") : serviceSheet(s.id)) });
 	}
 	// actions: for the services named in the query, or for the problem ones when only an action was typed
 	const named = list.filter((s) => nameWords(s).length);
@@ -1567,7 +1596,7 @@ function paletteResults(q) {
 			if (s.kind === "mmmanager" && (!wantsAction || /neu|start/.test(low))) out.push({ cap: capA, icon: I.restart, title: t("mm.restart"), run: () => paletteAction(s, "restart") });
 			if (s.container && (!wantsAction || /log/.test(low))) out.push({ cap: capA, icon: I.logs, title: t("pal.logs", { n: s.name }), run: () => logsSheet(s) });
 			if (!wantsAction || /detail/.test(low)) out.push({ cap: capA, icon: I.info, title: t("pal.details", { n: s.name }), run: () => serviceSheet(s.id) });
-			if (tsLink(s) && (!wantsAction || /tailscale/.test(low))) out.push({ cap: capA, icon: I.ts, title: t("pal.tailscale", { n: s.name }), hint: tsLink(s).replace(/^https:\/\//, ""), run: () => window.open(tsLink(s), "_blank", "noopener") });
+			if (tsLink(s) && (!wantsAction || /tailscale/.test(low))) out.push({ cap: capA, icon: I.ts, title: t("pal.tailscale", { n: s.name }), hint: tsLink(s).replace(/^https:\/\//, ""), run: () => window.open(tsLink(s), "_blank", "noopener,noreferrer") });
 		}
 	}
 	for (const b of S.state.config.boards) {
@@ -1575,10 +1604,10 @@ function paletteResults(q) {
 		if (b.id !== S.boardId && words.length && hit(`${name} ${t("pal.pageWord")}`)) out.push({ cap: t("pal.pages"), icon: I.page, title: t("pal.page", { n: name }), run: () => switchBoard(b.id) });
 	}
 	const links = S.state.config.boards.flatMap((b) => b.tiles.filter((x) => x.type === "links").flatMap((x) => x.links || []));
-	for (const l of links.filter((l) => words.length && hit(`${l.name} ${l.url}`)).slice(0, 5)) out.push({ cap: t("pal.links"), icon: I.link, title: l.name || l.url, hint: l.url.replace(/^https?:\/\//, ""), run: () => window.open(l.url, "_blank", "noopener") });
+	for (const l of links.filter((l) => words.length && hit(`${l.name} ${l.url}`)).slice(0, 5)) out.push({ cap: t("pal.links"), icon: I.link, title: l.name || l.url, hint: l.url.replace(/^https?:\/\//, ""), run: () => window.open(l.url, "_blank", "noopener,noreferrer") });
 	if (words.length && hit(t("app.settings"))) out.push({ cap: t("app.settings"), icon: I.gear, title: t("app.settings"), run: settingsSheet });
 	if (words.length && hit(t("tile.add"))) out.push({ cap: t("app.settings"), icon: I.page, title: t("tile.add"), run: addTileSheet });
-	if (q) out.push({ cap: t("pal.web"), icon: I.web, title: t("pal.webSearch", { q }), run: () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, "_blank", "noopener") });
+	if (q) out.push({ cap: t("pal.web"), icon: I.web, title: t("pal.webSearch", { q }), run: () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer") });
 	return out;
 }
 
@@ -1676,7 +1705,7 @@ function tailscaleSettings() {
 			const name = svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–";
 			return h("div", { class: "ts-row" },
 				html(svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`),
-				h("div", { class: "grow" }, h("div", { class: "title" }, name, m.funnel ? h("span", { class: "tag slow", style: "margin-left:8px" }, "Funnel") : null), h("a", { class: "sub", href: m.url, target: "_blank", rel: "noopener" }, m.url.replace(/^https:\/\//, ""))),
+				h("div", { class: "grow" }, h("div", { class: "title" }, name, m.funnel ? h("span", { class: "tag slow", style: "margin-left:8px" }, "Funnel") : null), h("a", { class: "sub", href: m.url, target: "_blank", rel: "noopener noreferrer" }, m.url.replace(/^https:\/\//, ""))),
 				h("button", { class: "ts-x", title: t("tile.remove"), "aria-label": t("tile.remove"), onclick: async () => {
 					if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
 					const r = await guard(() => api("POST", "/api/tailscale/remove", { port: m.port }));

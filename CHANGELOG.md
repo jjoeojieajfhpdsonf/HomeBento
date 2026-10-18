@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1 – 2026-10-18
+
+- Services open without a referrer: qBittorrent (and others with CSRF protection) answered "Unauthorized" when opened from HomeBento.
+- Opened away from home (Tailscale IP or name, a domain): services on the HomeBento machine open under that same address; other services can get an "address away from home".
+- Service details: key figures first, warnings in their own calmer section with a count.
+- Server side for the coming tiles: weather (Open-Meteo), file systems, network history, iCal calendars, RSS feeds; plugin interface (lib/plugins) with Uptime Kuma and Prometheus.
+
 ## 0.11.0 – 2026-10-18
 
 - myStrom tile: plugs and lamps from the myStrom app with power now, a switch each, and today's energy and cost.

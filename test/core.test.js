@@ -20,7 +20,7 @@ test("icons and kinds from Docker images and names", () => {
 	assert.equal(niceName("qbittorrent"), "qBittorrent");
 	assert.equal(guessKind("qbittorrent", "linuxserver/qbittorrent"), "qbittorrent");
 	assert.equal(guessKind("mm-manager"), "mmmanager");
-	assert.equal(guessKind("grafana"), null);
+	assert.equal(guessKind("flaresolverr"), null);
 });
 
 test("suggestion names: registry images keep theirs, compose builds use the service or project", () => {
