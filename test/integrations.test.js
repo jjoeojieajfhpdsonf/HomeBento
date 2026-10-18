@@ -44,12 +44,13 @@ test.before(async () => {
 			req.on("data", (c) => (body += c));
 			req.on("end", () => {
 				if (body === "username=admin&password=pw") return json("Ok.", 200, { "Set-Cookie": "SID=abc; HttpOnly; path=/" });
+				if (body === "username=v5&password=p%26w") return json("Ok.", 200, { "Set-Cookie": ["other=1; path=/", "QBT_SID_8082=abc; HttpOnly; path=/"] });
 				json("Fails.", 200);
 			});
 			return;
 		}
 		if (p.startsWith("/qb/api/v2/")) {
-			if (req.headers.cookie !== "SID=abc") return json({}, 403);
+			if (req.headers.cookie !== "SID=abc" && req.headers.cookie !== "QBT_SID_8082=abc") return json({}, 403);
 			if (p === "/qb/api/v2/transfer/info") return json({ dl_info_speed: 12_400_000, up_info_speed: 300_000 });
 			if (p === "/qb/api/v2/torrents/info") return json([{ name: "Arcane", progress: 0.64, dlspeed: 8_000_000, eta: 360, state: "downloading" }]);
 		}
@@ -104,6 +105,9 @@ test("qBittorrent: logs in when needed and keeps the cookie", async () => {
 	assert.equal(error, undefined);
 	assert.equal(data.down, 12_400_000);
 	assert.equal(data.torrents[0].name, "Arcane");
+	const v5 = await new Integrations(store({ username: "v5", password: "p&w" })).data({ id: "q5", kind: "qbittorrent", url: `${base}/qb` });
+	assert.equal(v5.error, undefined, "qBittorrent 5 cookie name QBT_SID_<port>");
+	assert.equal(v5.data.torrents.length, 1);
 	const bad = await new Integrations(store({ username: "admin", password: "wrong" })).data({ id: "q2", kind: "qbittorrent", url: `${base}/qb` });
 	assert.match(bad.error, /Login failed/);
 });

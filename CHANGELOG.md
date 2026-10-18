@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 – 2026-10-18
+
+- "Set up automatically": running containers with a web page become services with matching tiles in one click (also "Add all" in the Docker suggestions).
+- The web address of a container is found by trying its ports (no more torrent or agent ports), HomeBento doesn't suggest itself, and icons that don't exist aren't used.
+- API keys of Sonarr, Radarr and Prowlarr are read from their containers.
+- Service tiles show more: CPU and memory of the container, uptime, library size, queue and health warnings of Sonarr/Radarr; bigger tiles show the next items.
+- Prowlarr integration.
+- qBittorrent 5: login works (session cookie `QBT_SID_<port>`).
+- Language can be chosen in the settings (per device).
+
 ## 0.1.0 – 2026-10-18
 
 First version.

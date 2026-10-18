@@ -86,7 +86,7 @@ async function loadLive() {
 
 function render() {
 	const app = $("#app");
-	app.replaceChildren(h("div", { class: "wrap" }, topBar(), h("div", { class: `bento${S.editing ? " editing" : ""}`, id: "bento" })));
+	app.replaceChildren(h("div", { class: "wrap" }, topBar(), setupBanner(), h("div", { class: `bento${S.editing ? " editing" : ""}`, id: "bento" })));
 	document.title = S.state.config.title || t("app.title");
 	renderGrid();
 }
@@ -112,6 +112,27 @@ function topBar() {
 		h("button", { class: "icon-btn", title: t("app.settings"), "aria-label": t("app.settings"), onclick: settingsSheet, html: UI.gear }),
 		h("button", { class: `btn${S.editing ? " on" : ""}`, onclick: toggleEdit }, S.editing ? t("app.done") : t("app.edit"))
 	);
+}
+
+// First start with Docker: offer to set everything up in one go.
+function setupBanner() {
+	if (services().length || !S.state.docker) return null;
+	return h("div", { class: "setup-banner" },
+		h("div", { class: "grow" }, h("b", {}, t("setup.found")), h("span", {}, t("setup.text"))),
+		h("button", { class: "btn primary", onclick: (e) => autoSetup(e.currentTarget) }, t("setup.go")));
+}
+
+async function autoSetup(btn) {
+	btn.classList.add("busy");
+	const r = await guard(() => api("POST", "/api/setup", { board: S.boardId }));
+	btn.classList.remove("busy");
+	if (!r) return;
+	toast(r.added ? t("setup.done", { n: r.added }) : t("setup.none"));
+	await loadState();
+	if (S.editing) S.tiles = structuredClone(board().tiles);
+	render();
+	setTimeout(loadLive, 1500);
+	return r;
 }
 
 function switchBoard(id) {
@@ -633,7 +654,9 @@ async function addTileSheet() {
 		const r = await api("GET", "/api/discover").catch((err) => ({ items: [], error: err.message }));
 		const items = r.items || [];
 		if (!items.length) return dockerBox.replaceChildren(h("div", { class: "row" }, h("span", { class: "sub" }, r.error || (r.docker === false ? t("add.dockerOff") : t("add.dockerNone")))));
+		const withUrl = items.filter((it) => it.url && it.state === "running");
 		dockerBox.replaceChildren(
+			withUrl.length > 1 ? h("div", { class: "row" }, h("span", { class: "sub grow" }, `${withUrl.length} ×`), h("button", { class: "btn primary", onclick: async (e) => { if (await autoSetup(e.currentTarget)) sheet.close(); } }, t("add.all"))) : "",
 			...items.map((it) =>
 				row(logo({ name: it.name, icon: it.icon }), it.name, `${it.url ? it.url.replace(/^https?:\/\//, "") : it.image}${it.state !== "running" ? ` · ${it.state}` : ""}`, () =>
 					serviceForm(null, { name: it.name, url: it.url, icon: it.icon, kind: it.kind, container: it.container }, (svc) => {
@@ -737,8 +760,23 @@ function settingsSheet() {
 			render();
 		}
 	} });
+	let cur = "";
+	try {
+		cur = localStorage.getItem("homebento.lang") || "";
+	} catch {
+		// storage blocked
+	}
+	const lang = h("select", { class: "input", onchange: (e) => {
+		try {
+			if (e.target.value) localStorage.setItem("homebento.lang", e.target.value);
+			else localStorage.removeItem("homebento.lang");
+		} catch {
+			// storage blocked
+		}
+		location.reload();
+	} }, [["", t("settings.langAuto")], ["de", "Deutsch"], ["en", "English"]].map(([v, l]) => h("option", { value: v, selected: v === cur }, l)));
 	sheet.body.append(
-		h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title)),
+		h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title), h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang)),
 		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
 			h("div", {}, h("span", {}, t("settings.docker")), h("span", {}, S.state.docker ? t("settings.dockerOn") : t("settings.dockerOff"))),

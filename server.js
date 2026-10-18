@@ -41,6 +41,20 @@ function notify(ev, s) {
 	});
 }
 
+// Sonarr, Radarr and Prowlarr keep their API key in /config/config.xml: read it from the
+// linked container, so nobody has to copy it by hand.
+async function autoKeys(s) {
+	const k = KINDS[s.kind];
+	if (!k || !k.arr || !s.container || store.secretsOf(s.id).apiKey || docker.available === false) return false;
+	const key = await docker.arrApiKey(s.container).catch(() => null);
+	if (!key) return false;
+	store.setSecret(s.id, "apiKey", key);
+	integrations.forget(s.id);
+	return true;
+}
+
+const hostOf = (req) => String(req.headers.host || "localhost").replace(/:\d+$/, "");
+
 // ---------- HTTP helpers ----------
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
@@ -162,6 +176,7 @@ function days(sid, n) {
 
 route("POST", "/api/services", async (body) => {
 	const s = store.saveService(body);
+	await autoKeys(s);
 	monitor.check(s).catch(() => {});
 	return { service: store.public().services.find((x) => x.id === s.id) };
 });
@@ -169,6 +184,7 @@ route("POST", "/api/services", async (body) => {
 route("POST", "/api/services/:id", async (body, p) => {
 	const s = store.saveService(body, p.id);
 	integrations.forget(s.id);
+	await autoKeys(s);
 	monitor.check(s).catch(() => {});
 	return { service: store.public().services.find((x) => x.id === s.id) };
 });
@@ -214,8 +230,31 @@ route("POST", "/api/services/:id/check", async (body, p) => monitor.check(store.
 
 route("GET", "/api/discover", async (body, p, query, req) => {
 	if (docker.available === false) return { docker: false, items: [] };
-	const hostName = String(req.headers.host || "localhost").replace(/:\d+$/, "");
-	return { docker: true, items: await docker.suggestions(store.config.services, hostName) };
+	return { docker: true, items: await docker.suggestions(store.config.services, hostOf(req)) };
+});
+
+// "Set up automatically": every running container with a web page becomes a service, with
+// logins read where possible, and the board gets the matching tiles.
+const NOT_SERVICES = /homarr|homepage|dashy|heimdall|homedash|organizr|flame|watchtower|portainer.agent/i;
+route("POST", "/api/setup", async (body, p, query, req) => {
+	if (docker.available === false) throw new UserError("Docker is not connected");
+	const items = (await docker.suggestions(store.config.services, hostOf(req))).filter((i) => i.state === "running" && i.url && !NOT_SERVICES.test(`${i.container} ${i.image}`));
+	const created = items.map((it) => store.saveService({ name: it.name, url: it.url, icon: it.icon, kind: it.kind, container: it.container, insecure: it.url.startsWith("https:") }));
+	await Promise.all(created.map(autoKeys));
+	const b = store.config.boards.find((x) => x.id === body.board) || store.config.boards[0];
+	const tiles = b.tiles.slice();
+	const has = (type) => tiles.some((t) => t.type === type);
+	for (const type of ["status", "host"]) if (!has(type)) tiles.push({ type, w: 2, h: type === "host" ? 2 : 1 });
+	for (const s of created) {
+		const k = s.kind && KINDS[s.kind];
+		if (k && k.tile && k.tile !== "calendar" && !tiles.some((t) => t.type === k.tile)) tiles.push({ type: k.tile, service: s.id, ...{ jellyfin: { w: 3, h: 3 }, downloads: { w: 3, h: 1 }, solar: { w: 2, h: 2 } }[k.tile] });
+	}
+	if (!has("calendar") && store.config.services.some((s) => s.kind === "sonarr" || s.kind === "radarr")) tiles.push({ type: "calendar", w: 3, h: 2 });
+	for (const s of created) tiles.push({ type: "service", service: s.id, w: 1, h: 1 });
+	if (!has("uptime")) tiles.push({ type: "uptime", w: 2, h: 3 });
+	store.setTiles(b.id, tiles);
+	for (const s of created) monitor.check(s).catch(() => {});
+	return { added: created.length, names: created.map((s) => s.name) };
 });
 
 route("GET", "/api/containers", async () => {
@@ -284,4 +323,6 @@ server.listen(PORT, HOST, () => {
 	console.log(`HomeBento ${VERSION} on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
 	console.log(`Data in ${DATA_DIR} · Docker: ${docker.available === false ? "not found" : docker.socket} · checks every ${CHECK_SECONDS} s`);
 	monitor.start();
+	// fill in API keys that can be read from containers (e.g. after an update that added this)
+	setTimeout(() => Promise.all(store.config.services.map((s) => autoKeys(s).catch(() => false))).then((r) => r.some(Boolean) && console.log("API keys read from containers")), 2000);
 });

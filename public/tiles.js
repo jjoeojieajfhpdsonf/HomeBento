@@ -143,6 +143,7 @@ function statLine(s, st, d) {
 			const next = data.items.find((i) => i.at > Date.now());
 			if (next) return t("cal.next", { d: fmtWhen(next.at, false) });
 		}
+		if (s.kind === "prowlarr") return t("arr.indexers", { n: data.enabled });
 		if (s.kind === "qbittorrent") return data.torrents.length ? `↓ ${fmtSpeed(data.down)}` : t("dl.idle");
 		if (s.kind === "solar" && data.pv !== null) return fmtW(data.pv);
 		if (s.kind === "mmmanager" && data.process) return `${data.process === "online" ? t("mm.online") : data.process}${data.version ? ` · ${data.version}` : ""}`;
@@ -151,9 +152,42 @@ function statLine(s, st, d) {
 	return fmtMs(st.ms);
 }
 
+// Up to two short facts for the corner of a service tile: what the service knows about itself,
+// else CPU and memory of its container, else uptime and how long it has been up.
+function facts(s, st, d) {
+	const out = [];
+	const data = d && d.data;
+	if (data && data.warnings && data.warnings.length) out.push({ text: `⚠ ${data.warnings.length}`, cls: "warn", title: data.warnings.join("\n") });
+	if (data && (s.kind === "sonarr" || s.kind === "radarr")) {
+		if (data.queue) out.push({ text: `↓ ${data.queue}` , title: t("arr.queue", { n: data.queue }) });
+		if (data.library !== null && data.library !== undefined) out.push({ text: t(s.kind === "sonarr" ? "arr.series" : "arr.movies", { n: nf(data.library) }) });
+	}
+	if (data && s.kind === "jellyfin" && data.counts) out.push({ text: t("arr.movies", { n: nf(data.counts.movies) }) }, { text: t("arr.series", { n: nf(data.counts.series) }) });
+	if (data && s.kind === "qbittorrent" && data.up) out.push({ text: `↑ ${fmtSpeed(data.up)}` });
+	const c = st && st.container;
+	if (c && c.state === "running" && c.cpu !== undefined) {
+		if (c.cpu !== null) out.push({ text: `CPU ${nf(c.cpu, c.cpu < 10 ? 1 : 0)} %`, title: c.status });
+		if (c.memory) out.push({ text: fmtBytes(c.memory), title: c.status });
+	}
+	if (st && st.uptime !== null && st.uptime !== undefined && st.status !== "down") out.push({ text: `${nf(st.uptime, st.uptime === 100 ? 0 : 1)} %`, title: t("fact.uptime") });
+	if (st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000) out.push({ text: fmtDuration(Date.now() - st.since), title: t("status.since", { t: fmtDuration(Date.now() - st.since) }) });
+	return out.slice(0, 2);
+}
+const factsHtml = (list) => (list.length ? `<div class="facts">${list.map((f) => `<span class="${f.cls || ""}"${f.title ? ` title="${esc(f.title)}"` : ""}>${esc(f.text)}</span>`).join("")}</div>` : "");
+
 function setupHint(s, d) {
 	if (!d || !d.error) return "";
 	return `<div class="setup"><span>${esc(d.error)}</span><button class="btn" data-setup="${esc(s.id)}">${t("setup.needed")}</button></div>`;
+}
+
+// Bigger service tiles: a few more lines (next items, warnings, container state).
+function moreLines(s, st, d) {
+	const lines = [];
+	const data = d && d.data;
+	if (data && data.warnings) for (const w of data.warnings.slice(0, 2)) lines.push(`<div class="s warn" title="${esc(w)}">⚠ ${esc(w)}</div>`);
+	if (data && data.items) for (const i of data.items.filter((x) => x.at > Date.now()).slice(0, 2)) lines.push(`<div class="s">${esc(fmtWhen(i.at, false))} · ${esc(i.title)}</div>`);
+	if (st.container && st.container.status) lines.push(`<div class="s faint">${esc(st.container.status)}</div>`);
+	return lines.slice(0, 3).join("");
 }
 
 // ---------- tiles ----------
@@ -164,11 +198,13 @@ const TILES = {
 		if (!s) return null;
 		const st = x.live.status[s.id] || { status: "pending" };
 		const d = x.live.data[s.id];
-		const tag = st.status === "down" ? `<span class="tag down corner">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow corner">${t("tag.slow")}</span>` : "";
+		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : "";
 		const line = statLine(s, st, d);
+		const side = tag || factsHtml(facts(s, st, d));
+		const extra = tile.h > 1 ? moreLines(s, st, d) : "";
 		const sp = tile.h > 1 && st.recent && st.status !== "down" ? `<div class="bottom">${spark(st.recent)}</div>` : "";
-		if (tile.w > 1 && tile.h === 1) return { c: colorOf(s), cls: `mini ${st.status}`, html: `${logo(s)}<div class="txt"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div></div>${tag}` };
-		return { c: colorOf(s), cls: `mini ${st.status}`, html: `${logo(s)}${tag}<div style="min-width:0;max-width:100%"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div></div>${sp}` };
+		if (tile.w > 1 && tile.h === 1) return { c: colorOf(s), cls: `mini ${st.status}`, html: `${logo(s)}<div class="txt"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div></div>${side}` };
+		return { c: colorOf(s), cls: `mini ${st.status}`, html: `<div class="top">${logo(s)}${side}</div><div class="txt"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div>${extra}</div>${sp}` };
 	},
 
 	status(tile, x) {

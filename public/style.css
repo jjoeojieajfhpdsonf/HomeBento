@@ -66,6 +66,18 @@ a { color: inherit; }
 
 /* service tile */
 .mini { justify-content: space-between; }
+.mini .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.mini .txt { min-width: 0; max-width: 100%; }
+.facts { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; }
+.facts span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.facts .warn, .s.warn { color: var(--warn); }
+.mini.h2 .txt, .mini.h3 .txt { margin-top: 10px; }
+.mini.h2, .mini.h3 { justify-content: flex-start; }
+.mini.w2.h1 .facts { margin-left: auto; }
+.setup-banner { display: flex; align-items: center; gap: 14px; background: var(--tile); border-radius: var(--r); padding: 16px 18px; margin-bottom: var(--gap); box-shadow: inset 0 0 0 1px rgba(157,188,255,.18); }
+.setup-banner .grow { flex: 1; min-width: 0; }
+.setup-banner b { display: block; }
+.setup-banner span { color: var(--muted); font-size: 13px; }
 .mini .logo { width: 34px; height: 34px; border-radius: 10px; }
 .mini .n { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -77,6 +89,7 @@ a { color: inherit; }
 .mini.w2 { flex-direction: row; align-items: center; gap: 12px; justify-content: flex-start; }
 .mini.w2 .txt { min-width: 0; flex: 1; }
 .mini.w2 .corner { position: static; }
+.mini .tag { flex: none; }
 svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb, var(--c, var(--accent)) 70%, white 10%); }
 
 /* status */

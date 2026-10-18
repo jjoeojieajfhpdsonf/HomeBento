@@ -5,7 +5,8 @@ A dashboard for the services at home that does more than link to them: every til
 - **Tiles with content:** what's playing on Jellyfin and what was added, what Sonarr and Radarr bring next (one calendar), what qBittorrent downloads, what the solar plant produces, CPU / memory / disk of the server, uptime of every service over 24 hours.
 - **Status with history:** every service is checked regularly. You see response times, uptime over 30 days and when something went down, not just a green dot.
 - **Actions:** start, stop and restart Docker containers and read their logs right from the dashboard. MagicMirror can be restarted through [MagicMirror Manager](https://github.com/jjoeojieajfhpdsonf/magicMirrorManager).
-- **Set up in the browser:** add services and tiles, arrange them by dragging, change sizes, several pages. Docker containers are suggested automatically (with name, address and icon; `homepage.*` labels are understood too).
+- **Sets itself up:** one click turns your running containers into services with matching tiles. The web port is found by trying the container's ports, and the API keys of Sonarr, Radarr and Prowlarr are read from their containers.
+- **Set up in the browser:** add services and tiles, arrange them by dragging, change sizes, several pages. Docker containers are suggested with name, address and icon (`homepage.*` labels are understood too).
 - **Notifications:** optional push message when a service goes down or comes back (ntfy or any URL that takes a POST).
 - **Light:** one Node.js process, **no dependencies**, phone and laptop layouts, German and English.
 
@@ -58,12 +59,13 @@ Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 | Service | Shows | Needs |
 |---|---|---|
 | Jellyfin | now playing, recently added, library size | API key (Dashboard → API Keys) |
-| Sonarr, Radarr | upcoming episodes and movies in one calendar | API key (Settings → General) |
+| Sonarr, Radarr | upcoming episodes and movies in one calendar, queue, library size, health warnings | API key – read from the linked container automatically |
+| Prowlarr | active indexers, health warnings | API key – read from the linked container automatically |
 | qBittorrent | speed, active downloads | user and password, unless the local network may skip the login |
 | Solar dashboard | power now, today's yield, day curve | – |
 | MagicMirror Manager | process state, version, restart | password, if the manager has one |
 
-Every other service gets status, response time and uptime, and container actions if a container is linked.
+Every other service gets status, response time, uptime, and – with a linked container – CPU, memory and container actions.
 
 Logins are stored on the server only (`data/secrets.json`) and never sent to the browser. Jellyfin posters are loaded through the dashboard so the API key stays on the server.
 

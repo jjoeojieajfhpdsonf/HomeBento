@@ -1,6 +1,17 @@
 "use strict";
 // Texts in German and English; the browser language decides (German for de-*, else English).
-const LANG = /^de\b/i.test(navigator.language || "") ? "de" : "en";
+// language: chosen in the settings (this device), else the browser's
+const LANG = (() => {
+	let pick = null;
+	try {
+		pick = localStorage.getItem("homebento.lang");
+	} catch {
+		// storage blocked
+	}
+	if (pick === "de" || pick === "en") return pick;
+	return /^de\b/i.test(navigator.language || "") ? "de" : "en";
+})();
+document.documentElement.lang = LANG;
 const LOCALE = LANG === "de" ? "de-CH" : "en-GB";
 
 const TEXT = {
@@ -45,6 +56,19 @@ const TEXT = {
 		"uptime.title": "Verfügbarkeit",
 		"uptime.hours": "letzte 24 h",
 		"uptime.none": "Noch keine Daten",
+		"arr.indexers": "{n} Indexer aktiv",
+		"arr.queue": "{n} in der Warteschlange",
+		"arr.series": "{n} Serien",
+		"arr.movies": "{n} Filme",
+		"fact.uptime": "Verfügbar in den letzten 24 h",
+		"setup.found": "Docker-Container gefunden",
+		"setup.text": "HomeBento kann deine Services selbst eintragen, mit passenden Kacheln. API-Schlüssel von Sonarr, Radarr und Prowlarr liest es aus den Containern.",
+		"setup.go": "Automatisch einrichten",
+		"setup.done": "{n} Services eingerichtet",
+		"setup.none": "Keine weiteren Container mit Weboberfläche gefunden",
+		"add.all": "Alle übernehmen",
+		"settings.lang": "Sprache",
+		"settings.langAuto": "Wie der Browser",
 		"jf.now": "Läuft gerade",
 		"jf.nothing": "Gerade schaut niemand",
 		"jf.recent": "Neu hinzugefügt",
@@ -213,6 +237,19 @@ const TEXT = {
 		"uptime.title": "Uptime",
 		"uptime.hours": "last 24 h",
 		"uptime.none": "No data yet",
+		"arr.indexers": "{n} indexers active",
+		"arr.queue": "{n} in the queue",
+		"arr.series": "{n} shows",
+		"arr.movies": "{n} movies",
+		"fact.uptime": "Uptime in the last 24 h",
+		"setup.found": "Docker containers found",
+		"setup.text": "HomeBento can add your services by itself, with matching tiles. API keys of Sonarr, Radarr and Prowlarr are read from the containers.",
+		"setup.go": "Set up automatically",
+		"setup.done": "{n} services set up",
+		"setup.none": "No more containers with a web page found",
+		"add.all": "Add all",
+		"settings.lang": "Language",
+		"settings.langAuto": "Like the browser",
 		"jf.now": "Now playing",
 		"jf.nothing": "Nobody is watching",
 		"jf.recent": "Recently added",
