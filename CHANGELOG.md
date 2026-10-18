@@ -7,7 +7,7 @@
 - Radarr/Sonarr covers through HomeBento (the API key stays on the server).
 - Swiss date and number format when the browser is in Switzerland (time zone), also with English texts.
 - Tailscale: share a service right from the settings.
-- Wider layout on big screens (up to 1880 px, as many tile columns as fit).
+- Wider layout on big screens (up to 1480 px, as many tile columns as fit).
 - Fixed: "null" shown in the command palette and the settings.
 
 ## 0.5.2 – 2026-10-18

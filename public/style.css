@@ -17,7 +17,7 @@ a { color: inherit; }
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.14) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; } ::-webkit-scrollbar-track { background: transparent; }
 
-.wrap { max-width: 1880px; margin: 0 auto; padding: 22px 28px 70px; }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 22px 28px 70px; }
 
 /* top bar */
 .bar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; min-height: 38px; }

@@ -16,21 +16,8 @@ body { background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system,
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .num { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); } .faint { color: var(--faint); } .sm { font-size: 12.5px; }
-.wrap { max-width: 1880px; margin: 0 auto; padding: 20px 28px 60px; }
-/* wide screens: content on the left, all services as a column on the right */
-.layout { display: grid; grid-template-columns: 1fr; gap: 0 18px; }
-@media (min-width: 1500px) {
-	.layout { grid-template-columns: minmax(0, 1fr) 460px; align-items: start; }
-	.layout aside { position: sticky; top: 16px; }
-	.layout aside .sec { margin-top: 0; }
-	.layout aside .row { grid-template-columns: 30px minmax(0, 1fr) 90px 56px 40px; gap: 10px; padding: 7px 14px; }
-	.layout aside .row .stat, .layout aside .row .up { display: none; }
-	.layout aside .row .spark { width: 90px; }
-	.layout aside .acts { position: absolute; right: 10px; background: var(--tile); }
-	.layout aside .row { position: relative; }
-	.layout aside .rows { max-height: calc(100vh - 80px); overflow: auto; }
-}
-@media (min-width: 1800px) { .layout { grid-template-columns: minmax(0, 1fr) 520px; } .layout aside .row .stat { display: block; } .layout aside .row { grid-template-columns: 30px minmax(0, 1fr) 110px 90px 56px 40px; } }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 20px 28px 60px; }
+.layout { display: block; }
 
 .bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .tabs { display: flex; gap: 4px; background: var(--tile); padding: 4px; border-radius: 12px; }
