@@ -162,6 +162,39 @@ svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb,
 @media (hover: none) { .t .info { opacity: .8; } }
 .t.down .info, .t.slow .info { display: none; }
 
+/* combined layout: problem strip and service list */
+.attention { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.issue { background: var(--tile); border-radius: 18px; padding: 11px 14px; display: flex; align-items: center; gap: 12px; position: relative; overflow: hidden; min-width: 0; }
+.issue::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+.issue .logo { width: 30px; height: 30px; border-radius: 9px; }
+.issue .grow { flex: 1; min-width: 0; }
+.issue .it { font-weight: 600; }
+.issue .d { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.issue .btn { padding: 6px 12px; font-size: 13px; }
+.allok { color: var(--muted); font-size: 13px; margin: 0 4px 12px; display: flex; align-items: center; gap: 8px; }
+.allok i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.svc-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 4px 10px; }
+.svc-head b { font-size: 15px; font-weight: 650; }
+.svc-rows { background: var(--tile); border-radius: 22px; overflow: hidden; }
+.svc-row { display: grid; grid-template-columns: 32px minmax(180px, 1.2fr) minmax(220px, 1.6fr) 130px auto; align-items: center; gap: 16px; padding: 9px 16px; cursor: pointer; }
+.svc-row + .svc-row { border-top: 1px solid var(--line); }
+.svc-row:hover { background: rgba(255,255,255,.02); }
+.svc-row .logo { width: 32px; height: 32px; border-radius: 9px; }
+.svc-name { min-width: 0; }
+.svc-name .n { font-weight: 580; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.svc-name .s { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-name .s.bad { color: var(--bad); } .svc-name .s.warn { color: var(--warn); } .svc-name .s.faint { color: var(--faint); }
+.svc-row .metrics { margin-top: 0; grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.svc-row .metrics > div:nth-child(n+4) { display: block; }
+.svc-spark svg.spark { height: 26px; }
+.svc-row.down .metrics, .svc-row.down .svc-spark { opacity: .4; }
+.svc-acts { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.svc-row:hover .svc-acts { opacity: 1; }
+.svc-acts .ib { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+.svc-acts .ib:hover { background: var(--tile-2); color: var(--text); }
+.svc-acts .ib svg { width: 16px; height: 16px; }
+@media (max-width: 900px) { .svc-row { grid-template-columns: 32px 1fr auto; } .svc-row .metrics, .svc-spark { display: none; } .svc-acts { opacity: 1; } }
+
 /* status */
 .status-big { font-size: 22px; font-weight: 620; margin-top: 8px; }
 
@@ -318,6 +351,23 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .rows .plus { color: var(--accent); font-size: 20px; font-weight: 400; width: 24px; text-align: center; }
 .rows .done { color: var(--faint); font-size: 12px; }
 .rows > button:disabled { opacity: .5; cursor: default; }
+
+/* Tailscale list in the settings */
+.ts-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; width: 100%; text-align: left; }
+.ts-row + .ts-row { border-top: 1px solid var(--line); }
+.ts-row .logo { width: 30px; height: 30px; border-radius: 9px; }
+.ts-row .grow { flex: 1; min-width: 0; }
+.ts-row .title { font-weight: 560; display: flex; align-items: center; }
+.ts-row .sub { color: var(--muted); font-size: 12.5px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.ts-row a.sub:hover { color: var(--accent); }
+.ts-x { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--faint); opacity: 0; transition: opacity .15s; flex: none; }
+.ts-x svg { width: 12px; height: 12px; }
+.ts-row:hover .ts-x, .ts-x:focus-visible { opacity: 1; }
+.ts-x:hover { background: rgba(255,96,102,.12); color: var(--bad); }
+@media (hover: none) { .ts-x { opacity: .7; } }
+.ts-add { color: var(--accent); font-weight: 560; }
+.ts-add:hover { background: rgba(255,255,255,.025); }
+.ts-row .btn { padding: 6px 12px; font-size: 13px; background: var(--tile-3); }
 
 /* forms */
 .field { display: grid; gap: 6px; padding: 11px 12px; }

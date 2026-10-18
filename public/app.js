@@ -94,9 +94,18 @@ async function loadLive() {
 
 // ---------- layout ----------
 
+const combined = () => S.state.config.layout === "combined" && !S.editing;
+
 function render() {
 	const app = $("#app");
-	app.replaceChildren(h("div", { class: "wrap" }, topBar(), setupBanner(), h("div", { class: `bento${S.editing ? " editing" : ""}`, id: "bento" })));
+	app.replaceChildren(
+		h("div", { class: "wrap" },
+			topBar(),
+			setupBanner(),
+			h("div", { id: "attention" }),
+			h("div", { class: `bento${S.editing ? " editing" : ""}`, id: "bento" }),
+			h("div", { id: "svc-list" }))
+	);
 	document.title = S.state.config.title || t("app.title");
 	renderGrid();
 }
@@ -161,7 +170,10 @@ function renderGrid() {
 	const grid = $("#bento");
 	if (!grid) return;
 	const x = ctx();
-	const list = tiles();
+	// combined layout: services go to the list, the problem strip replaces the status tile
+	const list = combined() ? tiles().filter((tl) => tl.type !== "service" && tl.type !== "status") : tiles();
+	renderAttention();
+	renderServiceList();
 	const seen = new Set();
 	const els = [];
 	for (const tile of list) {
@@ -182,13 +194,108 @@ function renderGrid() {
 		els.push(el);
 	}
 	if (S.editing) els.push(grid.querySelector(":scope > .adder") || h("button", { class: "t w1 h1 adder", onclick: addTileSheet, html: `${UI.plus}${t("tile.add")}` }));
-	else if (!list.length) els.push(grid.querySelector(":scope > .empty") || emptyCard());
+	else if (!tiles().length) els.push(grid.querySelector(":scope > .empty") || emptyCard());
 	// put everything in order, drop what's gone
 	els.forEach((el, i) => {
 		if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
 	});
 	while (grid.children.length > els.length) grid.lastChild.remove();
 }
+
+// ---------- combined layout: problem strip and service list ----------
+
+// The services of this page: those with a tile here, in tile order (none: all services).
+function pageServices() {
+	const ids = [...new Set(tiles().filter((tl) => tl.service).map((tl) => tl.service))];
+	return ids.length ? ids.map(serviceById).filter(Boolean) : services();
+}
+
+function renderAttention() {
+	const el = $("#attention");
+	if (!el) return;
+	if (!combined()) return el.replaceChildren();
+	const live = S.live || { status: {}, data: {} };
+	const items = [];
+	for (const s of pageServices()) {
+		const st = live.status[s.id] || {};
+		const d = live.data[s.id];
+		if (st.status === "down") items.push({ s, c: "var(--bad)", title: t("att.down", { n: s.name }), sub: st.error || "", act: s.container ? ["start", t("sheet.start")] : null });
+		else if (st.status === "slow") items.push({ s, c: "var(--warn)", title: t("att.slow", { n: s.name }), sub: fmtMs(st.ms) });
+		else if (d && d.error) items.push({ s, c: "var(--warn)", title: s.name, sub: d.error, setup: true });
+		else if (d && d.data && d.data.warnings && d.data.warnings.length) items.push({ s, c: "var(--warn)", title: t("att.warnings", { n: s.name, c: d.data.warnings.length }), sub: d.data.warnings[0] });
+	}
+	const key = JSON.stringify(items.map((i) => [i.s.id, i.title, i.sub]));
+	if (el.dataset.key === key) return;
+	el.dataset.key = key;
+	if (!items.length) return el.replaceChildren(h("div", { class: "allok" }, h("i"), t("att.ok", { n: pageServices().length })));
+	el.replaceChildren(
+		h("div", { class: "attention" },
+			items.map((i) =>
+				h("div", { class: "issue", style: `--c:${i.c}` },
+					html(logo(i.s)),
+					h("div", { class: "grow" }, h("div", { class: "it" }, i.title), h("div", { class: "d", title: i.sub }, i.sub)),
+					i.act ? h("button", { class: "btn primary", onclick: (e) => act(e.currentTarget, i.s, i.act[0]) }, i.act[1]) : null,
+					h("button", { class: "btn", onclick: () => (i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details"))))
+		)
+	);
+}
+
+function renderServiceList() {
+	const el = $("#svc-list");
+	if (!el) return;
+	if (!combined()) return el.replaceChildren();
+	const list = tiles().some((tl) => tl.type === "service") ? pageServices() : [];
+	if (!list.length) return el.replaceChildren();
+	let rows = el.querySelector(".svc-rows");
+	if (!rows) {
+		el.replaceChildren(h("div", { class: "svc-head" }, h("b", {}, t("list.title")), h("span", { class: "faint sm" }, String(list.length))), (rows = h("div", { class: "svc-rows" })));
+	} else el.querySelector(".svc-head .faint").textContent = String(list.length);
+	const live = S.live || { status: {}, data: {} };
+	const els = list.map((s) => {
+		const st = live.status[s.id] || { status: "pending" };
+		const d = live.data[s.id];
+		const sub = subLine(s, st, d);
+		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : "";
+		const acts = `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
+		const content = `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s ${sub.cls || ""}" title="${esc(sub.text)}">${esc(sub.text)}</div></div>${metricsHtml(metrics(s, st, d, 4))}<div class="svc-spark">${st.recent ? spark(st.recent) : ""}</div>${acts}`;
+		let row = rows.querySelector(`:scope > .svc-row[data-sid="${s.id}"]`);
+		if (!row) row = h("div", { class: "svc-row", "data-sid": s.id });
+		const cls = `svc-row ${st.status}`;
+		if (row.className !== cls) row.className = cls;
+		row.style.setProperty("--c", colorOf(s));
+		if (row.dataset.html !== content) {
+			row.innerHTML = content;
+			row.dataset.html = content;
+		}
+		return row;
+	});
+	els.forEach((r, i) => rows.children[i] !== r && rows.insertBefore(r, rows.children[i] || null));
+	while (rows.children.length > els.length) rows.lastChild.remove();
+}
+
+// clicks in the list: the row opens the service, the buttons do their thing
+document.addEventListener("click", (e) => {
+	const row = e.target.closest(".svc-row");
+	if (!row) return;
+	const s = serviceById(row.dataset.sid);
+	if (!s) return;
+	const b = e.target.closest("[data-svc-act]");
+	if (b) {
+		const a = b.dataset.svcAct;
+		if (a === "logs") return logsSheet(s);
+		if (a === "details") return serviceSheet(s.id);
+		return act(b, s, a);
+	}
+	const st = S.live && S.live.status[s.id];
+	if (!s.url || (st && st.status === "down")) return serviceSheet(s.id);
+	window.open(urlFor(s), "_blank", "noopener");
+});
+document.addEventListener("contextmenu", (e) => {
+	const row = e.target.closest(".svc-row");
+	if (!row) return;
+	e.preventDefault();
+	serviceSheet(row.dataset.sid);
+});
 
 function controls(tile) {
 	const opts = tile.type === "links" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
@@ -1221,7 +1328,17 @@ function settingsSheet() {
 		location.reload();
 	} }, [["", t("settings.langAuto")], ["de", "Deutsch"], ["en", "English"]].map(([v, l]) => h("option", { value: v, selected: v === cur }, l)));
 	sheet.body.append(
-		h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title), h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang)),
+		h("div", { class: "box" },
+			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
+			h("div", { class: "field" }, h("label", {}, t("settings.layout")),
+				h("select", { class: "input", onchange: async (e) => {
+					if (await guard(() => api("POST", "/api/settings", { layout: e.target.value }))) {
+						await loadState();
+						render();
+					}
+				} }, [["tiles", t("settings.layoutTiles")], ["combined", t("settings.layoutCombined")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.layout || "tiles") === v }, l))),
+				h("div", { class: "help" }, t("settings.layoutHelp"))),
+			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang)),
 		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
 			h("div", {}, h("span", {}, t("settings.docker")), h("span", {}, S.state.docker ? t("settings.dockerOn") : t("settings.dockerOff"))),
@@ -1233,45 +1350,41 @@ function settingsSheet() {
 	);
 }
 
-// Every Tailscale Serve entry of this machine, also those not made in HomeBento.
+// Every Tailscale Serve entry of this machine (also those made by hand), and sharing more.
 function tailscaleSettings() {
-	const ts = S.state.tailscale || {};
 	const box = h("div");
+	let adding = false;
 	const draw = () => {
 		const st = S.state.tailscale || {};
-		const rows = [];
-		if (!st.available) rows.push(h("div", {}, h("span", {}, t("ts.status")), h("span", {}, t("ts.notConnected"))));
-		else if (st.error) rows.push(h("div", {}, h("span", {}, t("ts.status")), h("span", {}, st.error)));
-		else {
-			rows.push(h("div", {}, h("span", {}, t("ts.machine")), h("span", {}, st.dnsName || st.state)));
-			for (const m of st.mappings || []) {
-				const svc = services().find((s) => st.links && st.links[s.id] === m.url);
-				rows.push(h("div", {},
-					h("span", { style: "min-width:0" }, h("a", { href: m.url, target: "_blank", rel: "noopener", style: "color:var(--text)" }, `:${m.port}${m.path === "/" ? "" : m.path}`), " ", h("span", { class: "faint sm" }, `→ ${svc ? svc.name : m.proxy || "–"}${m.funnel ? " · Funnel" : ""}`)),
-					h("button", { class: "btn danger", style: "padding:4px 10px", onclick: async () => {
-						if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
-						const r = await guard(() => api("POST", "/api/tailscale/remove", { port: m.port }));
-						if (r) (S.state.tailscale = r), draw();
-					} }, t("tile.remove"))));
-			}
-			if (!(st.mappings || []).length) rows.push(h("div", {}, h("span", {}, t("ts.none"))));
-			// services on this server that aren't shared yet
-			const free = services().filter((s) => st.local && st.local[s.id] && !(st.links && st.links[s.id]));
-			if (free.length) {
-				const pick = h("select", { class: "input", style: "flex:1" }, h("option", { value: "" }, t("ts.addPick")), free.map((s) => h("option", { value: s.id }, `${s.name} · :${(s.url.match(/:(\d+)/) || [, s.url.startsWith("https") ? "443" : "80"])[1]}`)));
-				const go = h("button", { class: "btn primary", onclick: async () => {
-					if (!pick.value) return;
-					go.classList.add("busy");
-					const r = await guard(() => api("POST", `/api/services/${pick.value}/tailscale`, { enable: true }));
-					go.classList.remove("busy");
-					if (r) (S.state.tailscale = r), draw(), toast(t("ts.on"));
-				} }, t("ts.add"));
-				rows.push(h("div", { style: "gap:8px" }, pick, go));
-			}
-		}
-		box.replaceChildren(h("div", { class: "sec" }, "Tailscale"), h("div", { class: "box kv" }, rows));
+		const head = h("div", { class: "sec" }, "Tailscale", st.dnsName ? h("span", { class: "faint", style: "font-weight:500" }, st.dnsName) : null);
+		if (!st.available || st.error) return box.replaceChildren(head, h("div", { class: "note" }, st.error || t("ts.notConnected")));
+		const rows = (st.mappings || []).map((m) => {
+			const svc = services().find((s) => st.links && st.links[s.id] === m.url);
+			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
+			const name = svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–";
+			return h("div", { class: "ts-row" },
+				html(svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`),
+				h("div", { class: "grow" }, h("div", { class: "title" }, name, m.funnel ? h("span", { class: "tag slow", style: "margin-left:8px" }, "Funnel") : null), h("a", { class: "sub", href: m.url, target: "_blank", rel: "noopener" }, m.url.replace(/^https:\/\//, ""))),
+				h("button", { class: "ts-x", title: t("tile.remove"), "aria-label": t("tile.remove"), onclick: async () => {
+					if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
+					const r = await guard(() => api("POST", "/api/tailscale/remove", { port: m.port }));
+					if (r) (S.state.tailscale = r), draw();
+				}, html: UI.x }));
+		});
+		if (!rows.length) rows.push(h("div", { class: "ts-row" }, h("span", { class: "sub" }, t("ts.none"))));
+		const free = services().filter((s) => st.local && st.local[s.id] && !(st.links && st.links[s.id]));
+		if (free.length && !adding) rows.push(h("button", { class: "ts-row ts-add", onclick: () => ((adding = true), draw()) }, html(`<span class="logo" style="--c:var(--accent)">${UI.plus}</span>`), h("span", {}, t("ts.add"))));
+		if (adding)
+			for (const s of free)
+				rows.push(h("div", { class: "ts-row" }, html(logo(s)), h("div", { class: "grow" }, h("div", { class: "title" }, s.name), h("div", { class: "sub" }, s.url.replace(/^https?:\/\//, ""))),
+					h("button", { class: "btn", onclick: async (e) => {
+						e.currentTarget.classList.add("busy");
+						const r = await guard(() => api("POST", `/api/services/${s.id}/tailscale`, { enable: true }));
+						if (r) (S.state.tailscale = r), (adding = false), draw(), toast(`${t("ts.on")} ${tsLink(s) || ""}`);
+					} }, t("ts.shareBtn"))));
+		box.replaceChildren(head, h("div", { class: "box" }, rows));
 	};
-	if (ts.available !== undefined) draw();
+	draw();
 	return box;
 }
 

@@ -346,7 +346,10 @@ route("POST", "/api/boards", (body) => ({ board: store.addBoard(body.name) }));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
 route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.id, body.tiles) }));
-route("POST", "/api/settings", (body) => store.setTitle(body.title));
+route("POST", "/api/settings", (body) => {
+	if (body.title !== undefined) store.setTitle(body.title);
+	if (body.layout !== undefined) store.setLayout(body.layout);
+});
 
 // ---------- server ----------
 

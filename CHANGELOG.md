@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 – 2026-10-18
+
+- New layout "Combined" (Settings → Layout): problems of the page on top with their action, the content tiles, and the services of the page as a list with key figures, history and actions on hover. "Tiles" stays the default; edit mode always shows all tiles.
+- Tailscale in the settings: a clean list of all entries (service name, address, × to remove) and "Share a service" to add one.
+
 ## 0.6.1 – 2026-10-18
 
 - Logs are readable: time, level and message in columns (the app's own time stamp and thread number left out), search with highlighting, filter for warnings and errors, repeated lines folded ("×12 · last 11:03"), stack traces kept with their error, live updates, choice of how many lines.
