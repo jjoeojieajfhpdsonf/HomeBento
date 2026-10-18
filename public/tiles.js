@@ -152,29 +152,49 @@ function statLine(s, st, d) {
 	return fmtMs(st.ms);
 }
 
-// Up to two short facts for the corner of a service tile: what the service knows about itself,
-// else CPU and memory of its container, else uptime and how long it has been up.
-function facts(s, st, d) {
-	const out = [];
+// Key figures of a service, shown as a row of numbers with labels.
+function metrics(s, st, d, max = 3) {
 	const data = d && d.data;
-	if (data && data.warnings && data.warnings.length) out.push({ text: `⚠ ${data.warnings.length}`, cls: "warn", title: data.warnings.join("\n") });
-	if (data && (s.kind === "sonarr" || s.kind === "radarr")) {
-		if (data.queue) out.push({ text: `↓ ${data.queue}` , title: t("arr.queue", { n: data.queue }) });
-		if (data.library !== null && data.library !== undefined) out.push({ text: t(s.kind === "sonarr" ? "arr.series" : "arr.movies", { n: nf(data.library) }) });
+	const m = (v, l, cls) => ({ v: v === null || v === undefined ? "–" : String(v), l, cls });
+	let out = null;
+	if (data) {
+		if (s.kind === "jellyfin") out = [m(data.now.length, t("m.streams")), m(data.counts && nf(data.counts.movies), t("m.movies")), m(data.counts && nf(data.counts.series), t("m.series")), m(data.sessions, t("m.sessions"))];
+		if (s.kind === "sonarr") out = [m(data.library !== null ? nf(data.library) : null, t("m.series")), m(data.queue, t("m.queue")), m(data.wanted !== null ? nf(data.wanted) : null, t("m.wanted")), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
+		if (s.kind === "radarr") out = [m(data.library !== null ? nf(data.library) : null, t("m.movies")), m(data.queue, t("m.queue")), m(data.wanted !== null ? nf(data.wanted) : null, t("m.wanted")), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
+		if (s.kind === "qbittorrent") out = [m(nf((data.down || 0) / 1e6, 1), "↓ MB/s"), m(nf((data.up || 0) / 1e6, 1), "↑ MB/s"), m(data.downloading, t("m.loading")), m(data.seeding, t("m.seeding"))];
+		if (s.kind === "prowlarr") out = [m(data.enabled, t("m.indexers")), m(data.failing, t("m.failing"), data.failing ? "warn" : ""), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
+		if (s.kind === "solar") out = [m(data.pv !== null ? nf(data.pv / 1000, 1) : null, "kW"), m(data.todayWh !== null ? nf(data.todayWh / 1000, 1) : null, t("m.todayKwh")), m(data.battery !== null ? `${data.battery} %` : null, t("m.battery")), m(data.use !== null ? nf(data.use / 1000, 1) : null, t("m.houseKw"))];
+		if (s.kind === "mmmanager") out = [m(data.process === "online" ? t("mm.online") : data.process, t("m.state"), data.process && data.process !== "online" ? "warn" : ""), m(data.version, "Version"), m(data.restarts, t("m.restarts"))];
 	}
-	if (data && s.kind === "jellyfin" && data.counts) out.push({ text: t("arr.movies", { n: nf(data.counts.movies) }) }, { text: t("arr.series", { n: nf(data.counts.series) }) });
-	if (data && s.kind === "qbittorrent" && data.up) out.push({ text: `↑ ${fmtSpeed(data.up)}` });
-	const c = st && st.container;
-	if (c && c.state === "running" && c.cpu !== undefined) {
-		if (c.cpu !== null) out.push({ text: `CPU ${nf(c.cpu, c.cpu < 10 ? 1 : 0)} %`, title: c.status });
-		if (c.memory) out.push({ text: fmtBytes(c.memory), title: c.status });
+	if (!out) {
+		const c = st && st.container;
+		const up = st && st.uptime !== null && st.uptime !== undefined ? `${nf(st.uptime, st.uptime === 100 ? 0 : 1)} %` : null;
+		const since = st && st.since && st.status === "up" ? fmtDuration(Date.now() - st.since) : null;
+		out = c && c.state === "running" && c.cpu !== undefined
+			? [m(c.cpu !== null ? `${nf(c.cpu, c.cpu < 10 ? 1 : 0)} %` : null, "CPU"), m(c.memory ? fmtBytes(c.memory) : null, t("m.memory")), m(st.ms !== null && st.ms !== undefined ? fmtMs(st.ms) : null, t("m.response")), m(up, t("m.online24"), st.uptime < 99 ? "warn" : "")]
+			: [m(st && st.ms !== null && st.ms !== undefined ? fmtMs(st.ms) : null, t("m.response")), m(up, t("m.online24"), st && st.uptime < 99 ? "warn" : ""), m(since, t("m.running"))];
 	}
-	// uptime only when something happened; a healthy service just says how long it has been up
-	if (st && st.uptime !== null && st.uptime !== undefined && st.uptime < 100) out.push({ text: t("fact.online", { v: nf(st.uptime, 1) }), cls: st.uptime < 99 ? "warn" : "", title: t("fact.uptime") });
-	if (st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000) out.push({ text: t("status.since", { t: fmtDuration(Date.now() - st.since) }) });
-	return out.slice(0, 2);
+	return out.slice(0, max);
 }
-const factsHtml = (list) => (list.length ? `<div class="facts">${list.map((f) => `<span class="${f.cls || ""}"${f.title ? ` title="${esc(f.title)}"` : ""}>${esc(f.text)}</span>`).join("")}</div>` : "");
+const metricsHtml = (list) => `<div class="metrics" style="--mc:${list.length}">${list.map((x) => `<div class="${x.cls || ""}"><div class="v" title="${esc(x.v)}">${esc(x.v)}</div><div class="l">${esc(x.l)}</div></div>`).join("")}</div>`;
+
+// One line under the name: what the service is doing right now, or its address.
+function subLine(s, st, d) {
+	if (!st || st.status === "pending") return { text: t("status.checking") };
+	if (st.status === "down") return { text: st.error || t("status.down"), cls: "bad" };
+	if (d && d.error) return { text: d.error, cls: "warn" };
+	const data = d && d.data;
+	if (data) {
+		if (s.kind === "jellyfin" && data.now.length) return { text: t("jf.plays", { u: data.now[0].user, t: data.now[0].title }) };
+		if ((s.kind === "sonarr" || s.kind === "radarr") && data.items) {
+			const next = data.items.find((i) => i.at > Date.now());
+			if (next) return { text: `${fmtWhen(next.at, false)} · ${next.title}` };
+		}
+		if (s.kind === "qbittorrent" && data.torrents.length) return { text: data.torrents[0].name };
+		if (s.kind === "solar" && data.use !== null) return { text: t("solar.use", { v: fmtW(data.use) }) };
+	}
+	return { text: s.url ? s.url.replace(/^https?:\/\//, "") : t("status.unknown"), cls: "faint" };
+}
 
 function setupHint(s, d) {
 	if (!d || !d.error) return "";
@@ -200,12 +220,31 @@ const TILES = {
 		const st = x.live.status[s.id] || { status: "pending" };
 		const d = x.live.data[s.id];
 		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : "";
-		const line = statLine(s, st, d);
-		const side = tag || factsHtml(facts(s, st, d));
-		const extra = tile.h > 1 ? moreLines(s, st, d) : "";
-		const sp = tile.h > 1 && st.recent && st.status !== "down" ? `<div class="bottom">${spark(st.recent)}</div>` : "";
-		if (tile.w > 1 && tile.h === 1) return { c: colorOf(s), cls: `mini ${st.status}`, html: `${logo(s)}<div class="txt"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div></div>${side}` };
-		return { c: colorOf(s), cls: `mini ${st.status}`, html: `<div class="top">${logo(s)}${side}</div><div class="txt"><div class="n">${esc(s.name)}</div><div class="s" title="${esc(line)}">${esc(line)}</div>${extra}</div>${sp}` };
+		const sub = subLine(s, st, d);
+		const head = `<div class="head">${logo(s)}<div class="txt"><div class="n">${esc(s.name)}</div><div class="s ${sub.cls || ""}" title="${esc(sub.text)}">${esc(sub.text)}</div></div>${tag}</div>`;
+		const nums = metricsHtml(metrics(s, st, d, tile.w === 1 ? 3 : 4));
+		if (tile.h === 1) return { c: colorOf(s), cls: `mini ${st.status}`, html: head + nums };
+		const extra = moreLines(s, st, d);
+		const sp = st.recent && st.status !== "down" ? `<div class="bottom">${spark(st.recent)}</div>` : "";
+		return { c: colorOf(s), cls: `mini ${st.status}`, html: `${head}${nums}<div class="more">${extra}</div>${sp}` };
+	},
+
+	recent(tile, x) {
+		const s = x.service(tile.service) || x.ofKind("jellyfin")[0];
+		if (!s) return { html: `<div class="th"><span class="n">${t("jf.recent")}</span></div>` };
+		const d = x.live.data[s.id];
+		const head = `<div class="th">${logo(s)}<span class="n">${t("jf.recent")}</span><span class="meta">${esc(s.name)}</span></div>`;
+		if (!d || !d.data) return { c: colorOf(s), html: head + setupHint(s, d) };
+		const cols = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
+		const rows = Math.max(1, tile.h - (tile.w === 1 ? 0 : 1)) || 1;
+		const list = d.data.recent.slice(0, cols * rows);
+		return { c: colorOf(s), html: `${head}<div class="posters" style="--pc:${cols}">${list.map((r) => `<div class="poster img" style="background-image:url('/api/img/${s.id}/${r.id}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` };
+	},
+
+	notes(tile) {
+		const notes = tile.notes || [];
+		const rows = notes.map((n, i) => `<label class="note-row${n.done ? " done" : ""}"><input type="checkbox" data-note="${i}"${n.done ? " checked" : ""}><span>${esc(n.text)}</span></label>`);
+		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("notes.title")}</span></div>${rows.length ? `<div class="notes">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("notes.empty")}</div>`}` };
 	},
 
 	status(tile, x) {
@@ -226,6 +265,7 @@ const TILES = {
 		const disk = pct(h.diskUsed, h.diskTotal);
 		const rows = [bar(t("host.cpu"), h.cpu, `${h.cpu} %`), bar(t("host.memory"), mem, `${mem} %`)];
 		if (tile.h > 1 && h.diskTotal) rows.push(bar(t("host.disk"), disk, t("host.of", { a: fmtBytes(h.diskUsed), b: fmtBytes(h.diskTotal) })));
+		if (tile.h > 1 && h.net) rows.push(`<div class="b"><div class="top"><span>${t("host.net")}</span><span class="num">↓ ${fmtBytes(h.net.rx)}/s · ↑ ${fmtBytes(h.net.tx)}/s</span></div></div>`);
 		const meta = [h.temp !== null ? `${h.temp}°` : "", t("host.up", { t: fmtDuration(h.uptime) })].filter(Boolean).join(" · ");
 		return { c: "#9dbcff", html: `<div class="th"><span class="n">${esc(h.name)}</span><span class="meta">${esc(meta)}</span></div><div class="bars">${rows.join("")}</div>` };
 	},

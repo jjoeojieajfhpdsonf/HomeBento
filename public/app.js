@@ -106,7 +106,7 @@ function topBar() {
 	return h(
 		"div",
 		{ class: "bar" },
-		h("h1", {}, S.state.config.title || t("app.title")),
+		S.state.config.title ? h("h1", {}, S.state.config.title) : null,
 		tabs,
 		h("div", { class: "sp" }),
 		h("button", { class: "icon-btn", title: t("app.settings"), "aria-label": t("app.settings"), onclick: settingsSheet, html: UI.gear }),
@@ -162,7 +162,7 @@ function renderGrid() {
 		const cls = `t w${tile.w} h${tile.h}${r.cls ? ` ${r.cls}` : ""}${S.drag && S.drag.id === tile.id && S.drag.moved ? " dragging" : ""}`;
 		if (el.className !== cls) el.className = cls;
 		if (r.c) el.style.setProperty("--c", r.c);
-		const content = r.html + (S.editing ? controls(tile) : "");
+		const content = r.html + (S.editing ? controls(tile) : tileService(tile) ? `<button class="info" data-info aria-label="${t("sheet.details")}" title="${t("sheet.details")}">i</button>` : "");
 		if (el.dataset.html !== content) {
 			el.innerHTML = content;
 			el.dataset.html = content;
@@ -180,7 +180,7 @@ function renderGrid() {
 }
 
 function controls(tile) {
-	const opts = tile.type === "links" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
+	const opts = tile.type === "links" || tile.type === "notes" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
 	return `<button class="ctl rm" data-act="rm" aria-label="${t("tile.remove")}">×</button><div class="ctl sz">${opts}<button data-act="size" title="${t("tile.size")}">⤢ ${tile.w}×${tile.h}</button></div>`;
 }
 
@@ -196,7 +196,20 @@ function emptyCard() {
 
 // ---------- tile clicks and edit mode ----------
 
+// ticking a note right on the board (outside edit mode)
+document.addEventListener("change", (e) => {
+	const box = e.target.closest("input[data-note]");
+	if (!box || S.editing) return;
+	const el = box.closest(".bento > .t[data-id]");
+	const b = board();
+	const tile = b.tiles.find((x) => x.id === el.dataset.id);
+	if (!tile || !tile.notes) return;
+	tile.notes[Number(box.dataset.note)].done = box.checked;
+	guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles })).then(() => renderGrid());
+});
+
 document.addEventListener("click", (e) => {
+	if (e.target.closest(".note-row") && !S.editing) return;
 	const setup = e.target.closest("[data-setup]");
 	if (setup) {
 		e.stopPropagation();
@@ -215,23 +228,60 @@ document.addEventListener("click", (e) => {
 			S.tiles = S.tiles.filter((x) => x !== tile);
 			saveTiles();
 		} else if (act.dataset.act === "size") {
-			const sizes = [[1, 1], [2, 1], [2, 2], [3, 2], [3, 3]];
+			const sizes = [[1, 1], [2, 1], [1, 2], [2, 2], [2, 3], [3, 1], [3, 2], [3, 3]];
 			const k = sizes.findIndex(([w, hh]) => w === tile.w && hh === tile.h);
 			[tile.w, tile.h] = sizes[(k + 1) % sizes.length];
 			saveTiles();
-		} else if (act.dataset.act === "opts") linksSheet(tile);
+		} else if (act.dataset.act === "opts") (tile.type === "notes" ? notesSheet : linksSheet)(tile);
 		renderGrid();
 		return;
 	}
+	if (e.target.closest("[data-info]")) return detailsOf(tile);
 	openTile(tile);
 });
 
+// right click: details instead of opening the service
+document.addEventListener("contextmenu", (e) => {
+	const el = e.target.closest(".bento > .t[data-id]");
+	if (!el || S.editing) return;
+	const tile = tiles().find((x) => x.id === el.dataset.id);
+	if (!tile || !tileService(tile)) return;
+	e.preventDefault();
+	detailsOf(tile);
+});
+
+// The service a tile belongs to (its own, or the first one that feeds a content tile).
+function tileService(tile) {
+	if (tile.service) return serviceById(tile.service);
+	const x = ctx();
+	return { jellyfin: x.ofKind("jellyfin")[0], recent: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0] }[tile.type] || null;
+}
+
+function detailsOf(tile) {
+	const s = tileService(tile);
+	if (s) serviceSheet(s.id);
+	else openTile(tile);
+}
+
+// One tap opens the service itself; a service that is down shows what's wrong instead.
 function openTile(tile) {
+	const s = tileService(tile);
+	if (s && s.url) {
+		const st = S.live && S.live.status[s.id];
+		if (st && st.status === "down") return serviceSheet(s.id);
+		window.open(s.url, "_blank", "noopener");
+		return;
+	}
+	return openTileDetails(tile);
+}
+
+function openTileDetails(tile) {
 	const x = ctx();
 	if (tile.service) return serviceSheet(tile.service);
 	if (tile.type === "status" || tile.type === "uptime") return statusSheet();
 	if (tile.type === "host") return hostSheet();
-	const s = { jellyfin: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0], calendar: x.ofKind("sonarr")[0] || x.ofKind("radarr")[0] }[tile.type];
+	if (tile.type === "notes" || tile.type === "links") return;
+	const s = { jellyfin: x.ofKind("jellyfin")[0], recent: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0], calendar: x.ofKind("sonarr")[0] || x.ofKind("radarr")[0] }[tile.type];
 	if (s) serviceSheet(s.id);
 }
 
@@ -367,10 +417,13 @@ const statusText = (st) => (st ? t(`status.${st.status}`) : t("status.pending"))
 async function serviceSheet(sid) {
 	const s = serviceById(sid);
 	if (!s) return;
+	// load first, then open: no empty window in between
+	let d = await guard(() => api("GET", `/api/services/${sid}`));
+	if (!d) return;
 	const sheet = openSheet();
 	sheet.head(...headOf(s));
-	const fill = async () => {
-		const d = await guard(() => api("GET", `/api/services/${sid}`));
+	const fill = async (first) => {
+		if (first !== true) d = await guard(() => api("GET", `/api/services/${sid}`));
 		if (!d) return;
 		const st = d.status;
 		const parts = [];
@@ -404,7 +457,7 @@ async function serviceSheet(sid) {
 		sheet.body.replaceChildren(...parts);
 		sheet.body.scrollTop = top;
 	};
-	fill();
+	fill(true);
 }
 
 const kpi = (k, v) => h("div", { class: "kpi" }, h("div", { class: "k" }, k), h("div", { class: "v num", title: v }, v));
@@ -598,7 +651,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 
 // ---------- adding tiles ----------
 
-const DEFAULT_SIZE = { service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2] };
+const DEFAULT_SIZE = { service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -635,9 +688,11 @@ async function addTileSheet() {
 			const k = s.kind && S.state.kinds[s.kind];
 			if (!k || !k.tile || k.tile === "calendar") continue;
 			content.push(row(logo(s), `${s.name}: ${t(k.tile === "jellyfin" ? "jf.now" : k.tile === "downloads" ? "dl.title" : "solar.title")}`, null, add({ type: k.tile, service: s.id }), onBoard((x) => x.type === k.tile && x.service === s.id) && t("add.onBoard")));
+			if (k.tile === "jellyfin") content.push(row(logo(s), `${s.name}: ${t("add.recent")}`, null, add({ type: "recent", service: s.id }), onBoard((x) => x.type === "recent" && x.service === s.id) && t("add.onBoard")));
 		}
 		if (services().some((s) => s.kind === "sonarr" || s.kind === "radarr")) content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4'/>", "#35c5f4"), t("add.calendar"), t("add.calendarSub"), add({ type: "calendar" }), onBoard((x) => x.type === "calendar") && t("add.onBoard")));
 		content.push(row(glyphLogo("link", "#9dbcff"), t("add.links"), t("add.linksSub"), add({ type: "links", links: [] })));
+		content.push(row(glyphLogo("<rect x='5' y='4' width='14' height='16' rx='3'/><path d='M9 9h6M9 13h6M9 17h3'/>", "#f5b83d"), t("add.notes"), t("add.notesSub"), add({ type: "notes", notes: [] })));
 		const mine = services().map((s) => row(logo(s), s.name, s.url.replace(/^https?:\/\//, ""), add({ type: "service", service: s.id }), onBoard((x) => x.type === "service" && x.service === s.id) && t("add.onBoard")));
 		sheet.body.replaceChildren(
 			h("div", { class: "sec" }, t("add.docker")),
@@ -697,6 +752,40 @@ function linksSheet(tile) {
 			const tl = S.tiles.find((x) => x.id === tile.id);
 			if (tl) {
 				tl.links = links.filter((l) => /^https?:\/\//.test(l.url));
+				tl.title = title.value.trim() || undefined;
+				saveTiles();
+				renderGrid();
+			}
+			sheet.close();
+		} }, t("form.save")))
+	);
+}
+
+function notesSheet(tile) {
+	const sheet = openSheet();
+	sheet.head(h("div", { class: "tt" }, h("b", {}, t("notes.edit"))));
+	const notes = (tile.notes || []).map((n) => ({ ...n }));
+	const title = h("input", { class: "input", value: tile.title || "", placeholder: t("notes.title") });
+	const list = h("div", { class: "box" });
+	const draw = () =>
+		list.replaceChildren(
+			...notes.map((n, i) =>
+				h("div", { class: "link-edit", style: "grid-template-columns:auto 1fr auto" },
+					h("input", { type: "checkbox", checked: n.done, onchange: (e) => (n.done = e.target.checked) }),
+					h("input", { class: "input", value: n.text, oninput: (e) => (n.text = e.target.value), onkeydown: (e) => e.key === "Enter" && (notes.splice(i + 1, 0, { text: "", done: false }), draw(), list.querySelectorAll("input.input")[i + 1].focus()) }),
+					h("button", { class: "x", style: "width:30px;height:30px;border-radius:50%;background:var(--tile-3);display:grid;place-items:center", onclick: () => (notes.splice(i, 1), draw()), html: UI.x }))
+			),
+			h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (notes.push({ text: "", done: false }), draw(), [...list.querySelectorAll("input.input")].pop().focus()) }, html(UI.plus), t("notes.add")))
+		);
+	draw();
+	sheet.body.append(
+		h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title)),
+		h("div", { class: "sec" }),
+		list,
+		h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: () => {
+			const tl = S.tiles.find((x) => x.id === tile.id);
+			if (tl) {
+				tl.notes = notes.filter((n) => n.text.trim());
 				tl.title = title.value.trim() || undefined;
 				saveTiles();
 				renderGrid();

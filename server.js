@@ -131,7 +131,7 @@ route("GET", "/api/live", async (body, p, query) => {
 	const wanted = new Set(board.tiles.filter((t) => t.service).map((t) => t.service));
 	if (types.has("calendar")) for (const s of cfg.services) if (s.kind === "sonarr" || s.kind === "radarr") wanted.add(s.id);
 	// a content tile without its own service shows the first matching one
-	for (const t of board.tiles) if (!t.service && ["jellyfin", "downloads", "solar"].includes(t.type)) for (const s of cfg.services) if (s.kind && KINDS[s.kind].tile === t.type) wanted.add(s.id);
+	for (const t of board.tiles) if (!t.service && ["jellyfin", "recent", "downloads", "solar"].includes(t.type)) for (const s of cfg.services) if (s.kind && KINDS[s.kind].tile === (t.type === "recent" ? "jellyfin" : t.type)) wanted.add(s.id);
 	const data = {};
 	await Promise.all(
 		cfg.services.filter((s) => wanted.has(s.id) && s.kind).map(async (s) => {
@@ -154,7 +154,12 @@ route("GET", "/api/services/:id", async (body, p) => {
 		events: monitor.eventsOf(s.id, 8),
 		container: null
 	};
-	if (s.container && docker.available !== false) out.container = await docker.stats(s.container).catch((err) => ({ error: err.message }));
+	// container values from the regular sampling: instant, no waiting for Docker
+	if (s.container) {
+		const c = (monitor.containers || []).find((x) => x.name === s.container);
+		const st = monitor.stats.get(s.container) || {};
+		out.container = c ? { state: c.state, status: c.status, image: c.image, cpu: st.cpu ?? null, memory: st.memory ?? null } : { error: docker.available === false ? "Docker is not connected" : `Container "${s.container}" not found` };
+	}
 	return out;
 });
 
@@ -251,7 +256,7 @@ route("POST", "/api/setup", async (body, p, query, req) => {
 	}
 	if (!has("calendar") && store.config.services.some((s) => s.kind === "sonarr" || s.kind === "radarr")) tiles.push({ type: "calendar", w: 3, h: 2 });
 	for (const s of created) tiles.push({ type: "service", service: s.id, w: 1, h: 1 });
-	if (!has("uptime")) tiles.push({ type: "uptime", w: 2, h: 3 });
+	if (!has("uptime")) tiles.push({ type: "uptime", w: 2, h: 2 });
 	store.setTiles(b.id, tiles);
 	for (const s of created) monitor.check(s).catch(() => {});
 	return { added: created.length, names: created.map((s) => s.name) };

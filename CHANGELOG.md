@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 – 2026-10-18
+
+- Tapping a service tile opens the service itself; details are behind the ⓘ button (or right click). A service that is down shows its details instead.
+- Service tiles show key figures with labels: Radarr/Sonarr library, queue, missing and warnings; Jellyfin streams and library; qBittorrent speeds, downloading and seeding; Prowlarr indexers and failures; solar, MagicMirror Manager; for all others response time, uptime and container CPU/memory.
+- New tiles: "Recently added" (Jellyfin posters) and notes with a checklist you can tick right on the board.
+- Server tile shows network traffic.
+- More tile sizes (1×2, 2×3, 3×1).
+- Service details open instantly (container values from the regular sampling).
+- No "Home" title unless you set one.
+
 ## 0.2.1 – 2026-10-18
 
 - Jellyfin 10.11 and newer: the API key goes in the `Authorization` header (the old `X-Emby-Token` is rejected there), and "recently added" uses the new route.
