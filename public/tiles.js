@@ -504,9 +504,7 @@ const TILES = {
 		const separate = x.tiles.some((o) => o.type === "recent" && (o.service || (x.ofKind("jellyfin")[0] || {}).id) === s.id);
 		const recent = !separate && tile.h > 1 ? data.recent.slice(0, 14) : [];
 		const posterList = `<div class="jf-posters">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>`;
-		// wide and someone watching: who watches on the left, what's new on the right (full height)
-		if (recent.length && data.now.length && tile.w >= 3) return { c: colorOf(s), cls: "jf-tile", html: `${head}<div class="jf-split"><div>${now}</div><div class="jf-side"><div class="sm muted">${t("jf.recent")}</div>${posterList}</div></div>` };
-		// otherwise below each other; the posters take the height that's left
+		// who watches on top, the posters below take the height that's left
 		const posters = recent.length ? `${data.now.length < 2 ? `<div class="sm muted jf-rec">${t("jf.recent")}</div>` : ""}${posterList}` : "";
 		return { c: colorOf(s), cls: "jf-tile", html: head + now + posters };
 	},
