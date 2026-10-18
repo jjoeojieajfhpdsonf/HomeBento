@@ -250,8 +250,8 @@ svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb,
 .nowps .prog { margin-top: 6px; }
 .jf-rec { margin-top: 12px; }
 /* posters fill the rest of the tile: as many as fit side by side */
-.jf-posters { display: grid; gap: 8px; flex: 1; min-height: 0; margin-top: 8px; overflow: hidden; align-items: end; }
-.jf-posters .poster { height: 100%; max-height: 210px; width: 100%; aspect-ratio: auto; }
+.jf-posters { display: grid; gap: 8px; flex: 1; min-height: 0; margin-top: 8px; overflow: hidden; align-items: start; align-content: start; }
+.jf-posters .poster { height: 100%; width: 100%; aspect-ratio: auto; }
 .jf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; flex: 1; min-height: 0; }
 .jf-split > div { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .jf-side { margin-top: 10px; overflow: hidden; }

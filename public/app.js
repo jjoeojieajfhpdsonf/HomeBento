@@ -223,13 +223,19 @@ function fitPosters() {
 		const items = [...row.children];
 		if (!items.length) continue;
 		const gap = 8;
-		const height = Math.min(row.clientHeight, 210);
-		const n = Math.max(1, Math.min(items.length, Math.floor((row.clientWidth + gap) / (height * (2 / 3) + gap))));
+		const width = row.clientWidth;
+		const height = Math.min(row.clientHeight, 240);
+		// as many whole posters as fit at about full height – rather one more, a bit smaller, than a gap
+		const n = Math.max(1, Math.min(items.length, Math.round((width + gap) / (height * (2 / 3) + gap))));
 		// a poster stays upright: at most a little wider than 2:3, spare room goes between them
-		const w = Math.floor(Math.min((row.clientWidth - gap * (n - 1)) / n, height * (2 / 3) * 1.15));
+		const w = Math.floor(Math.min((width - gap * (n - 1)) / n, height * (2 / 3) * 1.15));
+		const ph = Math.floor(Math.min(height, w * 1.5));
 		row.style.gridTemplateColumns = `repeat(${n}, ${w}px)`;
 		row.style.justifyContent = n > 1 ? "space-between" : "start";
-		items.forEach((it, i) => (it.style.display = i < n ? "" : "none"));
+		items.forEach((it, i) => {
+			it.style.display = i < n ? "" : "none";
+			it.style.height = `${ph}px`;
+		});
 	}
 }
 
