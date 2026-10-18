@@ -587,31 +587,32 @@ function cameraView(tile) {
 
 // ---------- page width ----------
 
-// The width of the page: a slider, the page follows while dragging, saved when let go.
-// Far right is the whole screen. Columns follow the real width (6, 8 from 1800 px, 10 from 2500 px).
-const WIDTH_MIN = 1100;
-const WIDTH_FULL = 2620;
+// The width of the page in percent of the screen: a slider, the page follows while dragging,
+// saved when let go. Without a setting the page is at most 1480 px wide. Columns follow the
+// real width (6, 8 from 1800 px, 10 from 2500 px).
 function applyWidth(w) {
-	const full = w === "wide" || Number(w) >= WIDTH_FULL;
+	const pct = Number(w);
+	const full = w === "wide" || pct >= 100;
 	document.body.classList.toggle("wide", full);
-	document.documentElement.style.setProperty("--maxw", full ? "none" : `${Number(w) || 1480}px`);
+	document.documentElement.style.setProperty("--maxw", full ? "none" : pct >= 40 && pct <= 100 ? `${pct}%` : "1480px");
 }
 function widthField() {
 	const cur = S.state.config.width;
-	const val = cur === "wide" ? WIDTH_FULL : Number(cur) || 1480;
+	const now = cur === "wide" ? 100 : Number(cur) >= 40 && Number(cur) <= 100 ? Number(cur) : Math.min(100, Math.max(50, Math.round((1480 / window.innerWidth) * 100)));
 	const label = h("span", { class: "num width-val" });
-	const show = (v) => label.replaceChildren(v >= WIDTH_FULL ? t("settings.widthWide") : `${v} px`);
-	const range = h("input", { type: "range", class: "width-range", min: WIDTH_MIN, max: WIDTH_FULL, step: 20, value: val,
+	const show = (v) => label.replaceChildren(v >= 100 ? t("settings.widthWide") : `${v} %`);
+	const range = h("input", { type: "range", class: "width-range", min: 50, max: 100, step: 1, value: now,
 		oninput: (e) => {
 			const v = Number(e.target.value);
 			show(v);
 			applyWidth(v);
+			range.style.setProperty("--p", `${((v - 50) / 50) * 100}%`);
 		},
 		onchange: async (e) => {
 			const v = Number(e.target.value);
-			const w = v >= WIDTH_FULL ? "wide" : v;
-			if (await guard(() => api("POST", "/api/settings", { width: w }))) S.state.config.width = w;
+			if (await guard(() => api("POST", "/api/settings", { width: v }))) S.state.config.width = v;
 		} });
-	show(val);
+	range.style.setProperty("--p", `${((now - 50) / 50) * 100}%`);
+	show(now);
 	return h("div", { class: "field" }, h("label", { class: "width-label" }, t("settings.width"), label), range, h("div", { class: "help" }, t("settings.widthHelp")));
 }
