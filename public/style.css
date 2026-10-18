@@ -889,3 +889,13 @@ body.wide .wrap { max-width: none; }
 .mk-list.dense .mk-val { display: flex; align-items: baseline; gap: 8px; }
 .mk-list.dense .mk-ch { min-width: 52px; text-align: right; }
 .mk-list.dense .mk-spark, .mk-list.dense .mk-spark .spark { height: 18px; }
+
+/* questions: title, what it's about, a calm explanation */
+.sheet.confirm .bd { padding-top: 0; }
+.confirm-help { margin: 4px 2px 14px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.upd-versions { background: var(--tile-2); border-radius: 14px; padding: 12px 14px; margin: 2px 0 6px; }
+.upd-ver { display: flex; align-items: baseline; gap: 12px; font-size: 20px; font-weight: 650; }
+.upd-ver .old { color: var(--muted); }
+.upd-ver .arrow { color: var(--faint); font-size: 16px; }
+.upd-ver .new { color: var(--accent); }
+.upd-builds { margin-top: 4px; font-size: 11.5px; color: var(--faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }

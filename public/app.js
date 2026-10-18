@@ -739,15 +739,20 @@ document.addEventListener("keydown", (e) => {
 	if (e.key === "Escape" && topSheet()) topSheet().sheet.close();
 });
 
+// A question with yes / cancel. text: a sentence (a second line becomes the explanation),
+// or { title, body (a node), help }.
 function confirmSheet(text, yes = t("confirm.yes"), danger = false) {
 	return new Promise((resolve) => {
 		const s = openSheet();
-		s.el.classList.add("center");
+		s.el.classList.add("center", "confirm");
 		let answered = false;
-		s.head(h("div", { class: "tt" }, h("b", {}, text)));
-		s.el.style.width = "440px";
+		const q = typeof text === "string" ? { title: text.split("\n")[0], help: text.split("\n").slice(1).join(" ").trim() } : text;
+		s.head(h("div", { class: "tt" }, h("b", {}, q.title)));
+		s.el.style.width = "460px";
 		s.onclose = () => !answered && resolve(false);
 		s.body.append(
+			q.body || null,
+			q.help ? h("p", { class: "confirm-help" }, q.help) : null,
 			h("div", { class: "acts", style: "margin-top:4px;justify-content:flex-end" },
 				h("button", { class: "btn", onclick: () => s.close() }, t("form.cancel")),
 				h("button", { class: `btn ${danger ? "danger" : "primary"}`, onclick: () => ((answered = true), s.close(), resolve(true)) }, yes))
@@ -1343,8 +1348,16 @@ document.addEventListener("click", (e) => {
 
 // Update a container: ask, then follow the log until it is done (or rolled back).
 async function updateService(s, d) {
-	const what = d && d.running && d.latest ? `${d.running} → ${d.latest.tag.replace(/^release-/i, "")}` : "";
-	if (!(await confirmSheet(t("upd.confirm", { n: s.name, v: what }), t("upd.go")))) return;
+	// the versions big (just the numbers), the full build names small below
+	const core = (v) => (/\d+(?:\.\d+)+/.exec(String(v || "")) || [String(v || "")])[0];
+	const from = d && d.running;
+	const to = d && d.latest && d.latest.tag.replace(/^release-/i, "");
+	const body = from && to
+		? h("div", { class: "upd-versions" },
+				h("div", { class: "upd-ver" }, h("span", { class: "num old" }, core(from)), h("span", { class: "arrow" }, "→"), h("span", { class: "num new" }, core(to))),
+				core(from) !== from || core(to) !== to ? h("div", { class: "upd-builds" }, `${from} → ${to}`) : null)
+		: null;
+	if (!(await confirmSheet({ title: t("upd.confirmTitle", { n: s.name }), body, help: t("upd.confirmHelp") }, t("upd.go")))) return;
 	const r = await guard(() => api("POST", `/api/services/${s.id}/update`));
 	if (!r) return;
 	const sheet = openSheet({ wide: true });
@@ -1489,6 +1502,8 @@ function addTile(tile) {
 }
 
 async function addTileSheet() {
+	// also from the command palette: adding happens in edit mode
+	if (!S.editing) toggleEdit();
 	const sheet = openSheet();
 	sheet.head(h("div", { class: "tt" }, h("b", {}, t("add.title"))));
 	const onBoard = (pred) => S.tiles.some(pred);
@@ -1696,6 +1711,22 @@ async function tileOptions(tile) {
 		// private calendars: a login per calendar (stays on the server)
 		const logins = {};
 		const hasLogin = ical && tile.id ? ((await api("GET", `/api/tiles/${tile.id}/secrets`).catch(() => ({ secrets: {} }))).secrets || {}) : {};
+		// a login for a private calendar: folded away until needed
+		const calLogin = (c) => {
+			c.id = c.id || hex10();
+			const set = hasLogin[`${c.id}:user`] || hasLogin[`${c.id}:password`];
+			const l = (logins[c.id] = logins[c.id] || {});
+			const box = h("div", { class: "cal-login" });
+			const open = () =>
+				box.replaceChildren(
+					h("input", { class: "input", placeholder: set ? t("form.secretSet") : t("form.user"), autocomplete: "off", oninput: (e) => (l.user = e.target.value) }),
+					h("input", { class: "input", type: "password", placeholder: set ? t("form.secretSet") : t("ical.appPassword"), autocomplete: "off", oninput: (e) => (l.password = e.target.value) }),
+					set ? h("button", { class: "chip", onclick: () => ((l.user = ""), (l.password = ""), toast(t("ical.loginRemoved"))) }, t("ical.removeLogin")) : null
+				);
+			if (set) open();
+			else box.replaceChildren(h("button", { class: "chip", onclick: open }, t("ical.addLogin")));
+			return box;
+		};
 		const list = h("div");
 
 
