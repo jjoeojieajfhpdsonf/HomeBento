@@ -166,7 +166,7 @@ const TEXT = {
 		"settings.width": "Breite",
 		"settings.widthNormal": "Normal (max. 1480 px)",
 		"settings.widthWide": "Ganze Breite",
-		"settings.widthHelp": "Anteil der Bildschirmbreite. Wird die Seite breiter als 1800 px, gibt es mehr Spalten statt breiterer Kacheln. Gilt für alle Geräte.",
+		"settings.widthHelp": "Anteil der Bildschirmbreite. Gilt für alle Geräte.",
 		"settings.lang": "Sprache",
 		"settings.langAuto": "Wie der Browser",
 		"jf.now": "Läuft gerade",
@@ -712,6 +712,9 @@ const TEXT = {
 		"arr.add": "Warteschlange und Fehlendes",
 		"arr.addProwlarr": "Indexer",
 		"dl.seedingN": "Torrents werden geteilt",
+		"settings.cols": "Spalten",
+		"settings.colsN": "{n} Spalten",
+		"settings.colsHelp": "Fest auf jedem Bildschirm: ein kleineres Fenster macht die Kacheln schmaler, verschoben wird nichts. 8 oder 10 passen zu breiten Bildschirmen.",
 		"common.close": "Schliessen"
 	},
 	en: {
@@ -856,7 +859,7 @@ const TEXT = {
 		"settings.width": "Width",
 		"settings.widthNormal": "Normal (up to 1480 px)",
 		"settings.widthWide": "Whole screen",
-		"settings.widthHelp": "Share of the screen width. Wider than 1800 px, there are more columns instead of wider tiles. For all devices.",
+		"settings.widthHelp": "Share of the screen width. For all devices.",
 		"settings.lang": "Language",
 		"settings.langAuto": "Like the browser",
 		"jf.now": "Now playing",
@@ -1402,6 +1405,9 @@ const TEXT = {
 		"arr.add": "queue and missing",
 		"arr.addProwlarr": "indexers",
 		"dl.seedingN": "torrents seeding",
+		"settings.cols": "Columns",
+		"settings.colsN": "{n} columns",
+		"settings.colsHelp": "The same on every screen: a smaller window makes the tiles narrower, nothing moves. 8 or 10 suit wide screens.",
 		"common.close": "Close"
 	}
 };

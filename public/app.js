@@ -2135,6 +2135,7 @@ function settingsSheet() {
 		h("div", { class: "box" },
 			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
 			widthField(),
+			columnsField(),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
 				if (await guard(() => api("POST", "/api/settings", { location: p }))) {

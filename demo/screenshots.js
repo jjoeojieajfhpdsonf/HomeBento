@@ -61,7 +61,7 @@ async function main() {
 			ws.send(JSON.stringify({ id: n, method, params }));
 		});
 		const evaluate = async (expression) => (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true })).result.value;
-		await fetch(`${DEMO}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ width: 95 }) });
+		await fetch(`${DEMO}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ width: 95, columns: 8 }) });
 		await send("Page.enable");
 		await send("Runtime.enable");
 		for (const shot of SHOTS) {

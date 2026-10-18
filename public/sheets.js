@@ -598,6 +598,21 @@ function applyWidth(w) {
 	const full = w === "wide" || pct >= 100;
 	document.body.classList.toggle("wide", full);
 	document.documentElement.style.setProperty("--maxw", full ? "none" : pct >= 40 && pct <= 100 ? `${pct}%` : "1480px");
+	// a fixed number of columns: a smaller window makes the tiles narrower, nothing moves
+	document.documentElement.style.setProperty("--cols", [6, 8, 10].includes(S.state.config.columns) ? S.state.config.columns : 6);
+}
+
+// How many columns the tiles have (the same on every screen; below ~1050 px it becomes 4, then 2).
+function columnsField() {
+	const cur = [6, 8, 10].includes(S.state.config.columns) ? S.state.config.columns : 6;
+	const sel = h("select", { class: "input", onchange: async (e) => {
+		const n = Number(e.target.value);
+		if (await guard(() => api("POST", "/api/settings", { columns: n }))) {
+			S.state.config.columns = n;
+			applyWidth(S.state.config.width);
+		}
+	} }, [6, 8, 10].map((n) => h("option", { value: n, selected: cur === n }, t("settings.colsN", { n }))));
+	return h("div", { class: "field" }, h("label", {}, t("settings.cols")), sel, h("div", { class: "help" }, t("settings.colsHelp")));
 }
 function widthField() {
 	const cur = S.state.config.width;
