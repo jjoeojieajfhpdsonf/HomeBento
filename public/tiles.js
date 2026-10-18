@@ -446,9 +446,9 @@ const TILES = {
 		const head = `<div class="th"><span class="logo" style="--c:#2496ed">${svg("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>")}</span><span class="n">Docker</span>${c ? `<span class="meta">${t("dk.running", { n: c.running })}${c.stopped ? ` · ${t("dk.stopped", { n: c.stopped })}` : ""}</span>` : ""}</div>`;
 		if (!c) return { c: "#2496ed", html: `${head}<div class="sm faint bottom">${t("dk.none")}</div>` };
 		const max = Math.max(1, ...c.top.map((x2) => x2.memory || 0));
-		const rows = c.top.slice(0, tile.h * 3 - 1).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num">${r.cpu !== null && r.cpu !== undefined ? `${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)}</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
+		const rows = c.top.slice(0, tile.h * 3 - 1).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num" title="${t("dk.cpuHelp")}">${r.cpu !== null && r.cpu !== undefined ? `CPU ${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)} RAM</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
 		const stopped = c.stopped ? `<div class="sm faint" style="margin-top:8px">${t("dk.stoppedList")}: ${c.stoppedNames.map(esc).join(", ")}</div>` : "";
-		return { c: "#2496ed", html: `${head}<div class="bars">${rows.join("")}</div>${stopped}` };
+		return { c: "#2496ed", html: `${head}<div class="sm faint" style="margin-top:6px">${t("dk.sorted")}</div><div class="bars" style="margin-top:6px">${rows.join("")}</div>${stopped}` };
 	},
 
 	events(tile, x) {
