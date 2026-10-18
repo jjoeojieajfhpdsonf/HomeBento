@@ -12,6 +12,9 @@ for (const fn of ["append", "replaceChildren"]) {
 	};
 }
 const $ = (sel, root = document) => root.querySelector(sel);
+// the key for shortcuts: ⌘ on a Mac, Ctrl elsewhere (Windows, Linux)
+const IS_MAC = /mac|iphone|ipad/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
+const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 function h(tag, attrs = {}, ...children) {
 	const el = document.createElement(tag);
@@ -135,7 +138,7 @@ function topBar() {
 		S.state.config.title ? h("h1", {}, S.state.config.title) : null,
 		tabs,
 		h("div", { class: "sp" }),
-		h("button", { class: "search-btn", onclick: () => palette(), "aria-label": t("pal.placeholder") }, html(UI.search), h("span", { class: "ph" }, t("pal.placeholder")), h("kbd", {}, /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
+		h("button", { class: "search-btn", onclick: () => palette(), "aria-label": t("pal.placeholder") }, html(UI.search), h("span", { class: "ph" }, t("pal.placeholder")), h("kbd", {}, IS_MAC ? "⌘K" : "Ctrl K")),
 		h("button", { class: "icon-btn", title: t("app.settings"), "aria-label": t("app.settings"), onclick: settingsSheet, html: UI.gear }),
 		h("button", { class: `btn${S.editing ? " on" : ""}`, onclick: toggleEdit }, S.editing ? t("app.done") : t("app.edit"))
 	);
@@ -714,7 +717,11 @@ function openSheet({ wide } = {}) {
 	document.body.append(el);
 	document.documentElement.classList.add("sheet-open");
 	$("#scrim").classList.add("on");
-	requestAnimationFrame(() => el.classList.add("on"));
+	requestAnimationFrame(() => {
+		el.classList.add("on");
+		// the save buttons say how to press them from the keyboard
+		for (const b of el.querySelectorAll(".acts .btn.primary")) if (!b.title) b.title = `${MOD}${IS_MAC ? "" : "+"}↵`;
+	});
 	const sheet = {
 		el,
 		body,
