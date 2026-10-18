@@ -166,7 +166,7 @@ route("GET", "/api/state", async (body, p, query, req) => ({
 }));
 
 // Everything a board needs to show right now (polled every few seconds by the web app).
-route("GET", "/api/live", async (body, p, query) => {
+route("GET", "/api/live", async (body, p, query, req) => {
 	const cfg = store.config;
 	const board = cfg.boards.find((b) => b.id === query.get("board")) || cfg.boards[0];
 	const types = new Set(board.tiles.map((t) => t.type));
@@ -189,7 +189,20 @@ route("GET", "/api/live", async (body, p, query) => {
 	// 24 h per service: uptime tile, and the history in the service list
 	const hours = {};
 	for (const s of cfg.services) hours[s.id] = monitor.hours(s.id, 24);
-	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null };
+	// containers at a glance, and the last status changes
+	let containers = null;
+	if (types.has("docker") && monitor.containers) {
+		const list = monitor.containers;
+		containers = {
+			running: list.filter((c) => c.state === "running").length,
+			stopped: list.filter((c) => c.state !== "running").length,
+			stoppedNames: list.filter((c) => c.state !== "running").map((c) => c.name).slice(0, 6),
+			top: list.filter((c) => monitor.stats.has(c.name)).map((c) => ({ name: c.name, ...monitor.stats.get(c.name) })).sort((a, b) => (b.memory || 0) - (a.memory || 0)).slice(0, 8)
+		};
+	}
+	const events = types.has("events") ? monitor.events.slice(-30).reverse() : null;
+	const ts = types.has("tailscale") ? await tailscaleInfo(req) : null;
+	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts };
 });
 
 route("GET", "/api/services/:id", async (body, p) => {
@@ -285,7 +298,13 @@ route("GET", "/api/services/:id/logs", async (body, p, query) => {
 	return { text: await docker.logs(s.container, Number(query.get("tail")) || 300) };
 });
 
-route("POST", "/api/services/:id/check", async (body, p) => monitor.check(store.service(p.id)).then(() => monitor.summary(p.id)));
+// "Check now": status and the integration's data, both fresh
+route("POST", "/api/services/:id/check", async (body, p) => {
+	const s = store.service(p.id);
+	integrations.forget(s.id);
+	const [, d] = await Promise.all([monitor.check(s), s.kind ? integrations.data(s) : null]);
+	return { ...monitor.summary(s.id), data: d };
+});
 
 route("GET", "/api/discover", async (body, p, query, req) => {
 	if (docker.available === false) return { docker: false, items: [] };
@@ -331,8 +350,12 @@ route("POST", "/api/services/:id/tailscale", async (body, p, query, req) => {
 	if (!isLocal(s, req, st.dnsName)) throw new UserError("Only services on this server can be shared through its Tailscale");
 	const { port, target } = targetFor(s.url);
 	const tsPort = Number(body.port) || (port === 80 ? 8080 : port);
-	if (body.enable) await tailscale.add(tsPort, target);
-	else {
+	if (body.enable) {
+		// moving to another port: the old entry of this service goes away
+		const { list } = await tailscale.mappings();
+		for (const m of list.filter((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port && x.port !== tsPort)) await tailscale.remove(m.port);
+		await tailscale.add(tsPort, target);
+	} else {
 		const { list } = await tailscale.mappings();
 		for (const m of list.filter((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port)) await tailscale.remove(m.port);
 	}

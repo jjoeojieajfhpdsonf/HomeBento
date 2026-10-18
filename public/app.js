@@ -519,6 +519,7 @@ function openTileDetails(tile) {
 	if (tile.type === "status" || tile.type === "uptime") return statusSheet();
 	if (tile.type === "host") return hostSheet();
 	if (tile.type === "notes" || tile.type === "links") return;
+	if (tile.type === "tailscale") return tailscaleSheet();
 	const s = { jellyfin: x.ofKind("jellyfin")[0], recent: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0], calendar: x.ofKind("sonarr")[0] || x.ofKind("radarr")[0] }[tile.type];
 	if (s) serviceSheet(s.id);
 }
@@ -631,6 +632,7 @@ document.addEventListener("keydown", (e) => {
 function confirmSheet(text, yes = t("confirm.yes"), danger = false) {
 	return new Promise((resolve) => {
 		const s = openSheet();
+		s.el.classList.add("center");
 		let answered = false;
 		s.head(h("div", { class: "tt" }, h("b", {}, text)));
 		s.el.style.width = "440px";
@@ -669,6 +671,15 @@ async function serviceSheet(sid) {
 		if (st.status === "slow") parts.push(h("div", { class: "note warn" }, `${t("status.slow")} (${fmtMs(st.ms)})`));
 		const integ = S.live && S.live.data[sid];
 		if (integ && integ.error) parts.push(h("div", { class: "note warn" }, integ.error));
+		// what the service itself reports (Sonarr/Radarr/Prowlarr health checks)
+		const warnings = (integ && integ.data && integ.data.warnings) || [];
+		if (warnings.length) {
+			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${s.url.replace(/\/+$/, "")}/system/status` : null;
+			parts.push(
+				h("div", { class: "sec" }, t("sheet.warnings"), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", style: "color:var(--accent);font-weight:500" }, t("sheet.openIn", { n: s.name })) : null),
+				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", {}, w))))
+			);
+		}
 		parts.push(
 			h("div", { class: "kpis" },
 				kpi(t("sheet.response"), fmtMs(st.ms)),
@@ -690,7 +701,18 @@ async function serviceSheet(sid) {
 		parts.push(
 			h("div", { class: "acts" },
 				s.url ? h("a", { class: "btn primary", href: urlFor(s), target: "_blank", rel: "noopener" }, html(UI.open), t("sheet.open")) : null,
-				h("button", { class: "btn", onclick: async (e) => { e.currentTarget.classList.add("busy"); await guard(() => api("POST", `/api/services/${sid}/check`)); fill(); loadLive(); } }, t("sheet.checkNow")),
+				h("button", { class: "btn", onclick: async (e) => {
+					const b = e.currentTarget;
+					b.classList.add("busy");
+					b.textContent = t("sheet.checking");
+					const r = await guard(() => api("POST", `/api/services/${sid}/check`));
+					if (r) {
+						if (S.live && r.data) S.live.data[sid] = r.data;
+						toast(`${t("sheet.checked")}: ${statusText(r)}${r.ms !== null && r.ms !== undefined ? ` · ${fmtMs(r.ms)}` : ""}${r.error ? ` · ${r.error}` : ""}`, r.status === "down");
+					}
+					await fill();
+					loadLive();
+				} }, t("sheet.checkNow")),
 				h("button", { class: "btn", onclick: () => (sheet.close(), serviceForm(s)) }, t("sheet.edit")))
 		);
 		const top = sheet.body.scrollTop;
@@ -975,23 +997,28 @@ async function serviceForm(s, prefill = {}, onSaved) {
 }
 
 // "Reachable through Tailscale": switches Tailscale Serve for this service right away.
-// In the service details: share it in the tailnet with one switch, the address right below.
+// In the service details: share it in the tailnet on a port of your choice, the address right below.
 function tailscalePart(s, refresh) {
 	const ts = S.state.tailscale || {};
 	if (!ts.available || !s || !s.id || !ts.local || !ts.local[s.id]) return null;
 	if (ts.error) return h("div", { class: "note warn" }, ts.error);
 	const link = tsLink(s);
-	const sw = h("input", { type: "checkbox", checked: !!link, onchange: async (e) => {
-		e.target.disabled = true;
-		const r = await guard(() => api("POST", `/api/services/${s.id}/tailscale`, { enable: e.target.checked }));
+	const current = link ? Number((/:(\d+)$/.exec(link) || [, 443])[1]) : null;
+	const homePort = Number((/:(\d+)/.exec(s.url.replace(/^https?:\/\//, "")) || [, s.url.startsWith("https") ? 443 : 80])[1]);
+	const port = h("input", { class: "input ts-port", type: "number", min: 1, max: 65535, value: current || (homePort === 80 ? 8080 : homePort) });
+	const send = async (enable) => {
+		const r = await guard(() => api("POST", `/api/services/${s.id}/tailscale`, { enable, port: Number(port.value) }));
 		if (r) {
 			S.state.tailscale = r;
-			toast(e.target.checked ? `${t("ts.on")} ${tsLink(s) || ""}` : t("ts.off"));
+			toast(enable ? `${t("ts.on")} ${tsLink(s) || ""}` : t("ts.off"));
 		}
 		refresh();
-	} });
-	const sub = link ? h("a", { href: link, target: "_blank", rel: "noopener", class: "help", style: "color:var(--accent)" }, link.replace(/^https:\/\//, "")) : h("div", { class: "help" }, t("ts.help", { n: ts.dnsName }));
-	return h("div", { class: "box" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), sub), h("span", { class: "switch" }, sw, h("span"))));
+	};
+	const sw = h("input", { type: "checkbox", checked: !!link, onchange: (e) => ((e.target.disabled = true), send(e.target.checked)) });
+	const move = link ? h("button", { class: "btn", style: "padding:6px 12px", onclick: (e) => (Number(port.value) !== current ? (e.currentTarget.classList.add("busy"), send(true)) : null) }, t("ts.move")) : null;
+	return h("div", { class: "box" },
+		h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), link ? h("a", { href: link, target: "_blank", rel: "noopener", class: "help", style: "color:var(--accent)" }, link.replace(/^https:\/\//, "")) : h("div", { class: "help" }, t("ts.offHelp"))), h("span", { class: "switch" }, sw, h("span"))),
+		h("div", { class: "field ts-port-row" }, h("label", {}, t("ts.portLabel")), h("div", { class: "icon-row" }, h("span", { class: "faint sm", style: "white-space:nowrap" }, `https://${ts.dnsName}:`), port, move)));
 }
 
 // ---------- adding tiles ----------
@@ -1058,7 +1085,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1091,6 +1118,9 @@ async function addTileSheet() {
 		content.push(row(glyphLogo("<path d='M12 3l9 4.5v9L12 21l-9-4.5v-9z'/>", "#5fd39a"), t("add.status"), t("add.statusSub"), add({ type: "status" }), onBoard((x) => x.type === "status") && t("add.onBoard")));
 		content.push(row(glyphLogo("server", "#9dbcff"), t("add.host"), t("add.hostSub"), add({ type: "host" }), onBoard((x) => x.type === "host") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M4 18V8M9 18V5M14 18v-7M19 18V9'/>", "#5fd39a"), t("add.uptime"), t("add.uptimeSub"), add({ type: "uptime" }), onBoard((x) => x.type === "uptime") && t("add.onBoard")));
+		if (S.state.docker) content.push(row(glyphLogo("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>", "#2496ed"), "Docker", t("add.dockerSub"), add({ type: "docker" }), onBoard((x) => x.type === "docker") && t("add.onBoard")));
+		content.push(row(glyphLogo("<path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='8.5'/>", "#9dbcff"), t("ev.title"), t("add.eventsSub"), add({ type: "events" }), onBoard((x) => x.type === "events") && t("add.onBoard")));
+		if (S.state.tailscale && S.state.tailscale.available) content.push(row(glyphLogo("<circle cx='6' cy='6' r='1.8'/><circle cx='12' cy='6' r='1.8'/><circle cx='18' cy='6' r='1.8'/><circle cx='6' cy='12' r='1.8'/><circle cx='12' cy='12' r='1.8'/><circle cx='18' cy='12' r='1.8'/><circle cx='12' cy='18' r='1.8'/>", "#9aa4b2"), "Tailscale", t("add.tsSub"), add({ type: "tailscale" }), onBoard((x) => x.type === "tailscale") && t("add.onBoard")));
 		for (const s of services()) {
 			const k = s.kind && S.state.kinds[s.kind];
 			if (!k || !k.tile || k.tile === "calendar") continue;
@@ -1172,6 +1202,7 @@ function linksSheet(tile) {
 
 function nameSheet(title, value, onSave, extra) {
 	const sheet = openSheet();
+	sheet.el.classList.add("center");
 	sheet.el.style.width = "440px";
 	sheet.head(h("div", { class: "tt" }, h("b", {}, title)));
 	const input = h("input", { class: "input", value: value || "", maxlength: 40, onkeydown: (e) => e.key === "Enter" && save() });
@@ -1383,10 +1414,21 @@ function settingsSheet() {
 			h("div", {}, h("span", {}, t("settings.checks")), h("span", {}, t("settings.checksEvery", { n: S.state.checkSeconds }))),
 			h("div", {}, h("span", {}, t("settings.notify")), h("span", {}, S.state.notify ? t("settings.notifyOn") : t("settings.notifyOff"))),
 			h("div", {}, h("span", {}, t("settings.version")), h("span", {}, S.state.version))),
-		tailscaleSettings(),
 		S.state.auth ? h("div", { class: "acts" }, h("button", { class: "btn", onclick: async () => (await fetch("/api/logout", { method: "POST" }), location.reload()) }, t("settings.logout"))) : null
 	);
 }
+
+function tailscaleSheet() {
+	const sheet = openSheet();
+	sheet.head(h("div", { class: "tt" }, h("b", {}, "Tailscale"), h("span", { class: "sub" }, (S.state.tailscale || {}).dnsName || "")));
+	sheet.body.append(tailscaleSettings());
+	sheet.onclose = () => loadLive();
+}
+document.addEventListener("click", (e) => {
+	if (!e.target.closest("[data-ts-manage]") || S.editing) return;
+	e.stopPropagation();
+	tailscaleSheet();
+}, true);
 
 // Every Tailscale Serve entry of this machine (also those made by hand), and sharing more.
 function tailscaleSettings() {
@@ -1406,7 +1448,7 @@ function tailscaleSettings() {
 				h("button", { class: "ts-x", title: t("tile.remove"), "aria-label": t("tile.remove"), onclick: async () => {
 					if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
 					const r = await guard(() => api("POST", "/api/tailscale/remove", { port: m.port }));
-					if (r) (S.state.tailscale = r), draw();
+					if (r) (S.state.tailscale = r), draw(), loadLive();
 				}, html: UI.x }));
 		});
 		if (!rows.length) rows.push(h("div", { class: "ts-row" }, h("span", { class: "sub" }, t("ts.none"))));

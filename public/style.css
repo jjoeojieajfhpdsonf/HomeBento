@@ -257,6 +257,9 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .curve-box { margin-top: auto; height: 56px; }
 .t.h3 .curve-box { height: 150px; } .t.h1 .curve-box { display: none; }
 
+/* events */
+.ev-bad { color: var(--bad); font-weight: 500; } .ev-warn { color: var(--warn); font-weight: 500; } .ev-ok { color: var(--ok); font-weight: 500; }
+
 /* links */
 .links { display: grid; gap: 2px; margin-top: 8px; }
 .links a { display: flex; align-items: center; gap: 10px; padding: 6px 8px; margin: 0 -8px; border-radius: 10px; text-decoration: none; font-size: 13px; }
@@ -294,6 +297,14 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .sheet { position: fixed; left: 50%; top: 50%; width: 600px; max-width: calc(100% - 24px); max-height: calc(100% - 40px); display: flex; flex-direction: column; transform: translate(-50%, -47%) scale(.97); opacity: 0; pointer-events: none; transition: .22s cubic-bezier(.2,.8,.2,1); background: var(--tile); border-radius: 26px; z-index: 21; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
 .sheet.on { opacity: 1; transform: translate(-50%, -50%); pointer-events: auto; }
 .sheet.wide { width: 760px; }
+/* desktop: details come in from the right as a full-height panel; short questions stay in the middle */
+@media (min-width: 641px) {
+	.sheet:not(.center) { left: auto; top: 12px; right: 12px; bottom: 12px; width: 560px; max-height: none; border-radius: 24px; transform: translateX(calc(100% + 24px)); }
+	.sheet.wide:not(.center) { width: 860px; }
+	.sheet:not(.center).on { transform: none; }
+	.sheet.behind:not(.center) { transform: translateX(-28px); }
+	.logs-sheet:not(.center) { width: min(1100px, calc(100% - 24px)); }
+}
 .sheet.behind { filter: brightness(.55); }
 .sheet .hd { display: flex; align-items: center; gap: 12px; padding: 20px 22px 12px; }
 .sheet .hd .logo { width: 44px; height: 44px; border-radius: 12px; font-size: 18px; }
@@ -325,6 +336,9 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .hbars i.bad { background: rgba(255,96,102,.8); }
 .hbars i.none { background: rgba(255,255,255,.06); }
 .axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; padding: 4px 12px 10px; }
+.warn-list > div { display: flex; gap: 10px; align-items: baseline; padding: 10px 12px; font-size: 13.5px; color: #f7cd78; }
+.warn-list > div + div { border-top: 1px solid var(--line); }
+.warn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; transform: translateY(-1px); }
 .events > div { display: flex; gap: 10px; padding: 9px 12px; font-size: 13px; align-items: baseline; }
 .events > div + div { border-top: 1px solid var(--line); }
 .events .when { color: var(--faint); font-size: 12px; width: 92px; flex: none; }
@@ -362,6 +376,18 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .rows .plus { color: var(--accent); font-size: 20px; font-weight: 400; width: 24px; text-align: center; }
 .rows .done { color: var(--faint); font-size: 12px; }
 .rows > button:disabled { opacity: .5; cursor: default; }
+
+.ts-port { width: 110px; flex: none; }
+.ts-port-row .icon-row { gap: 6px; }
+
+/* Tailscale tile */
+.ts-items { display: grid; gap: 2px; margin-top: 8px; overflow: hidden; }
+.ts-item { display: flex; align-items: center; gap: 10px; padding: 5px 8px; margin: 0 -8px; border-radius: 10px; text-decoration: none; min-width: 0; }
+.ts-item:hover { background: var(--tile-2); }
+.ts-item .logo { width: 24px; height: 24px; border-radius: 7px; }
+.ts-name { font-size: 13px; font-weight: 560; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ts-url { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ts-tile [data-ts-manage] { margin-top: auto; align-self: flex-start; }
 
 /* Tailscale list in the settings */
 .ts-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; width: 100%; text-align: left; }

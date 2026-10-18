@@ -189,7 +189,10 @@ function metrics(s, st, d, max = 3) {
 function listStat(s, st, d) {
 	const data = d && d.data;
 	const m = metrics(s, st, d, 4);
-	if (!data && !(st && st.container && st.container.cpu !== undefined)) return st && st.since && st.status === "up" ? t("status.since", { t: fmtDuration(Date.now() - st.since) }) : "";
+	if (!data && !(st && st.container && st.container.cpu !== undefined)) {
+		if (st && st.container && st.container.status) return st.container.status;
+		return st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000 ? t("status.since", { t: fmtDuration(Date.now() - st.since) }) : "";
+	}
 	const say = (x) => (x.l === "CPU" ? `CPU ${x.v}` : x.l === "Version" ? `v${x.v}` : x.l === t("m.state") ? x.v : `${x.v} ${x.l}`);
 	return m.filter((x) => x.v !== "–" && !/^(Response|Antwort|up 24 h|online 24 h)$/.test(x.l)).slice(0, 3).map(say).join(" · ");
 }
@@ -422,6 +425,42 @@ const TILES = {
 		const kw = v.pv === null ? "–" : nf(v.pv / 1000, 1);
 		const facts = [v.todayWh !== null ? t("solar.today", { v: fmtWh(v.todayWh) }) : "", v.use !== null ? t("solar.use", { v: fmtW(v.use) }) : "", v.battery !== null && tile.w > 1 ? t("solar.battery", { v: v.battery }) : ""].filter(Boolean).join(" · ");
 		return { c: "#f5b83d", html: `${head}<div class="big num" style="margin-top:10px">${kw}<small> kW</small></div><div class="sm muted">${esc(facts)}</div><div class="curve-box">${dayCurve(v.points, "#f5b83d", tile.id)}</div>` };
+	},
+
+	docker(tile, x) {
+		const c = x.live.containers;
+		const head = `<div class="th"><span class="logo" style="--c:#2496ed">${svg("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>")}</span><span class="n">Docker</span>${c ? `<span class="meta">${t("dk.running", { n: c.running })}${c.stopped ? ` · ${t("dk.stopped", { n: c.stopped })}` : ""}</span>` : ""}</div>`;
+		if (!c) return { c: "#2496ed", html: `${head}<div class="sm faint bottom">${t("dk.none")}</div>` };
+		const max = Math.max(1, ...c.top.map((x2) => x2.memory || 0));
+		const rows = c.top.slice(0, tile.h * 3 - 1).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num">${r.cpu !== null && r.cpu !== undefined ? `${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)}</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
+		const stopped = c.stopped ? `<div class="sm faint" style="margin-top:8px">${t("dk.stoppedList")}: ${c.stoppedNames.map(esc).join(", ")}</div>` : "";
+		return { c: "#2496ed", html: `${head}<div class="bars">${rows.join("")}</div>${stopped}` };
+	},
+
+	events(tile, x) {
+		const list = (x.live.events || []).slice(0, tile.h * 2 + 1);
+		const head = `<div class="th"><span class="n">${t("ev.title")}</span><span class="meta">${t("ev.sub")}</span></div>`;
+		if (!list.length) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("ev.none")}</div>` };
+		const s = (id) => x.service(id);
+		const rows = list.map((e) => {
+			const svc = s(e.sid);
+			const cls = e.to === "down" ? "bad" : e.to === "slow" ? "warn" : "ok";
+			return `<div class="e"><span class="w">${esc(fmtAgo(e.t))}</span><div class="mid"><div class="tt">${esc(svc ? svc.name : e.name)} <span class="ev-${cls}">${t(`ev.${e.to}`)}</span></div>${e.detail ? `<div class="ss">${esc(e.detail)}</div>` : ""}</div></div>`;
+		});
+		return { c: "#9dbcff", html: `${head}<div class="cal">${rows.join("")}</div>` };
+	},
+
+	tailscale(tile, x) {
+		const ts = x.live.tailscale;
+		const icon = `<span class="logo" style="--c:var(--text)">${svg("<circle cx='6' cy='6' r='1.8'/><circle cx='12' cy='6' r='1.8'/><circle cx='18' cy='6' r='1.8'/><circle cx='6' cy='12' r='1.8'/><circle cx='12' cy='12' r='1.8'/><circle cx='18' cy='12' r='1.8'/><circle cx='12' cy='18' r='1.8'/>", 1.6)}</span>`;
+		const head = `<div class="th">${icon}<span class="n">Tailscale</span><span class="meta">${ts && ts.dnsName ? esc(ts.dnsName.split(".")[0]) : ""}</span></div>`;
+		if (!ts || !ts.available || ts.error) return { c: "#9aa4b2", html: `${head}<div class="sm faint bottom">${esc((ts && ts.error) || t("ts.notConnected"))}</div>` };
+		const rows = (ts.mappings || []).slice(0, tile.h * 3).map((m) => {
+			const svc = x.services().find((s) => ts.links && ts.links[s.id] === m.url);
+			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
+			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener">${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
+		});
+		return { c: "#9aa4b2", cls: "ts-tile", html: `${head}<div class="ts-items">${rows.join("") || `<div class="sm faint">${t("ts.none")}</div>`}</div><button class="md-clear" data-ts-manage>${t("ts.manage")}</button>` };
 	},
 
 	links(tile) {

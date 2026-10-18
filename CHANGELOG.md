@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 – 2026-10-18
+
+- Details, logs, settings and info cards open as a panel from the right on desktop; short questions stay in the middle.
+- New tiles: Docker (running and stopped containers, biggest users) and Events (latest outages and recoveries).
+- Service details show the warnings a service reports (Sonarr/Radarr/Prowlarr health) with a link to its status page.
+- Tailscale tile: all shares of the machine at a glance (click opens them), "Manage" to share or remove; the list left the settings. Choose the port when sharing a service in its details, or move it later.
+- "Check now" shows progress and the result, and refreshes the integration data too.
+- Service list: container uptime ("Up 3 days") instead of "since just now" after a restart.
+
 ## 0.7.3 – 2026-10-18
 
 - Six tile columns again on desktop (like the prototype): wide and tall tiles fit without gaps.
