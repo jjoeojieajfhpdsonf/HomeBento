@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 – 2026-10-18
+
+- Tailscale: share a service in the tailnet with one switch (Tailscale Serve, HTTPS, same port), see and remove all serve entries in the settings, and open services at their Tailscale address when HomeBento is used through Tailscale.
+- "Coming up" shows the last downloads of Sonarr/Radarr when nothing is planned.
+- qBittorrent: newer versions answer the login with 204/401.
+- Small service tiles show two key figures (no more cut values); the response time moved under the name.
+- Server details follow the live values and explain CPU and load.
+
 ## 0.3.0 – 2026-10-18
 
 - Tapping a service tile opens the service itself; details are behind the ⓘ button (or right click). A service that is down shows its details instead.

@@ -12,6 +12,8 @@ const { Docker } = require("./lib/docker");
 const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
+const { Tailscale, targetFor } = require("./lib/tailscale");
+const os = require("node:os");
 const { KINDS } = require("./lib/kinds");
 const { UserError } = require("./lib/errors");
 const { request } = require("./lib/util");
@@ -30,6 +32,7 @@ const docker = new Docker();
 const host = new Host();
 const integrations = new Integrations(store);
 const auth = new Auth(process.env.PASSWORD, DATA_DIR);
+const tailscale = new Tailscale();
 const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_SECONDS, onChange: notify });
 
 // A message when a service goes down or comes back (ntfy-style: POST text to NOTIFY_URL).
@@ -54,6 +57,47 @@ async function autoKeys(s) {
 }
 
 const hostOf = (req) => String(req.headers.host || "localhost").replace(/:\d+$/, "");
+
+// Is this service running on this machine? (only then can Tailscale Serve forward to it)
+function isLocal(s, req, dnsName) {
+	let host;
+	try {
+		host = new URL(s.url).hostname;
+	} catch {
+		return false;
+	}
+	const mine = new Set(["localhost", "127.0.0.1", "::1", hostOf(req), dnsName]);
+	for (const list of Object.values(os.networkInterfaces())) for (const a of list || []) mine.add(a.address);
+	return mine.has(host);
+}
+
+// Tailscale state for the web app: the machine's name, all entries, and which service has which address.
+async function tailscaleInfo(req) {
+	if (!tailscale.available) return { available: false };
+	try {
+		const { status, list } = await tailscale.mappings();
+		const links = {};
+		const local = {};
+		for (const s of store.config.services) {
+			if (!s.url || !isLocal(s, req, status.dnsName)) continue;
+			local[s.id] = true;
+			const { port } = targetFor(s.url);
+			const m = list.find((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port);
+			if (m) links[s.id] = m.url;
+		}
+		return { available: true, ...status, mappings: list, links, local };
+	} catch (err) {
+		return { available: true, error: err.message };
+	}
+}
+function proxyPort(proxy) {
+	try {
+		const u = new URL(proxy.replace(/^https\+insecure:/, "https:"));
+		return ["127.0.0.1", "localhost", "0.0.0.0", "[::1]"].includes(u.hostname) ? Number(u.port) || (u.protocol === "https:" ? 443 : 80) : null;
+	} catch {
+		return /^\d+$/.test(proxy) ? Number(proxy) : null;
+	}
+}
 
 // ---------- HTTP helpers ----------
 
@@ -109,7 +153,8 @@ const route = (method, pattern, handler) => routes.push({ method, re: new RegExp
 
 // ---------- API ----------
 
-route("GET", "/api/state", () => ({
+route("GET", "/api/state", async (body, p, query, req) => ({
+	tailscale: await tailscaleInfo(req),
 	version: VERSION,
 	config: store.public(),
 	kinds: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { label: v.label, tile: v.tile, fields: v.fields.map(({ key, label, help, secret }) => ({ key, label, help, secret: !!secret })) }])),
@@ -267,6 +312,30 @@ route("GET", "/api/containers", async () => {
 	return { docker: true, items: (await docker.list()).map((c) => ({ name: c.name, image: c.image, state: c.state })) };
 });
 
+route("GET", "/api/tailscale", (body, p, query, req) => tailscaleInfo(req));
+
+// Make a service reachable in the tailnet (or not), on the same port as at home.
+route("POST", "/api/services/:id/tailscale", async (body, p, query, req) => {
+	const s = store.service(p.id);
+	if (!tailscale.available) throw new UserError("Tailscale is not connected (mount /var/run/tailscale/tailscaled.sock)");
+	const st = await tailscale.status();
+	if (!isLocal(s, req, st.dnsName)) throw new UserError("Only services on this server can be shared through its Tailscale");
+	const { port, target } = targetFor(s.url);
+	const tsPort = Number(body.port) || (port === 80 ? 8080 : port);
+	if (body.enable) await tailscale.add(tsPort, target);
+	else {
+		const { list } = await tailscale.mappings();
+		for (const m of list.filter((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port)) await tailscale.remove(m.port);
+	}
+	return tailscaleInfo(req);
+});
+
+route("POST", "/api/tailscale/remove", async (body, p, query, req) => {
+	if (!tailscale.available) throw new UserError("Tailscale is not connected");
+	await tailscale.remove(body.port);
+	return tailscaleInfo(req);
+});
+
 route("POST", "/api/boards", (body) => ({ board: store.addBoard(body.name) }));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
@@ -326,7 +395,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
 	console.log(`HomeBento ${VERSION} on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
-	console.log(`Data in ${DATA_DIR} · Docker: ${docker.available === false ? "not found" : docker.socket} · checks every ${CHECK_SECONDS} s`);
+	console.log(`Data in ${DATA_DIR} · Docker: ${docker.available === false ? "not found" : docker.socket} · Tailscale: ${tailscale.available ? tailscale.socket : "not found"} · checks every ${CHECK_SECONDS} s`);
 	monitor.start();
 	// fill in API keys that can be read from containers (e.g. after an update that added this)
 	setTimeout(() => Promise.all(store.config.services.map((s) => autoKeys(s).catch(() => false))).then((r) => r.some(Boolean) && console.log("API keys read from containers")), 2000);

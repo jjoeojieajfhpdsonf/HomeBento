@@ -45,7 +45,14 @@ test.before(async () => {
 			req.on("data", (c) => (body += c));
 			req.on("end", () => {
 				if (body === "username=admin&password=pw") return json("Ok.", 200, { "Set-Cookie": "SID=abc; HttpOnly; path=/" });
-				if (body === "username=v5&password=p%26w") return json("Ok.", 200, { "Set-Cookie": ["other=1; path=/", "QBT_SID_8082=abc; HttpOnly; path=/"] });
+				if (body === "username=v5&password=p%26w") {
+					res.writeHead(204, { "Set-Cookie": ["other=1; path=/", "QBT_SID_8082=abc; HttpOnly; path=/"] });
+					return res.end();
+				}
+				if (body.startsWith("username=v5&")) {
+					res.writeHead(401, { "Content-Type": "text/plain" });
+					return res.end("Unauthorized");
+				}
 				json("Fails.", 200);
 			});
 			return;
@@ -111,6 +118,8 @@ test("qBittorrent: logs in when needed and keeps the cookie", async () => {
 	assert.equal(v5.data.torrents.length, 1);
 	const bad = await new Integrations(store({ username: "admin", password: "wrong" })).data({ id: "q2", kind: "qbittorrent", url: `${base}/qb` });
 	assert.match(bad.error, /Login failed/);
+	const bad5 = await new Integrations(store({ username: "v5", password: "nope" })).data({ id: "q6", kind: "qbittorrent", url: `${base}/qb` });
+	assert.match(bad5.error, /check user and password/);
 });
 
 test("solar dashboard: live values and a 15-minute curve", async () => {

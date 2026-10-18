@@ -89,6 +89,14 @@ function fmtEta(s) {
 	if (s < 3600) return `${Math.round(s / 60)} min`;
 	return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
 }
+// "vor 3 h", "gestern", "Mo 13.10."
+function fmtAgo(ts) {
+	const diff = Date.now() - ts;
+	if (diff < 24 * 3600000) return t("time.ago", { t: fmtDuration(diff) });
+	if (diff < 48 * 3600000) return t("time.yesterday");
+	return new Date(ts).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "numeric" });
+}
+
 // "Heute 21:00", "Morgen 20:00", "Mi 23.10."
 function fmtWhen(ts, withTime = true) {
 	const d = new Date(ts);
@@ -193,7 +201,8 @@ function subLine(s, st, d) {
 		if (s.kind === "qbittorrent" && data.torrents.length) return { text: data.torrents[0].name };
 		if (s.kind === "solar" && data.use !== null) return { text: t("solar.use", { v: fmtW(data.use) }) };
 	}
-	return { text: s.url ? s.url.replace(/^https?:\/\//, "") : t("status.unknown"), cls: "faint" };
+	const addr = s.url ? s.url.replace(/^https?:\/\//, "") : t("status.unknown");
+	return { text: st.ms !== null && st.ms !== undefined ? `${fmtMs(st.ms)} · ${addr}` : addr, cls: "faint" };
 }
 
 function setupHint(s, d) {
@@ -222,7 +231,7 @@ const TILES = {
 		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : "";
 		const sub = subLine(s, st, d);
 		const head = `<div class="head">${logo(s)}<div class="txt"><div class="n">${esc(s.name)}</div><div class="s ${sub.cls || ""}" title="${esc(sub.text)}">${esc(sub.text)}</div></div>${tag}</div>`;
-		const nums = metricsHtml(metrics(s, st, d, tile.w === 1 ? 3 : 4));
+		const nums = metricsHtml(metrics(s, st, d, tile.w === 1 ? 2 : 4));
 		if (tile.h === 1) return { c: colorOf(s), cls: `mini ${st.status}`, html: head + nums };
 		const extra = moreLines(s, st, d);
 		const sp = st.recent && st.status !== "down" ? `<div class="bottom">${spark(st.recent)}</div>` : "";
@@ -315,7 +324,18 @@ const TILES = {
 		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("cal.title")}</span><span class="meta">${srcs.map((s) => esc(s.name)).join(" · ")}</span></div>`;
 		if (!srcs.length) return { c: "#35c5f4", html: `${head}<div class="sm faint bottom">${t("cal.needs")}</div>` };
 		if (!items.length && errors.length) return { c: "#35c5f4", html: head + setupHint(errors[0], x.live.data[errors[0].id]) };
-		if (!upcoming.length) return { c: "#35c5f4", html: `${head}<div class="sm faint bottom">${t("cal.none")}</div>` };
+		if (!upcoming.length) {
+			// nothing coming: show what arrived last instead of an empty tile
+			const recent = [];
+			for (const s of srcs) {
+				const d = x.live.data[s.id];
+				if (d && d.data && d.data.imported) for (const i of d.data.imported) recent.push({ ...i, src: s.kind, color: colorOf(s) });
+			}
+			recent.sort((a, b) => b.at - a.at);
+			const rows = recent.slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0)).map((i) => `<div class="e"><span class="w">${esc(fmtAgo(i.at))}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${i.src === "sonarr" && i.sub ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")}${i.sub && i.sub.year ? ` · ${i.sub.year}` : ""}`}</div></div><span class="dot" style="background:${i.color}"></span></div>`);
+			const head2 = `<div class="th"><span class="n">${t("cal.imported")}</span><span class="meta">${t("cal.noneShort")}</span></div>`;
+			return { c: "#35c5f4", html: rows.length ? `${head2}<div class="cal">${rows.join("")}</div>` : `${head}<div class="sm faint bottom">${t("cal.none")}</div>` };
+		}
 		const sub = (i) => (i.src === "sonarr" ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")} · ${t(`cal.${i.sub.release}`)}`);
 		const rows = upcoming.map((i) => {
 			const w = fmtWhen(i.at);

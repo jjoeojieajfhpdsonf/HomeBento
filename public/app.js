@@ -80,6 +80,7 @@ async function loadLive() {
 		return;
 	}
 	if (!S.drag) renderGrid();
+	if (S.hostFill) S.hostFill();
 }
 
 // ---------- layout ----------
@@ -263,13 +264,18 @@ function detailsOf(tile) {
 	else openTile(tile);
 }
 
+// Away from home (HomeBento opened through Tailscale) services open at their Tailscale address.
+const viaTailscale = () => /\.ts\.net$/.test(location.hostname) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(location.hostname);
+const tsLink = (s) => (S.state.tailscale && S.state.tailscale.links && S.state.tailscale.links[s.id]) || null;
+const urlFor = (s) => (viaTailscale() && tsLink(s)) || s.url;
+
 // One tap opens the service itself; a service that is down shows what's wrong instead.
 function openTile(tile) {
 	const s = tileService(tile);
 	if (s && s.url) {
 		const st = S.live && S.live.status[s.id];
 		if (st && st.status === "down") return serviceSheet(s.id);
-		window.open(s.url, "_blank", "noopener");
+		window.open(urlFor(s), "_blank", "noopener");
 		return;
 	}
 	return openTileDetails(tile);
@@ -439,6 +445,7 @@ async function serviceSheet(sid) {
 		);
 		parts.push(h("div", { class: "sec" }, t("sheet.last24")), h("div", { class: "box" }, bars(d.hours, true), h("div", { class: "axis" }, h("span", {}, "−24 h"), h("span", {}, t("time.now")))));
 		parts.push(h("div", { class: "sec" }, t("sheet.last30")), h("div", { class: "box" }, bars(d.days.map((ok) => ({ ok, ms: null })), false), h("div", { class: "axis" }, h("span", {}, "−30 d"), h("span", {}, t("cal.today")))));
+		if (tsLink(s)) parts.push(h("div", { class: "sec" }, "Tailscale"), h("div", { class: "box kv" }, h("div", {}, h("span", {}, t("ts.address")), h("a", { href: tsLink(s), target: "_blank", rel: "noopener" }, tsLink(s).replace(/^https:\/\//, "")))));
 		if (s.container) parts.push(containerPart(s, d.container, fill));
 		if (s.kind === "mmmanager") parts.push(h("div", { class: "acts" }, h("button", { class: "btn", onclick: (e) => act(e.currentTarget, s, "restart", fill) }, t("mm.restart"))));
 		parts.push(h("div", { class: "sec" }, t("sheet.events")));
@@ -449,7 +456,7 @@ async function serviceSheet(sid) {
 		);
 		parts.push(
 			h("div", { class: "acts" },
-				s.url ? h("a", { class: "btn primary", href: s.url, target: "_blank", rel: "noopener" }, html(UI.open), t("sheet.open")) : null,
+				s.url ? h("a", { class: "btn primary", href: urlFor(s), target: "_blank", rel: "noopener" }, html(UI.open), t("sheet.open")) : null,
 				h("button", { class: "btn", onclick: async (e) => { e.currentTarget.classList.add("busy"); await guard(() => api("POST", `/api/services/${sid}/check`)); fill(); loadLive(); } }, t("sheet.checkNow")),
 				h("button", { class: "btn", onclick: () => (sheet.close(), serviceForm(s)) }, t("sheet.edit")))
 		);
@@ -538,18 +545,31 @@ async function statusSheet() {
 	);
 }
 
+// Server details; follows the live data like the tile does.
 function hostSheet() {
-	const hst = S.live && S.live.host;
-	if (!hst) return;
+	if (!S.live || !S.live.host) return;
 	const sheet = openSheet();
-	sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
-	sheet.body.append(
-		h("div", { class: "box kv" },
-			h("div", {}, h("span", {}, t("host.cpu")), h("span", { class: "num" }, `${hst.cpu} % · ${hst.cores} × · load ${nf(hst.load, 2)}`)),
-			h("div", {}, h("span", {}, t("host.memory")), h("span", { class: "num" }, t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) }))),
-			hst.diskTotal ? h("div", {}, h("span", {}, t("host.disk")), h("span", { class: "num" }, t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) }))) : null,
-			hst.temp !== null ? h("div", {}, h("span", {}, "°C"), h("span", { class: "num" }, `${hst.temp}°`)) : null)
-	);
+	const fill = () => {
+		const hst = S.live && S.live.host;
+		if (!hst) return;
+		const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+		sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
+		const row = (k, v) => h("div", {}, h("span", {}, k), h("span", { class: "num" }, v));
+		sheet.body.replaceChildren(
+			h("div", { class: "box kv" },
+				row(t("host.cpu"), `${hst.cpu} %`),
+				row(t("host.cores"), String(hst.cores)),
+				row(t("host.load"), nf(hst.load, 2)),
+				row(t("host.memory"), `${t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })} (${pct(hst.memUsed, hst.memTotal)} %)`),
+				hst.diskTotal ? row(t("host.disk"), `${t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) })} (${pct(hst.diskUsed, hst.diskTotal)} %)`) : null,
+				hst.net ? row(t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s · ↑ ${fmtBytes(hst.net.tx)}/s`) : null,
+				hst.temp !== null ? row(t("host.temp"), `${hst.temp} °C`) : null),
+			h("div", { class: "note", style: "margin-top:12px" }, t("host.loadHelp"))
+		);
+	};
+	fill();
+	S.hostFill = fill;
+	sheet.onclose = () => (S.hostFill = null);
 }
 
 // ---------- service form ----------
@@ -633,6 +653,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 			S.state.docker ? h("div", { class: "field" }, h("label", {}, t("form.container")), container) : null,
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.check")), h("span", { class: "switch" }, check, h("span"))),
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.insecure"), h("div", { class: "help" }, t("form.insecureHelp"))), h("span", { class: "switch" }, insecure, h("span")))),
+		tailscalePart(s, msg),
 		msg,
 		h("div", { class: "acts" },
 			saveBtn, testBtn,
@@ -647,6 +668,29 @@ async function serviceForm(s, prefill = {}, onSaved) {
 			} }, t("form.delete")))
 	);
 	if (isNew && !cur.name) setTimeout(() => name.focus(), 250);
+}
+
+// "Reachable through Tailscale": switches Tailscale Serve for this service right away.
+function tailscalePart(s, msg) {
+	const ts = S.state.tailscale || {};
+	if (!ts.available || !s || !s.id) return null;
+	if (ts.error) return h("div", { class: "box", style: "margin-top:8px" }, h("div", { class: "field" }, h("label", {}, "Tailscale"), h("div", { class: "help" }, ts.error)));
+	if (!ts.local || !ts.local[s.id]) return null;
+	const link = tsLink(s);
+	const sw = h("input", { type: "checkbox", checked: !!link, onchange: async (e) => {
+		e.target.disabled = true;
+		try {
+			S.state.tailscale = await api("POST", `/api/services/${s.id}/tailscale`, { enable: e.target.checked });
+			msg.replaceChildren(e.target.checked && tsLink(s) ? h("div", { class: "note ok" }, `${t("ts.on")} ${tsLink(s)}`) : h("div", { class: "note" }, t("ts.off")));
+		} catch (err) {
+			e.target.checked = !e.target.checked;
+			msg.replaceChildren(h("div", { class: "note bad" }, err.message));
+		}
+		e.target.disabled = false;
+		sub.textContent = tsLink(s) || t("ts.help", { n: ts.dnsName });
+	} });
+	const sub = h("div", { class: "help" }, link || t("ts.help", { n: ts.dnsName }));
+	return h("div", { class: "box", style: "margin-top:8px" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), sub), h("span", { class: "switch" }, sw, h("span"))));
 }
 
 // ---------- adding tiles ----------
@@ -872,8 +916,38 @@ function settingsSheet() {
 			h("div", {}, h("span", {}, t("settings.checks")), h("span", {}, t("settings.checksEvery", { n: S.state.checkSeconds }))),
 			h("div", {}, h("span", {}, t("settings.notify")), h("span", {}, S.state.notify ? t("settings.notifyOn") : t("settings.notifyOff"))),
 			h("div", {}, h("span", {}, t("settings.version")), h("span", {}, S.state.version))),
+		tailscaleSettings(),
 		S.state.auth ? h("div", { class: "acts" }, h("button", { class: "btn", onclick: async () => (await fetch("/api/logout", { method: "POST" }), location.reload()) }, t("settings.logout"))) : null
 	);
+}
+
+// Every Tailscale Serve entry of this machine, also those not made in HomeBento.
+function tailscaleSettings() {
+	const ts = S.state.tailscale || {};
+	const box = h("div");
+	const draw = () => {
+		const st = S.state.tailscale || {};
+		const rows = [];
+		if (!st.available) rows.push(h("div", {}, h("span", {}, t("ts.status")), h("span", {}, t("ts.notConnected"))));
+		else if (st.error) rows.push(h("div", {}, h("span", {}, t("ts.status")), h("span", {}, st.error)));
+		else {
+			rows.push(h("div", {}, h("span", {}, t("ts.machine")), h("span", {}, st.dnsName || st.state)));
+			for (const m of st.mappings || []) {
+				const svc = services().find((s) => st.links && st.links[s.id] === m.url);
+				rows.push(h("div", {},
+					h("span", { style: "min-width:0" }, h("a", { href: m.url, target: "_blank", rel: "noopener", style: "color:var(--text)" }, `:${m.port}${m.path === "/" ? "" : m.path}`), " ", h("span", { class: "faint sm" }, `→ ${svc ? svc.name : m.proxy || "–"}${m.funnel ? " · Funnel" : ""}`)),
+					h("button", { class: "btn danger", style: "padding:4px 10px", onclick: async () => {
+						if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
+						const r = await guard(() => api("POST", "/api/tailscale/remove", { port: m.port }));
+						if (r) (S.state.tailscale = r), draw();
+					} }, t("tile.remove"))));
+			}
+			if (!(st.mappings || []).length) rows.push(h("div", {}, h("span", {}, t("ts.none"))));
+		}
+		box.replaceChildren(h("div", { class: "sec" }, "Tailscale"), h("div", { class: "box kv" }, rows));
+	};
+	if (ts.available !== undefined) draw();
+	return box;
 }
 
 function showLogin() {

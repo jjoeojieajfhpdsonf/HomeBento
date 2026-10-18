@@ -16,3 +16,5 @@ services:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock   # list, start, stop, restart containers, logs
       - /:/host:ro
+      # optional: manage Tailscale Serve (services as https://<machine>.<tailnet>.ts.net:<port>)
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock

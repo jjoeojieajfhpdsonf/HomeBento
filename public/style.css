@@ -72,8 +72,9 @@ a { color: inherit; }
 .mini .s.bad { color: var(--bad); } .mini .s.warn, .more .warn { color: var(--warn); } .mini .s.faint { color: var(--faint); }
 .mini { container-type: inline-size; }
 .metrics { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin-top: 8px; }
-@container (max-width: 150px) { .metrics > div:nth-child(n+3) { display: none; } }
-@container (max-width: 260px) { .metrics > div:nth-child(n+4) { display: none; } }
+@container (max-width: 130px) { .metrics > div:nth-child(n+2) { display: none; } }
+@container (max-width: 300px) { .metrics > div:nth-child(n+3) { display: none; } }
+@container (max-width: 420px) { .metrics > div:nth-child(n+4) { display: none; } }
 .metrics > div { min-width: 0; padding: 0 6px; }
 .metrics > div:first-child { padding-left: 0; }
 .metrics > div + div { border-left: 1px solid var(--line); }

@@ -51,6 +51,7 @@ Environment variables:
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | |
 | `HOST_ROOT` | `/` | Path whose disk usage is shown |
 | `HOST_NAME` | hostname | Name of the server tile |
+| `TAILSCALE_SOCKET` | `/var/run/tailscale/tailscaled.sock` | |
 
 Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 
@@ -68,6 +69,16 @@ Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 Every other service gets status, response time, uptime, and – with a linked container – CPU, memory and container actions.
 
 Logins are stored on the server only (`data/secrets.json`) and never sent to the browser. Jellyfin posters are loaded through the dashboard so the API key stays on the server.
+
+## Tailscale
+
+If the server runs [Tailscale](https://tailscale.com), HomeBento can make a service reachable in your tailnet with HTTPS – a switch in the service form, no `tailscale serve` commands:
+
+- "Reachable through Tailscale" serves the service at `https://<machine>.<tailnet>.ts.net:<same port>` (tailnet only, not public).
+- The settings list every Tailscale Serve entry of the machine, also those made by hand, and can remove them.
+- When you open HomeBento itself through Tailscale (away from home), tiles open the services at their Tailscale address.
+
+It needs tailscaled's socket (in the compose file: `/var/run/tailscale/tailscaled.sock`) and HTTPS certificates enabled for the tailnet. Only the entries you switch are changed; the rest of the serve configuration stays as it is.
 
 ## Docker labels
 
@@ -98,6 +109,7 @@ npm test
 | `lib/host.js` | CPU, memory, disk, temperature |
 | `lib/integrations.js` | Jellyfin, Sonarr, Radarr, qBittorrent, solar, MagicMirror Manager |
 | `lib/kinds.js` | Known services, icon and name guessing |
+| `lib/tailscale.js` | Tailscale Serve through tailscaled's local API |
 | `public/` | The web app (no build step) |
 | `prototypes/` | The first design studies |
 
