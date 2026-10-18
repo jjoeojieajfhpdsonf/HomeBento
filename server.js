@@ -34,7 +34,7 @@ const host = new Host({ dataDir: DATA_DIR });
 const integrations = new Integrations(store);
 const auth = new Auth(process.env.PASSWORD, DATA_DIR);
 const tailscale = new Tailscale();
-const releases = new Releases();
+const releases = new Releases(DATA_DIR);
 const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_SECONDS, onChange: notify });
 
 // A message when a service goes down or comes back (ntfy-style: POST text to NOTIFY_URL).
@@ -180,7 +180,10 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	if (cfg.layout === "combined") for (const s of cfg.services) wanted.add(s.id);
 	if (types.has("calendar")) for (const s of cfg.services) if (s.kind === "sonarr" || s.kind === "radarr") wanted.add(s.id);
 	// a content tile without its own service shows the first matching one
-	for (const t of board.tiles) if (!t.service && ["jellyfin", "recent", "downloads", "solar"].includes(t.type)) for (const s of cfg.services) if (s.kind && KINDS[s.kind].tile === (t.type === "recent" ? "jellyfin" : t.type)) wanted.add(s.id);
+	// the mirror tile shows MagicMirror and restarts it through the manager
+	if (types.has("mirror")) for (const s of cfg.services) if (s.kind === "magicmirror" || s.kind === "mmmanager") wanted.add(s.id);
+	if (types.has("energy")) for (const s of cfg.services) if (s.kind === "solar") wanted.add(s.id);
+	for (const t of board.tiles) if (!t.service && ["jellyfin", "recent", "downloads", "solar", "mystrom"].includes(t.type)) for (const s of cfg.services) if (s.kind && KINDS[s.kind].tile === (t.type === "recent" ? "jellyfin" : t.type)) wanted.add(s.id);
 	const data = {};
 	await Promise.all(
 		cfg.services.filter((s) => wanted.has(s.id) && s.kind).map(async (s) => {
@@ -309,8 +312,8 @@ route("POST", "/api/services/:id/action", async (body, p) => {
 		setTimeout(() => monitor.check(s).catch(() => {}), what === "stop" ? 500 : 6000);
 		return { container: { state: c.state, status: c.status } };
 	}
-	const r = await integrations.action(s, what);
-	monitor.note(s, "action", "Restarted");
+	const r = await integrations.action(s, what, body);
+	if (what === "restart") monitor.note(s, "action", "Restarted");
 	setTimeout(() => monitor.check(s).catch(() => {}), 8000);
 	return r;
 });

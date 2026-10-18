@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.0 – 2026-10-18
+
+- myStrom tile: plugs and lamps from the myStrom app with power now, a switch each, and today's energy and cost.
+- Energy tile: the solar day as a balance – self-sufficiency, own use, battery, produced, used, fed in, from the grid.
+- Updates tile: release data is kept on disk and asked with ETags (unchanged answers don't count against GitHub's limit); at the limit the last known versions stay.
+- Details open as centred windows again.
+- MagicMirror tile: active modules, version, uptime and restarts, "Restart" through MagicMirror Manager.
+
 ## 0.10.1 – 2026-10-18
 
 - MagicMirror integration: active modules, version and uptime from MagicMirror itself (/version, /startup, /config/); the details list the active modules with their position.

@@ -173,6 +173,7 @@ function metrics(s, st, d, max = 3) {
 		if (s.kind === "qbittorrent") out = [m(nf((data.down || 0) / 1e6, 1), "↓ MB/s"), m(nf((data.up || 0) / 1e6, 1), "↑ MB/s"), m(data.downloading, t("m.loading")), m(data.seeding, t("m.seeding"))];
 		if (s.kind === "prowlarr") out = [m(data.enabled, t("m.indexers")), m(data.failing, t("m.failing"), data.failing ? "warn" : ""), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
 		if (s.kind === "solar") out = [m(data.pv !== null ? nf(data.pv / 1000, 1) : null, "kW"), m(data.todayWh !== null ? nf(data.todayWh / 1000, 1) : null, t("m.todayKwh")), m(data.battery !== null ? `${data.battery} %` : null, t("m.battery")), m(data.use !== null ? nf(data.use / 1000, 1) : null, t("m.houseKw"))];
+		if (s.kind === "mystrom") out = [m(data.devices.filter((d) => d.on).length, t("m.on")), m(Math.round(data.watts), "W"), m(data.todayWh !== null ? nf(data.todayWh / 1000, 2) : null, t("m.todayKwh"))];
 		if (s.kind === "magicmirror") out = [m(data.modules, t("m.modules")), m(data.version, "Version"), m(data.started ? fmtDuration(Date.now() - data.started) : null, t("m.running"))];
 		if (s.kind === "mmmanager") out = [m(data.process === "online" ? t("mm.online") : data.process, t("m.state"), data.process && data.process !== "online" ? "warn" : ""), m(data.version, "Version"), m(data.restarts, t("m.restarts"))];
 	}
@@ -508,6 +509,51 @@ const TILES = {
 			return `<div class="rel-row${i.isNew ? " new" : ""}${i.update ? " upd" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div>${i.update && svc && svc.container ? `<button class="rel-upd-btn" data-rel-update>${t("upd.short")}</button>` : ""}<div class="rel-ver"><div class="v">${l ? esc(l.tag) : "–"}</div><div class="ss">${i.d && i.d.current === true ? `<span class="rel-ok">✓ ${t("rel.current")}</span>` : i.update ? `<span class="rel-upd">${t("rel.runs", { v: esc(i.d.running) })}</span>` : l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
 		});
 		return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
+	},
+
+	// myStrom plugs: power now and a switch per device
+	mystrom(tile, x) {
+		const s = x.service(tile.service) || x.ofKind("mystrom")[0];
+		if (!s) return { html: `<div class="th"><span class="n">myStrom</span></div>` };
+		const d = x.live.data[s.id];
+		const head = (meta) => `<div class="th">${logo(s)}<span class="n">${esc(s.name)}</span><span class="meta">${meta}</span></div>`;
+		if (!d || !d.data) return { c: colorOf(s), html: head("") + setupHint(s, d) };
+		const v = d.data;
+		const rows = v.devices.slice(0, tile.h * 3).map((dev) => `<div class="ms-row${dev.online ? "" : " off"}"><span class="ms-name">${esc(dev.name)}</span><span class="ms-w num">${dev.online ? (dev.w !== null ? `${nf(dev.w, dev.w < 10 ? 1 : 0)} W` : "") : t("ms.offline")}</span>${dev.switchable && dev.online ? `<label class="switch small" data-ms-mac="${esc(dev.mac)}"><input type="checkbox" ${dev.on ? "checked" : ""}><span></span></label>` : ""}</div>`);
+		const cost = v.todayWh !== null && v.price ? ` · ${nf((v.todayWh / 1000) * v.price, 2)} CHF` : "";
+		return { c: colorOf(s), cls: "ms-tile", html: `${head(`${nf(v.watts, 0)} W`)}<div class="ms-list">${rows.join("")}</div><div class="sm faint bottom">${v.todayWh !== null ? t("ms.today", { v: fmtWh(v.todayWh) }) + cost : ""}</div>` };
+	},
+
+	// the solar day as a balance: produced, used, own share, grid, battery
+	energy(tile, x) {
+		const s = x.service(tile.service) || x.ofKind("solar")[0];
+		const head = `<div class="th"><span class="n">${t("en.title")}</span><span class="meta">${t("en.today")}</span></div>`;
+		const d = s && x.live.data[s.id];
+		const td = d && d.data && d.data.today;
+		if (!td) return { c: "#f5b83d", html: head + (s ? setupHint(s, d) : `<div class="sm faint bottom">${t("en.needs")}</div>`) };
+		const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+		const autarky = pct(td.covered, td.use);
+		const own = pct(td.self, td.yield);
+		const max = Math.max(td.yield || 0, td.use || 0, 1);
+		const bar = (label, wh, color) => `<div class="b"><div class="top"><span>${label}</span><span class="num">${fmtWh(wh)}</span></div><div class="track"><div class="fill" style="width:${Math.round(((wh || 0) / max) * 100)}%;background:${color}"></div></div></div>`;
+		const soc = d.data.battery;
+		return { c: "#f5b83d", html: `${head}<div class="en-kpis"><div><div class="v num">${autarky ?? "–"} %</div><div class="l">${t("en.autarky")}</div></div><div><div class="v num">${own ?? "–"} %</div><div class="l">${t("en.own")}</div></div>${soc !== null && soc !== undefined ? `<div><div class="v num">${soc} %</div><div class="l">${t("en.battery")}</div></div>` : ""}</div><div class="bars">${bar(t("en.yield"), td.yield, "#f5b83d")}${bar(t("en.use"), td.use, "#9dbcff")}${tile.h > 2 ? bar(t("en.feed"), td.feed, "#5fd39a") + bar(t("en.import"), td.import, "#ff8a65") : ""}</div>` };
+	},
+
+	// MagicMirror: which modules are on, version, uptime, restart through the manager
+	mirror(tile, x) {
+		const s = x.service(tile.service) || x.ofKind("magicmirror")[0];
+		if (!s) return { html: `<div class="th"><span class="n">MagicMirror</span></div><div class="sm faint bottom">${t("mm.needs")}</div>` };
+		const d = x.live.data[s.id];
+		const mgr = x.ofKind("mmmanager")[0];
+		const md = mgr && x.live.data[mgr.id] && x.live.data[mgr.id].data;
+		const st = x.live.status[s.id] || {};
+		const head = `<div class="th">${logo(s)}<span class="n">${esc(s.name)}</span><span class="meta">${d && d.data && d.data.version ? `v${esc(d.data.version)}` : ""}</span></div>`;
+		if (!d || !d.data) return { c: colorOf(s), html: head + setupHint(s, d) };
+		const v = d.data;
+		const facts = [st.status === "down" ? `<span class="ev-bad">${t("status.down")}</span>` : `<span class="ev-ok">${t("mm.online")}</span>`, v.started ? t("status.since", { t: fmtDuration(Date.now() - v.started) }) : "", md && md.restarts !== null ? t("mm.restarts", { n: md.restarts }) : ""].filter(Boolean).join(" · ");
+		const chips = v.active.filter((m) => m.position).slice(0, tile.h * 5).map((m) => `<span class="mm-chip" title="${esc((m.position || "").replace(/_/g, " "))}">${esc(m.name.replace(/^MMM-/, ""))}</span>`).join("");
+		return { c: colorOf(s), html: `${head}<div class="sm muted" style="margin:6px 0 8px">${facts}</div><div class="mm-chips">${chips}</div><div class="md-btns">${mgr ? `<button class="md-clear" data-mm-restart="${esc(mgr.id)}">${t("mm.restart")}</button>` : ""}<span class="sm faint">${t("mm.count", { a: v.modules, b: v.total })}</span></div>` };
 	},
 
 	links(tile) {
