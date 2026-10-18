@@ -265,7 +265,8 @@ function renderAttention() {
 	const key = JSON.stringify([S.attAll, MAX, items.map((i) => [i.s.id, i.title, i.sub])]);
 	if (el.dataset.key === key) return;
 	el.dataset.key = key;
-	if (!items.length) return el.replaceChildren(h("div", { class: "allok" }, h("i"), t("att.ok", { n: pageServices().length })));
+	// all good: nothing to say
+	if (!items.length) return el.replaceChildren();
 	el.replaceChildren(
 		h("div", { class: "attention" },
 			items.slice(0, items.length - hidden).map((i) =>
@@ -737,6 +738,23 @@ const topSheet = () => [...document.querySelectorAll(".sheet.on:not([data-closin
 $("#scrim").addEventListener("click", () => topSheet() && topSheet().sheet.close());
 document.addEventListener("keydown", (e) => {
 	if (e.key === "Escape" && topSheet()) topSheet().sheet.close();
+	// ⌘/Ctrl + Enter saves the window on top: its primary button, or (settings save as you go)
+	// the field being edited, then the window closes
+	if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && topSheet() && !e.target.closest(".md-edit")) {
+		e.preventDefault();
+		const sh = topSheet();
+		const btns = [...sh.querySelectorAll(".acts .btn.primary")].filter((b) => b.offsetParent !== null && !b.disabled);
+		const save = btns.find((b) => /save|speichern|übernehmen|take over|update|aktualisieren|start|starten/i.test(b.textContent)) || btns[btns.length - 1];
+		if (save) save.click();
+		else {
+			const ae = document.activeElement;
+			if (ae && sh.contains(ae)) {
+				ae.dispatchEvent(new Event("change", { bubbles: true }));
+				ae.blur();
+			}
+			sh.sheet.close();
+		}
+	}
 });
 
 // A question with yes / cancel. text: a sentence (a second line becomes the explanation),

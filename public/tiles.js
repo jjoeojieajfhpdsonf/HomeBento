@@ -581,7 +581,7 @@ const TILES = {
 		if (!c) return { c: "#2496ed", html: `${head}<div class="sm faint bottom">${t("dk.none")}</div>` };
 		const max = Math.max(1, ...c.top.map((x2) => x2.memory || 0));
 		const rows = c.top.slice(0, tile.h * 3 - (c.stopped ? 2 : 1)).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num" title="${t("dk.cpuHelp")}">${r.cpu !== null && r.cpu !== undefined ? `CPU ${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)} RAM</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
-		const stopped = c.stopped ? `<div class="sm faint" style="margin-top:8px">${t("dk.stoppedList")}: ${c.stoppedNames.map(esc).join(", ")}</div>` : "";
+		const stopped = c.stopped ? `<div class="sm faint" style="margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t("dk.stoppedList")}: ${c.stoppedNames.map(esc).join(", ")}</div>` : "";
 		return { c: "#2496ed", html: `${head}<div class="sm faint" style="margin-top:6px">${t("dk.sorted")}</div><div class="bars" style="margin-top:6px">${rows.join("")}</div>${stopped}` };
 	},
 
