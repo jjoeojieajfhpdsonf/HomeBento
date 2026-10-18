@@ -289,6 +289,12 @@ function releaseItems(tile, data) {
 		.sort((a, b) => b.isNew - a.isNew || b.date - a.date);
 }
 
+// Where a calendar entry comes from: the small logo of Sonarr / Radarr instead of a coloured dot.
+function srcLogo(x, i) {
+	const s = i.sid && x.service(i.sid);
+	return s ? logo(s, "logo src-logo").replace("<span ", `<span title="${esc(s.name)}" `) : "";
+}
+
 // ---------- tiles ----------
 
 const TILES = {
@@ -405,14 +411,14 @@ const TILES = {
 				if (d && d.data && d.data.imported) for (const i of d.data.imported) recent.push({ ...i, src: s.kind, sid: s.id, color: colorOf(s) });
 			}
 			recent.sort((a, b) => b.at - a.at);
-			const rows = recent.slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0)).map((i) => `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w">${esc(fmtAgo(i.at))}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${i.src === "sonarr" && i.sub ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")}${i.sub && i.sub.year ? ` · ${i.sub.year}` : ""}`}</div></div><span class="dot" style="background:${i.color}"></span></div>`);
+			const rows = recent.slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0)).map((i) => `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w">${esc(fmtAgo(i.at))}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${i.src === "sonarr" && i.sub ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")}${i.sub && i.sub.year ? ` · ${i.sub.year}` : ""}`}</div></div>${srcLogo(x, i)}</div>`);
 			const head2 = `<div class="th"><span class="n">${t("cal.imported")}</span><span class="meta">${t("cal.noneShort")}</span></div>`;
 			return { c: "#35c5f4", html: rows.length ? `${head2}<div class="cal">${rows.join("")}</div>` : `${head}<div class="sm faint bottom">${t("cal.none")}</div>` };
 		}
 		const sub = (i) => (i.src === "sonarr" ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")} · ${t(`cal.${i.sub.release}`)}`);
 		const rows = upcoming.map((i) => {
 			const w = fmtWhen(i.at);
-			return `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w${w.startsWith(t("cal.today")) ? " today" : ""}">${esc(w)}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${sub(i)}</div></div>${i.has ? `<span class="has">✓</span>` : ""}<span class="dot" style="background:${i.color}"></span></div>`;
+			return `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w${w.startsWith(t("cal.today")) ? " today" : ""}">${esc(w)}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${sub(i)}</div></div>${i.has ? `<span class="has">✓</span>` : ""}${srcLogo(x, i)}</div>`;
 		});
 		return { c: "#35c5f4", html: `${head}<div class="cal">${rows.join("")}</div>` };
 	},
