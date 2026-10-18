@@ -55,6 +55,7 @@ Environment variables:
 | `HOST_NAME` | hostname | Name of the server tile |
 | `GITHUB_TOKEN` | – | Optional, for more GitHub requests than 60 an hour (Updates tile) |
 | `TAILSCALE_SOCKET` | `/var/run/tailscale/tailscaled.sock` | |
+| `TAILSCALE` | – | `off` leaves Tailscale out even when it's installed |
 
 Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 
@@ -131,7 +132,7 @@ Services are stored with their home address (e.g. `http://192.168.0.31:8096`). W
 
 For services on other machines in the home network, set an address away from home (their Tailscale address) or let a Tailscale subnet router reach the home network.
 
-It needs tailscaled's socket (in the compose file: `/var/run/tailscale/tailscaled.sock`) and HTTPS certificates enabled for the tailnet. Only the entries you switch are changed; the rest of the serve configuration stays as it is.
+It needs tailscaled's folder `/var/run/tailscale` (mounted in the compose file; without Tailscale on the host it's simply not used) and HTTPS certificates enabled for the tailnet. To leave it out, remove the line or set `TAILSCALE=off`. Only the entries you switch are changed; the rest of the serve configuration stays as it is.
 
 ## Docker labels
 

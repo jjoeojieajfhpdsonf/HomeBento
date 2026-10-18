@@ -795,7 +795,7 @@ async function serviceSheet(sid) {
 			fill();
 		};
 		extra.push(h("div", {}, h("span", {}, t("mute.label")), h("span", { class: "mute-btns" }, muted ? [h("span", {}, t("mute.until", { t: until(muted) })), h("button", { class: "chip", onclick: () => mute(0) }, t("mute.end"))] : [["1 h", 60], ["8 h", 480], ["24 h", 1440]].map(([l, m]) => h("button", { class: "chip", onclick: () => mute(m) }, l)))));
-		parts.push(h("div", { class: "box kv svc-extra" }, extra));
+		const extraBox = h("div", { class: "box kv svc-extra" }, extra);
 		// a newer version than the container runs: update right here
 		if (d.release && d.release.current === false && s.container) {
 			const rel = d.release;
@@ -810,7 +810,8 @@ async function serviceSheet(sid) {
 			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${urlFor(s).replace(/\/+$/, "")}/system/status` : null;
 			parts.push(
 				h("div", { class: "sec" }, h("span", {}, t("sheet.warnings"), h("span", { class: "sec-n" }, String(warnings.length))), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", class: "sec-link" }, t("sheet.openIn", { n: s.name })) : null),
-				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", {}, w))))
+				// the service itself says there's an update: update the container right from here
+				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", { class: "grow" }, w), s.container && /update (is )?available|new version|neue version/i.test(w) && !(d.release && d.release.current === false) ? h("button", { class: "btn warn-act", onclick: () => updateService(s, null) }, t("upd.go")) : null)))
 			);
 		}
 		// plugins: their list (monitors, guests, pools, clients …)
@@ -821,6 +822,8 @@ async function serviceSheet(sid) {
 		}
 		parts.push(h("div", { class: "sec" }, t("sheet.last24")), h("div", { class: "box" }, bars(d.hours, true), h("div", { class: "axis" }, h("span", {}, "−24 h"), h("span", {}, t("time.now")))));
 		parts.push(h("div", { class: "sec" }, t("sheet.last30")), h("div", { class: "box" }, bars(d.days.map((ok) => ({ ok, ms: null })), false), h("div", { class: "axis" }, h("span", {}, "−30 d"), h("span", {}, t("cal.today")))));
+		// certificate and quiet time, after the history
+		parts.push(h("div", { class: "sec" }, t("sheet.more")), extraBox);
 		if (s.container) parts.push(containerPart(s, d.container, fill));
 		const ts = tailscalePart(s, fill);
 		if (ts) parts.push(h("div", { class: "sec" }, "Tailscale"), ts);
@@ -1215,9 +1218,12 @@ function tailscalePart(s, refresh) {
 	};
 	const sw = h("input", { type: "checkbox", checked: !!link, onchange: (e) => ((e.target.disabled = true), send(e.target.checked)) });
 	const move = link ? h("button", { class: "btn", style: "padding:6px 12px", onclick: (e) => (Number(port.value) !== current ? (e.currentTarget.classList.add("busy"), send(true)) : null) }, t("ts.move")) : null;
+	// the port: always there while shared; while off only as "port 8443 · change"
+	const portRow = h("div", { class: "field ts-port-row" }, h("label", {}, t("ts.portLabel")), h("div", { class: "icon-row" }, h("span", { class: "faint sm", style: "white-space:nowrap" }, `https://${ts.dnsName}:`), port, move));
+	const portHint = h("button", { class: "ts-port-hint", onclick: () => portHint.replaceWith(portRow) }, t("ts.portHint", { p: port.value }));
 	return h("div", { class: "box" },
-		h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), link ? h("a", { href: link, target: "_blank", rel: "noopener", class: "help", style: "color:var(--accent)" }, link.replace(/^https:\/\//, "")) : h("div", { class: "help" }, t("ts.offHelp"))), h("span", { class: "switch" }, sw, h("span"))),
-		h("div", { class: "field ts-port-row" }, h("label", {}, t("ts.portLabel")), h("div", { class: "icon-row" }, h("span", { class: "faint sm", style: "white-space:nowrap" }, `https://${ts.dnsName}:`), port, move)));
+		h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), link ? h("a", { href: link, target: "_blank", rel: "noopener", class: "help", style: "color:var(--accent)" }, link.replace(/^https:\/\//, "")) : h("div", { class: "help" }, t("ts.offHelp"), " · ", portHint)), h("span", { class: "switch" }, sw, h("span"))),
+		link ? portRow : null);
 }
 
 // ---------- adding tiles ----------

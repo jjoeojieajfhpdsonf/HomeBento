@@ -12,9 +12,11 @@ services:
       # - PASSWORD=change-me       # optional login
       # - NOTIFY_URL=https://ntfy.sh/your-topic   # optional push when a service goes down
       # - CHECK_SECONDS=60
+      # - TAILSCALE=off            # don't use Tailscale even if it's installed
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock   # list, start, stop, restart containers, logs
       - /:/host:ro
-      # optional: manage Tailscale Serve (services as https://<machine>.<tailnet>.ts.net:<port>)
-      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+      # Tailscale Serve (services as https://<machine>.<tailnet>.ts.net:<port>): used when Tailscale
+      # runs on the host, ignored otherwise. Remove the line (or set TAILSCALE=off) to leave it out.
+      - /var/run/tailscale:/var/run/tailscale
