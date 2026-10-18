@@ -129,8 +129,6 @@ a { color: inherit; }
 .mini.slow .s { color: var(--warn); }
 .mini.pending .s, .mini.unknown .s { color: var(--faint); }
 .corner { position: absolute; top: 12px; right: 12px; }
-.mini.w2 { flex-direction: row; align-items: center; gap: 12px; justify-content: flex-start; }
-.mini.w2 .txt { min-width: 0; flex: 1; }
 .mini.w2 .corner { position: static; }
 .mini .tag { flex: none; }
 svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb, var(--c, var(--accent)) 70%, white 10%); }

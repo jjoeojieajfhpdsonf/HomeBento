@@ -307,7 +307,9 @@ const TILES = {
 		}
 		const count = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
 		const rows = tile.h >= 3 ? 2 : 1;
-		const recent = tile.h > 1 || !now ? data.recent.slice(0, count * rows) : [];
+		// a separate "recently added" tile on the same page: don't show the posters twice
+		const separate = x.tiles.some((o) => o.type === "recent" && (o.service || (x.ofKind("jellyfin")[0] || {}).id) === s.id);
+		const recent = !separate && (tile.h > 1 || !now) ? data.recent.slice(0, count * rows) : [];
 		const posters = recent.length ? `<div class="sm muted" style="margin-top:auto">${t("jf.recent")}</div><div class="posters" style="--pc:${count}">${recent.map((r) => `<div class="poster img" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
 		return { c: colorOf(s), html: head + now + posters };
 	},

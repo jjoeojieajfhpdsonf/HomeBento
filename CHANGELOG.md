@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 – 2026-10-18
+
+- Wide service tiles (2×1) show the key figures under the name, with room for all values.
+- The Jellyfin tile leaves out "recently added" when that has its own tile on the page.
+
 ## 0.5.1 – 2026-10-18
 
 - Notes are edited right on the tile: type and press Enter to add, tick, × to remove – no edit mode needed.

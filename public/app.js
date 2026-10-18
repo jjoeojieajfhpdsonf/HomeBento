@@ -60,6 +60,7 @@ const ctx = () => ({
 	service: serviceById,
 	services,
 	ofKind: (k) => services().filter((s) => s.kind === k),
+	tiles: tiles(),
 	hostName: S.state.host
 });
 
