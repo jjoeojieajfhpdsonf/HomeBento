@@ -356,7 +356,7 @@ const tailscale = () => {
 		return { host: dns, port: Number(url.split(":").pop()), path: "/", proxy: `http://127.0.0.1:${url.split(":").pop()}`, url, funnel: false };
 	});
 	mappings.unshift({ host: dns, port: 443, path: "/", proxy: "http://127.0.0.1:8095", url: `https://${dns}`, funnel: false });
-	return { available: true, running: true, dnsName: dns, tailnet: "demo", https: true, mappings, links, local };
+	return { available: true, running: true, dnsName: dns, tailnet: "demo", https: true, mappings, links, local, self: { port: 8095, url: `https://${dns}` } };
 };
 const RELEASES = {
 	"jjoeojieajfhpdsonf/HomeBento": ["v0.13.0", 1 * DAY, null, null],
@@ -613,6 +613,7 @@ route("GET", "/api/updates/:id", (body, p) => {
 });
 route("POST", "/api/services/:id/tailscale", () => tailscale());
 route("POST", "/api/tailscale/remove", () => tailscale());
+route("POST", "/api/tailscale/self", () => tailscale());
 route("POST", "/api/services", (body) => ({ service: store.public().services.find((x) => x.id === store.saveService(body).id) }));
 route("POST", "/api/services/:id", (body, p) => ({ service: store.public().services.find((x) => x.id === store.saveService(body, p.id).id) }));
 route("POST", "/api/services/:id/delete", (body, p) => store.removeService(p.id));

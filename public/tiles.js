@@ -604,7 +604,8 @@ const TILES = {
 		const rows = (ts.mappings || []).slice(0, tile.h * 3).map((m) => {
 			const svc = x.services().find((s) => ts.links && ts.links[s.id] === m.url);
 			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
-			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
+			const isSelf = !svc && ts.self && ts.self.url === m.url;
+			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svc ? logo(svc) : isSelf ? `<span class="logo" style="--c:#9dbcff"><img src="icon.svg" alt=""></span>` : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : isSelf ? "HomeBento" : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
 		});
 		return { c: "#9aa4b2", cls: "ts-tile", html: `${head}<div class="ts-items">${rows.join("") || `<div class="sm faint">${t("ts.none")}</div>`}</div><button class="md-clear" data-ts-manage>${t("ts.manage")}</button>` };
 	},

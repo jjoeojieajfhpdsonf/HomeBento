@@ -101,10 +101,17 @@ async function tailscaleInfo(req) {
 			const m = list.find((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port);
 			if (m) links[s.id] = m.url;
 		}
-		return { available: true, ...status, mappings: list, links, local };
+		// HomeBento itself: on the port it was opened with (the host's port when Docker maps it)
+		const port = selfPort(req, status.dnsName);
+		const mine = list.find((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port);
+		return { available: true, ...status, mappings: list, links, local, self: { port, url: mine ? mine.url : null } };
 	} catch (err) {
 		return { available: true, error: err.message };
 	}
+}
+function selfPort(req, dnsName) {
+	const m = /:(\d+)$/.exec(String(req.headers.host || ""));
+	return m && hostOf(req) !== dnsName ? Number(m[1]) : PORT;
 }
 function proxyPort(proxy) {
 	try {
@@ -459,6 +466,17 @@ route("POST", "/api/services/:id/tailscale", async (body, p, query, req) => {
 		const { list } = await tailscale.mappings();
 		for (const m of list.filter((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port)) await tailscale.remove(m.port);
 	}
+	return tailscaleInfo(req);
+});
+
+// Make HomeBento itself reachable in the tailnet (or not).
+route("POST", "/api/tailscale/self", async (body, p, query, req) => {
+	if (!tailscale.available) throw new UserError("Tailscale is not connected (mount /var/run/tailscale/tailscaled.sock)");
+	const st = await tailscale.status();
+	const port = selfPort(req, st.dnsName);
+	const { list } = await tailscale.mappings();
+	for (const m of list.filter((x) => x.path === "/" && x.proxy && proxyPort(x.proxy) === port)) await tailscale.remove(m.port);
+	if (body.enable) await tailscale.add(Number(body.port) || port, `http://127.0.0.1:${port}`);
 	return tailscaleInfo(req);
 });
 

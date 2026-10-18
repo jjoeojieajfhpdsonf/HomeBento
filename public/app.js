@@ -225,6 +225,13 @@ function fitPosters() {
 		const gap = 8;
 		const width = row.clientWidth;
 		const height = Math.min(row.clientHeight, 240);
+		// many watching leave little room: smaller posters, and none at all when they'd be tiny
+		// (hidden, not removed, so the room stays the same on the next fit)
+		const label = row.previousElementSibling && row.previousElementSibling.classList.contains("jf-rec") ? row.previousElementSibling : null;
+		const tooSmall = height < 72;
+		row.style.visibility = tooSmall ? "hidden" : "";
+		if (label) label.style.visibility = tooSmall ? "hidden" : "";
+		if (tooSmall) continue;
 		// a poster stays upright (at most a little wider than 2:3); take the number of whole posters
 		// that covers the most room, spare room goes between them
 		const size = (k) => {
@@ -2258,6 +2265,8 @@ function settingsSheet() {
 	);
 }
 
+const SELF_LOGO = `<span class="logo" style="--c:#9dbcff"><img src="icon.svg" alt=""></span>`;
+
 function tailscaleSheet() {
 	const sheet = openSheet();
 	sheet.head(h("div", { class: "tt" }, h("b", {}, "Tailscale"), h("span", { class: "sub" }, (S.state.tailscale || {}).dnsName || "")));
@@ -2278,12 +2287,14 @@ function tailscaleSettings() {
 		const st = S.state.tailscale || {};
 		const head = h("div", { class: "sec" }, "Tailscale", st.dnsName ? h("span", { class: "faint", style: "font-weight:500" }, st.dnsName) : null);
 		if (!st.available || st.error) return box.replaceChildren(head, h("div", { class: "note" }, st.error || t("ts.notConnected")));
+		const self = st.self || {};
 		const rows = (st.mappings || []).map((m) => {
 			const svc = services().find((s) => st.links && st.links[s.id] === m.url);
 			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
-			const name = svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–";
+			const isSelf = !svc && self.url === m.url;
+			const name = svc ? svc.name : isSelf ? "HomeBento" : port ? t("ts.port", { p: port }) : m.proxy || "–";
 			return h("div", { class: "ts-row" },
-				html(svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`),
+				html(svc ? logo(svc) : isSelf ? SELF_LOGO : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`),
 				h("div", { class: "grow" }, h("div", { class: "title" }, name, m.funnel ? h("span", { class: "tag slow", style: "margin-left:8px" }, "Funnel") : null), h("a", { class: "sub", href: m.url, target: "_blank", rel: "noopener noreferrer" }, m.url.replace(/^https:\/\//, ""))),
 				h("button", { class: "ts-x", title: t("tile.remove"), "aria-label": t("tile.remove"), onclick: async () => {
 					if (!(await confirmSheet(t("ts.removeConfirm", { u: m.url }), t("tile.remove"), true))) return;
@@ -2293,7 +2304,15 @@ function tailscaleSettings() {
 		});
 		if (!rows.length) rows.push(h("div", { class: "ts-row" }, h("span", { class: "sub" }, t("ts.none"))));
 		const free = services().filter((s) => st.local && st.local[s.id] && !(st.links && st.links[s.id]));
-		if (free.length && !adding) rows.push(h("button", { class: "ts-row ts-add", onclick: () => ((adding = true), draw()) }, html(`<span class="logo" style="--c:var(--accent)">${UI.plus}</span>`), h("span", {}, t("ts.add"))));
+		const selfFree = self.port && !self.url;
+		if (adding && selfFree)
+			rows.push(h("div", { class: "ts-row" }, html(SELF_LOGO), h("div", { class: "grow" }, h("div", { class: "title" }, "HomeBento"), h("div", { class: "sub" }, t("ts.selfSub", { p: self.port }))),
+				h("button", { class: "btn", onclick: async (e) => {
+					e.currentTarget.classList.add("busy");
+					const r = await guard(() => api("POST", "/api/tailscale/self", { enable: true }));
+					if (r) (S.state.tailscale = r), (adding = false), draw(), toast(`${t("ts.on")} ${r.self && r.self.url ? r.self.url : ""}`);
+				} }, t("ts.shareBtn"))));
+		if ((free.length || selfFree) && !adding) rows.push(h("button", { class: "ts-row ts-add", onclick: () => ((adding = true), draw()) }, html(`<span class="logo" style="--c:var(--accent)">${UI.plus}</span>`), h("span", {}, t("ts.add"))));
 		if (adding)
 			for (const s of free)
 				rows.push(h("div", { class: "ts-row" }, html(logo(s)), h("div", { class: "grow" }, h("div", { class: "title" }, s.name), h("div", { class: "sub" }, s.url.replace(/^https?:\/\//, ""))),
