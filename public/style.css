@@ -284,6 +284,29 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .events > div { display: flex; gap: 10px; padding: 9px 12px; font-size: 13px; align-items: baseline; }
 .events > div + div { border-top: 1px solid var(--line); }
 .events .when { color: var(--faint); font-size: 12px; width: 92px; flex: none; }
+.logs-sheet { width: 980px; }
+.logs-sheet .bd { display: flex; flex-direction: column; min-height: 0; }
+.log-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.log-bar .input { flex: 1; min-width: 180px; }
+.log-bar select.input { flex: none; min-width: 0; width: auto; }
+.log-chips { display: flex; gap: 4px; }
+.log-chips .chip { padding: 6px 11px; border-radius: 9px; background: var(--tile-2); color: var(--muted); font-size: 12.5px; font-weight: 560; }
+.log-chips .chip.on { background: var(--tile-3); color: var(--text); }
+.log-chips .chip.warn { color: var(--warn); } .log-chips .chip.error { color: var(--bad); }
+.log-opt { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.log-opt input { accent-color: var(--accent); }
+.log-list { background: #0d0d0f; border-radius: 14px; padding: 6px 0; overflow: auto; height: min(62vh, 640px); font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+.log-row { display: grid; grid-template-columns: max-content 48px 1fr; gap: 10px; padding: 2px 12px; color: #c0c4cc; }
+.log-row:hover { background: rgba(255,255,255,.03); }
+.log-ts { color: var(--faint); white-space: nowrap; min-width: 64px; }
+.log-lv { font-size: 10.5px; font-weight: 700; letter-spacing: .03em; color: var(--faint); padding-top: 1px; }
+.log-msg { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.log-row.warn .log-lv, .log-row.warn .log-msg { color: #f7cd78; }
+.log-row.error { background: rgba(255,96,102,.06); } .log-row.error .log-lv, .log-row.error .log-msg { color: #ff9a9e; }
+.log-row.debug .log-msg { color: var(--faint); }
+.log-rep { color: var(--accent); font-size: 11px; white-space: nowrap; }
+.log-list mark { background: rgba(157,188,255,.3); color: inherit; border-radius: 3px; }
+.log-empty { color: var(--faint); padding: 14px; font-family: inherit; }
 .log { font: 11.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace; background: #0d0d0f; border-radius: 14px; padding: 10px 12px; color: #b4b8c0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; }
 .rows > button, .rows > a, .rows > .row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; text-decoration: none; }
 .rows > * + * { border-top: 1px solid var(--line); }

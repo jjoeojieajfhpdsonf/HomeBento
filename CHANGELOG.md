@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 – 2026-10-18
+
+- Logs are readable: time, level and message in columns (the app's own time stamp and thread number left out), search with highlighting, filter for warnings and errors, repeated lines folded ("×12 · last 11:03"), stack traces kept with their error, live updates, choice of how many lines.
+- The Tailscale switch moved from the edit form to the service details.
+
 ## 0.6.0 – 2026-10-18
 
 - Notes are Markdown: headings, lists, tasks (`- [ ]`), bold, links. Click to write, click outside to save, tick tasks in the view. Done tasks go to an archive (restore or delete).

@@ -532,8 +532,9 @@ async function serviceSheet(sid) {
 		);
 		parts.push(h("div", { class: "sec" }, t("sheet.last24")), h("div", { class: "box" }, bars(d.hours, true), h("div", { class: "axis" }, h("span", {}, "−24 h"), h("span", {}, t("time.now")))));
 		parts.push(h("div", { class: "sec" }, t("sheet.last30")), h("div", { class: "box" }, bars(d.days.map((ok) => ({ ok, ms: null })), false), h("div", { class: "axis" }, h("span", {}, "−30 d"), h("span", {}, t("cal.today")))));
-		if (tsLink(s)) parts.push(h("div", { class: "sec" }, "Tailscale"), h("div", { class: "box kv" }, h("div", {}, h("span", {}, t("ts.address")), h("a", { href: tsLink(s), target: "_blank", rel: "noopener" }, tsLink(s).replace(/^https:\/\//, "")))));
 		if (s.container) parts.push(containerPart(s, d.container, fill));
+		const ts = tailscalePart(s, fill);
+		if (ts) parts.push(h("div", { class: "sec" }, "Tailscale"), ts);
 		if (s.kind === "mmmanager") parts.push(h("div", { class: "acts" }, h("button", { class: "btn", onclick: (e) => act(e.currentTarget, s, "restart", fill) }, t("mm.restart"))));
 		parts.push(h("div", { class: "sec" }, t("sheet.events")));
 		parts.push(
@@ -600,18 +601,90 @@ async function act(btn, s, what, refresh) {
 	setTimeout(loadLive, 8000);
 }
 
+// Logs: tidy lines (time, level, message), search, level filter, repeats folded, live.
 async function logsSheet(s) {
 	const sheet = openSheet({ wide: true });
+	sheet.el.classList.add("logs-sheet");
 	sheet.head(...headOf(s));
-	const pre = h("div", { class: "log" }, "…");
-	const load = async () => {
-		const r = await guard(() => api("GET", `/api/services/${s.id}/logs?tail=400`));
-		if (!r) return;
-		pre.textContent = r.text || "–";
-		pre.scrollTop = pre.scrollHeight;
+	const st = { q: "", level: "all", fold: true, live: true, tail: 400, entries: [] };
+	const search = h("input", { class: "input", placeholder: t("logs.search"), oninput: (e) => ((st.q = e.target.value.trim().toLowerCase()), draw()) });
+	const chips = h("div", { class: "log-chips" });
+	const fold = h("input", { type: "checkbox", checked: true, onchange: (e) => ((st.fold = e.target.checked), draw()) });
+	const live = h("input", { type: "checkbox", checked: true, onchange: (e) => (st.live = e.target.checked) });
+	const tail = h("select", { class: "input", style: "width:auto", onchange: (e) => ((st.tail = Number(e.target.value)), load()) }, [200, 400, 1000, 2000].map((n) => h("option", { value: n, selected: n === st.tail }, t("logs.lines", { n }))));
+	const box = h("div", { class: "log-list" });
+	sheet.body.append(
+		h("div", { class: "log-bar" }, search, chips),
+		h("div", { class: "log-bar" },
+			h("label", { class: "log-opt" }, fold, t("logs.fold")),
+			h("label", { class: "log-opt" }, live, t("logs.live")),
+			h("span", { style: "flex:1" }),
+			tail),
+		box
+	);
+	const draw = () => {
+		const counts = { all: st.entries.length, warn: st.entries.filter((e) => e.level === "warn").length, error: st.entries.filter((e) => e.level === "error").length };
+		chips.replaceChildren(...["all", "warn", "error"].map((l) => h("button", { class: `chip${st.level === l ? " on" : ""}${l !== "all" && counts[l] ? ` ${l}` : ""}`, onclick: () => ((st.level = l), draw()) }, `${t(`logs.${l}`)} ${counts[l]}`)));
+		let list = st.entries.filter((e) => (st.level === "all" || e.level === st.level || (st.level === "warn" && e.level === "error")) && (!st.q || e.msg.toLowerCase().includes(st.q)));
+		if (st.fold) {
+			const out = [];
+			for (const e of list) {
+				const last = out[out.length - 1];
+				if (last && last.key === e.key) (last.count++, (last.lastTs = e.ts));
+				else out.push({ ...e, count: 1, lastTs: e.ts });
+			}
+			list = out;
+		}
+		const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+		const mark = (text) => {
+			if (!st.q) return esc(text);
+			const i = text.toLowerCase().indexOf(st.q);
+			return i < 0 ? esc(text) : `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, i + st.q.length))}</mark>${esc(text.slice(i + st.q.length))}`;
+		};
+		box.innerHTML = list.length
+			? list.slice(-1500).map((e) => `<div class="log-row ${e.level}"><span class="log-ts">${e.ts ? fmtLogTime(e.ts) : ""}</span><span class="log-lv">${t(`logs.lv.${e.level}`)}</span><span class="log-msg">${mark(e.msg)}${e.count > 1 ? ` <span class="log-rep">×${e.count} · ${t("logs.last")} ${fmtLogTime(e.lastTs)}</span>` : ""}</span></div>`).join("")
+			: `<div class="log-empty">${t("logs.none")}</div>`;
+		if (atBottom || !box.dataset.scrolled) (box.scrollTop = box.scrollHeight), (box.dataset.scrolled = "1");
 	};
-	sheet.body.append(h("div", { class: "sec" }, t("sheet.logs"), h("button", { class: "btn", style: "padding:4px 10px", onclick: load }, "↻")), pre);
-	load();
+	const load = async () => {
+		const r = await api("GET", `/api/services/${s.id}/logs?tail=${st.tail}`).catch((err) => ({ error: err.message }));
+		if (r.error) return box.replaceChildren(h("div", { class: "note bad" }, r.error));
+		st.entries = parseLogs(r.text || "");
+		draw();
+	};
+	await load();
+	search.focus();
+	const timer = setInterval(() => st.live && !document.hidden && load(), 3000);
+	sheet.onclose = () => clearInterval(timer);
+}
+
+// "2026-10-18T10:53:58.73Z [10:53:58] [INF] [54] Message" → { ts, level, msg, key }
+function parseLogs(text) {
+	const out = [];
+	for (const raw of text.split("\n")) {
+		if (!raw.trim()) continue;
+		const m = /^(\d{4}-\d\d-\d\dT[\d:.]+Z)\s?(.*)$/.exec(raw);
+		const ts = m ? Date.parse(m[1]) : null;
+		let msg = (m ? m[2] : raw).replace(/\x1b\[[0-9;]*m/g, "");
+		const lv = /\b(FTL|FATAL|CRIT(?:ICAL)?|ERR(?:OR)?|PANIC)\b/i.test(msg.slice(0, 80)) || /^\s*E\d{4}/.test(msg) ? "error" : /\b(WRN|WARN(?:ING)?)\b/i.test(msg.slice(0, 80)) ? "warn" : /\b(DBG|DEBUG|TRC|TRACE|VRB)\b/i.test(msg.slice(0, 60)) ? "debug" : "info";
+		// drop the app's own time stamp, level and thread number at the start – shown separately
+		msg = msg.replace(/^\s*\[?\d{1,2}:\d\d:\d\d(?:[.,]\d+)?\]?\s*/, "").replace(/^\[?(INF|INFO|WRN|WARN|ERR|ERROR|DBG|DEBUG|FTL|TRC)\]?:?\s*/i, "").replace(/^\[\d+\]\s*/, "");
+		if (!msg.trim()) continue;
+		// a line without its own time continues the entry before (stack traces)
+		if (!m && out.length && /^\s/.test(raw)) {
+			out[out.length - 1].msg += `\n${msg}`;
+			continue;
+		}
+		out.push({ ts, level: lv, msg, key: `${lv}|${msg}` });
+	}
+	return out;
+}
+
+function fmtLogTime(ts) {
+	const d = new Date(ts);
+	const today = new Date().toDateString() === d.toDateString();
+	const time = d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+	return today ? time : `${d.toLocaleDateString(LOCALE, { day: "numeric", month: "numeric" })} ${time}`;
 }
 
 async function statusSheet() {
@@ -740,7 +813,6 @@ async function serviceForm(s, prefill = {}, onSaved) {
 			S.state.docker ? h("div", { class: "field" }, h("label", {}, t("form.container")), container) : null,
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.check")), h("span", { class: "switch" }, check, h("span"))),
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.insecure"), h("div", { class: "help" }, t("form.insecureHelp"))), h("span", { class: "switch" }, insecure, h("span")))),
-		tailscalePart(s, msg),
 		msg,
 		h("div", { class: "acts" },
 			saveBtn, testBtn,
@@ -758,26 +830,23 @@ async function serviceForm(s, prefill = {}, onSaved) {
 }
 
 // "Reachable through Tailscale": switches Tailscale Serve for this service right away.
-function tailscalePart(s, msg) {
+// In the service details: share it in the tailnet with one switch, the address right below.
+function tailscalePart(s, refresh) {
 	const ts = S.state.tailscale || {};
-	if (!ts.available || !s || !s.id) return null;
-	if (ts.error) return h("div", { class: "box", style: "margin-top:8px" }, h("div", { class: "field" }, h("label", {}, "Tailscale"), h("div", { class: "help" }, ts.error)));
-	if (!ts.local || !ts.local[s.id]) return null;
+	if (!ts.available || !s || !s.id || !ts.local || !ts.local[s.id]) return null;
+	if (ts.error) return h("div", { class: "note warn" }, ts.error);
 	const link = tsLink(s);
 	const sw = h("input", { type: "checkbox", checked: !!link, onchange: async (e) => {
 		e.target.disabled = true;
-		try {
-			S.state.tailscale = await api("POST", `/api/services/${s.id}/tailscale`, { enable: e.target.checked });
-			msg.replaceChildren(e.target.checked && tsLink(s) ? h("div", { class: "note ok" }, `${t("ts.on")} ${tsLink(s)}`) : h("div", { class: "note" }, t("ts.off")));
-		} catch (err) {
-			e.target.checked = !e.target.checked;
-			msg.replaceChildren(h("div", { class: "note bad" }, err.message));
+		const r = await guard(() => api("POST", `/api/services/${s.id}/tailscale`, { enable: e.target.checked }));
+		if (r) {
+			S.state.tailscale = r;
+			toast(e.target.checked ? `${t("ts.on")} ${tsLink(s) || ""}` : t("ts.off"));
 		}
-		e.target.disabled = false;
-		sub.textContent = tsLink(s) || t("ts.help", { n: ts.dnsName });
+		refresh();
 	} });
-	const sub = h("div", { class: "help" }, link || t("ts.help", { n: ts.dnsName }));
-	return h("div", { class: "box", style: "margin-top:8px" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), sub), h("span", { class: "switch" }, sw, h("span"))));
+	const sub = link ? h("a", { href: link, target: "_blank", rel: "noopener", class: "help", style: "color:var(--accent)" }, link.replace(/^https:\/\//, "")) : h("div", { class: "help" }, t("ts.help", { n: ts.dnsName }));
+	return h("div", { class: "box" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("ts.share"), sub), h("span", { class: "switch" }, sw, h("span"))));
 }
 
 // ---------- adding tiles ----------
