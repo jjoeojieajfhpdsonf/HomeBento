@@ -1566,6 +1566,32 @@ function addTile(tile) {
 	return added;
 }
 
+// extra search words for the tiles in "Add tile"
+const ADD_KEYS = {
+	host: "server system cpu memory ram arbeitsspeicher temperature temperatur",
+	uptime: "uptime status monitoring history verlauf verfügbarkeit",
+	docker: "container",
+	events: "events log history ereignisse verlauf",
+	releases: "releases updates github versions versionen",
+	calendar: "calendar kalender upcoming episodes movies episoden filme",
+	ical: "calendar kalender ical ics caldav google icloud outlook nextcloud events termine appointments",
+	weather: "weather wetter forecast prognose",
+	clock: "clock uhr time zeit timezone zeitzone analog",
+	disks: "disks storage drives speicher festplatten laufwerke",
+	network: "network netzwerk traffic bandwidth bandbreite",
+	rss: "rss atom feed news nachrichten",
+	iframe: "iframe embed website webseite einbetten",
+	api: "api json rest custom eigene",
+	markets: "markets märkte stocks aktien crypto krypto bitcoin currency währung forex",
+	holidays: "holidays feiertage",
+	countdown: "countdown timer date datum",
+	camera: "camera kamera webcam stream snapshot mjpeg",
+	links: "links bookmarks lesezeichen",
+	notes: "notes notizen markdown todo",
+	recent: "recently added movies shows filme serien neu",
+	arr: "sonarr radarr prowlarr queue missing indexers warteschlange fehlt"
+};
+
 async function addTileSheet() {
 	// also from the command palette: adding happens in edit mode
 	if (!S.editing) toggleEdit();
@@ -1581,7 +1607,8 @@ async function addTileSheet() {
 		for (const box of sheet.body.querySelectorAll(".box.rows")) {
 			let shown = 0;
 			for (const r of box.children) {
-				const hit = !words.length || words.every((w) => r.textContent.toLowerCase().includes(w));
+				const text = `${r.textContent} ${r.dataset.keys || ""}`.toLowerCase();
+				const hit = !words.length || words.every((w) => text.includes(w));
 				r.style.display = hit ? "" : "none";
 				if (hit) shown++;
 			}
@@ -1596,17 +1623,18 @@ async function addTileSheet() {
 		} else if (none) none.remove();
 	};
 	const onBoard = (pred) => S.tiles.some(pred);
+	// a tile's add button knows its type, so the search also finds it by other words (in both languages)
 	const row = (logoHtml, title, sub, onclick, done) =>
-		h("button", { disabled: !!done, onclick }, html(logoHtml), h("div", { class: "grow" }, h("div", { class: "title" }, title), sub ? h("div", { class: "sub" }, sub) : null), done ? h("span", { class: "done" }, done) : h("span", { class: "plus" }, "+"));
+		h("button", { disabled: !!done, onclick, "data-keys": (onclick && ADD_KEYS[onclick.type]) || "" }, html(logoHtml), h("div", { class: "grow" }, h("div", { class: "title" }, title), sub ? h("div", { class: "sub" }, sub) : null), done ? h("span", { class: "done" }, done) : h("span", { class: "plus" }, "+"));
 	const glyphLogo = (g, c) => `<span class="logo" style="--c:${c}">${svg(GLYPHS[g] || g)}</span>`;
 	const dockerBox = h("div", { class: "box rows" }, h("div", { class: "row" }, h("span", { class: "sub" }, "…")));
 	const draw = () => {
 		const content = [];
-		const add = (tile) => () => {
+		const add = (tile) => Object.assign(() => {
 			addTile(tile);
 			toast(t("add.added"));
 			draw();
-		};
+		}, { type: tile.type });
 		content.push(row(glyphLogo("server", "#9dbcff"), t("add.host"), t("add.hostSub"), add({ type: "host" }), onBoard((x) => x.type === "host") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M4 18V8M9 18V5M14 18v-7M19 18V9'/>", "#5fd39a"), t("add.uptime"), t("add.uptimeSub"), add({ type: "uptime" }), onBoard((x) => x.type === "uptime") && t("add.onBoard")));
 		if (S.state.docker) content.push(row(glyphLogo("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>", "#2496ed"), "Docker", t("add.dockerSub"), add({ type: "docker" }), onBoard((x) => x.type === "docker") && t("add.onBoard")));
@@ -1629,11 +1657,11 @@ async function addTileSheet() {
 			if (k.tile === "jellyfin") content.push(row(logo(s), `${s.name}: ${t("add.recent")}`, null, add({ type: "recent", service: s.id }), onBoard((x) => x.type === "recent" && x.service === s.id) && t("add.onBoard")));
 		}
 		if (services().some((s) => s.kind === "sonarr" || s.kind === "radarr")) content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4'/>", "#35c5f4"), t("add.calendar"), t("add.calendarSub"), add({ type: "calendar" }), onBoard((x) => x.type === "calendar") && t("add.onBoard")));
-		const addAndSetUp = (tile) => () => {
+		const addAndSetUp = (tile) => Object.assign(() => {
 			const added = addTile(tile);
 			draw();
 			tileOptions(added);
-		};
+		}, { type: tile.type });
 		content.push(row(glyphLogo("<path d='M7 17.5h10a4 4 0 00.5-8 5.8 5.8 0 00-10.9-1.2A4.6 4.6 0 007 17.5z'/>", "#6fb3ff"), t("wx.title"), t("add.weatherSub"), S.state.config.location ? add({ type: "weather" }) : addAndSetUp({ type: "weather" })));
 		content.push(row(glyphLogo("<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5V12l3 2'/>", "#9dbcff"), t("clk.title"), t("add.clockSub"), add({ type: "clock" }), onBoard((x) => x.type === "clock") && t("add.onBoard")));
 		content.push(row(glyphLogo("<ellipse cx='12' cy='6' rx='7.5' ry='2.8'/><path d='M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8'/>", "#9dbcff"), t("disks.title"), t("add.disksSub"), add({ type: "disks" }), onBoard((x) => x.type === "disks") && t("add.onBoard")));
