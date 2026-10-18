@@ -282,20 +282,22 @@ function markdown(src) {
 	return out.join("");
 }
 
-// Subscribed repositories with their newest release; "new" until it was looked at
-// (without a record: released in the last 14 days).
+// Subscribed repositories with their newest release: updates first (the container runs an older
+// version), then "new" ones (no known version, not looked at yet – without a record: released in
+// the last 14 days), then the rest by date.
 function releaseItems(tile, data) {
 	const seen = tile.seen || {};
 	return (tile.repos || [])
 		.map((repo) => {
 			const d = data[repo];
 			const l = d && d.latest;
-			// with the running version known: "new" means an update for you; otherwise: not looked at yet
-			const update = d && d.current === false;
-			const isNew = d && (d.current === true || d.current === false) ? update && seen[repo] !== l.tag : !!(l && (seen[repo] ? seen[repo] !== l.tag : l.date && Date.now() - l.date < 14 * 86400000));
+			// with the running version known the comparison says it all (update or current)
+			const update = !!(d && d.current === false);
+			const known = d && (d.current === true || d.current === false);
+			const isNew = !known && !!(l && (seen[repo] ? seen[repo] !== l.tag : l.date && Date.now() - l.date < 14 * 86400000));
 			return { repo, d, isNew, update, date: (l && l.date) || 0 };
 		})
-		.sort((a, b) => b.isNew - a.isNew || b.date - a.date);
+		.sort((a, b) => b.update - a.update || b.isNew - a.isNew || b.date - a.date);
 }
 
 // Where a calendar entry comes from: the small logo of Sonarr / Radarr instead of a coloured dot.

@@ -75,6 +75,10 @@ const ctx = () => ({
 async function loadState() {
 	S.state = await api("GET", "/api/state");
 	const saved = localStorage.getItem("homebento.board");
+	// ?page=Media (name or number) opens that page – for links, bookmarks, a kiosk
+	const wanted = new URLSearchParams(location.search).get("page");
+	const byLink = wanted && (S.state.config.boards.find((b) => (b.name || "").toLowerCase() === wanted.toLowerCase()) || S.state.config.boards[Number(wanted) - 1]);
+	if (!S.boardId && byLink) S.boardId = byLink.id;
 	if (!S.boardId) S.boardId = S.state.config.boards.some((b) => b.id === saved) ? saved : S.state.config.boards[0].id;
 	if (!S.state.config.boards.some((b) => b.id === S.boardId)) S.boardId = S.state.config.boards[0].id;
 }
