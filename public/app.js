@@ -247,10 +247,11 @@ function renderAttention() {
 	}
 	// what's down first; more than four: the rest behind "+ n more"
 	items.sort((a, b) => !!a.soft - !!b.soft);
-	// (hiding a single one isn't worth the switch)
-	const MAX = items.length === 5 ? 5 : 4;
+	// one row: as many as fit side by side (the grid's columns are at least 300 px)
+	const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gap")) || 12;
+	const MAX = Math.max(1, Math.floor(((el.clientWidth || 1200) + gap) / (300 + gap)));
 	const hidden = S.attAll ? 0 : Math.max(0, items.length - MAX);
-	const key = JSON.stringify([S.attAll, items.map((i) => [i.s.id, i.title, i.sub])]);
+	const key = JSON.stringify([S.attAll, MAX, items.map((i) => [i.s.id, i.title, i.sub])]);
 	if (el.dataset.key === key) return;
 	el.dataset.key = key;
 	if (!items.length) return el.replaceChildren(h("div", { class: "allok" }, h("i"), t("att.ok", { n: pageServices().length })));
@@ -270,6 +271,13 @@ function renderAttention() {
 			: null
 	);
 }
+
+// the strip shows one row: redraw it when the window gets wider or narrower
+let attResize = null;
+window.addEventListener("resize", () => {
+	clearTimeout(attResize);
+	attResize = setTimeout(() => S.state && renderAttention(), 150);
+});
 
 function renderServiceList() {
 	const el = $("#svc-list");
