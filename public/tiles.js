@@ -358,6 +358,22 @@ function netChart(points, id) {
 
 const optsHint = (text) => `<div class="opts-hint"><span>${esc(text)}</span><button class="btn" data-tile-opts>${t("tile.setUp")}</button></div>`;
 
+// "Arcane.S02.2160p.WEB-DL.DDP5.1.Atmos" → { title: "Arcane", sub: "Staffel 2 · 4K" }
+function releaseName(raw) {
+	const name = String(raw || "").replace(/\.(mkv|mp4|avi|iso|zip|rar|7z|tar|gz)$/i, "");
+	const words = name.replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
+	const res = /\b(2160p|4k|uhd|1080p|720p|576p|480p)\b/i.exec(words);
+	const quality = res ? (/2160p|4k|uhd/i.test(res[1]) ? "4K" : res[1].toLowerCase()) : "";
+	const ep = /\bS(\d{1,2})(?:\s?E(\d{1,3}))?\b/i.exec(words);
+	const year = /\b(19[3-9]\d|20[0-4]\d)\b/.exec(words);
+	// the title ends where episode, year or quality starts
+	const cut = Math.min(...[ep, year, res].filter(Boolean).map((m) => m.index));
+	if (!Number.isFinite(cut) || cut === 0) return { title: name, sub: "" };
+	const title = words.slice(0, cut).replace(/[\s(\[-]+$/, "");
+	const parts = [ep ? (ep[2] ? `S${Number(ep[1])} · E${Number(ep[2])}` : t("dl.season", { n: Number(ep[1]) })) : "", year && !ep ? year[1] : "", quality].filter(Boolean);
+	return { title, sub: parts.join(" · ") };
+}
+
 // ---------- tiles ----------
 
 const TILES = {
@@ -426,7 +442,7 @@ const TILES = {
 			return u === null || u === undefined ? 101 : u;
 		};
 		const list = x.services().filter((s) => s.check !== false && s.url).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
-		const n = Math.max(1, tile.h * 6 - 2);
+		const n = Math.max(1, tile.h * 6 - 4);
 		const rows = list.slice(0, n).map((s) => {
 			const u = (x.live.status[s.id] || {}).uptime;
 			const cells = (x.live.hours[s.id] || []).map((b) => `<i class="${b.ok === null ? "" : b.ok >= 0.999 ? "ok" : b.ok > 0 ? "part" : "bad"}"></i>`).join("");
@@ -504,9 +520,15 @@ const TILES = {
 		const head = (meta) => `<div class="th">${logo(s)}<span class="n">${t("dl.title")}</span><span class="meta num">${meta}</span></div>`;
 		if (!d || !d.data) return { c: colorOf(s), html: head("") + setupHint(s, d) };
 		const data = d.data;
-		const list = data.torrents.slice(0, tile.h === 1 ? 2 : tile.h * 3);
-		const rows = list.map((r) => `<div class="r"><div class="top"><span>${esc(r.name)}</span><span class="muted num">${Math.round(r.progress * 100)} %${r.eta !== null && tile.w > 1 ? ` · ${t("dl.eta", { t: fmtEta(r.eta) })}` : ""}</span></div><div class="prog"><i style="width:${(r.progress * 100).toFixed(1)}%"></i></div></div>`);
-		return { c: colorOf(s), html: head(`↓ ${fmtSpeed(data.down)}`) + (rows.length ? `<div class="dl">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("dl.idle")}</div>`) };
+		// as many rows as fit (about 42 px each)
+		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 62 + 9) / 42));
+		const list = data.torrents.slice(0, fit);
+		const rows = list.map((r) => {
+			const n = releaseName(r.name);
+			return `<div class="r" title="${esc(r.name)}"><div class="top"><span class="dl-name"><b>${esc(n.title)}</b>${n.sub && tile.w > 1 ? `<span class="faint">${esc(n.sub)}</span>` : ""}</span><span class="muted num">${Math.round(r.progress * 100)} %${r.eta !== null && tile.w > 1 ? ` · ${t("dl.eta", { t: fmtEta(r.eta) })}` : ""}</span></div><div class="prog"><i style="width:${(r.progress * 100).toFixed(1)}%"></i></div></div>`;
+		});
+		const more = data.torrents.length > list.length ? ` · ${t("dl.active", { n: data.torrents.length })}` : "";
+		return { c: colorOf(s), html: head(`↓ ${fmtSpeed(data.down)}${more}`) + (rows.length ? `<div class="dl">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("dl.idle")}</div>`) };
 	},
 
 	solar(tile, x) {
@@ -526,7 +548,7 @@ const TILES = {
 		const head = `<div class="th"><span class="logo" style="--c:#2496ed">${svg("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>")}</span><span class="n">Docker</span>${c ? `<span class="meta">${t("dk.running", { n: c.running })}${c.stopped ? ` · ${t("dk.stopped", { n: c.stopped })}` : ""}</span>` : ""}</div>`;
 		if (!c) return { c: "#2496ed", html: `${head}<div class="sm faint bottom">${t("dk.none")}</div>` };
 		const max = Math.max(1, ...c.top.map((x2) => x2.memory || 0));
-		const rows = c.top.slice(0, tile.h * 3 - 1).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num" title="${t("dk.cpuHelp")}">${r.cpu !== null && r.cpu !== undefined ? `CPU ${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)} RAM</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
+		const rows = c.top.slice(0, tile.h * 3 - (c.stopped ? 2 : 1)).map((r) => `<div class="b"><div class="top"><span>${esc(r.name)}</span><span class="num" title="${t("dk.cpuHelp")}">${r.cpu !== null && r.cpu !== undefined ? `CPU ${nf(r.cpu, r.cpu < 10 ? 1 : 0)} % · ` : ""}${fmtBytes(r.memory)} RAM</span></div><div class="track"><div class="fill" style="width:${Math.round(((r.memory || 0) / max) * 100)}%;background:#2496ed"></div></div></div>`);
 		const stopped = c.stopped ? `<div class="sm faint" style="margin-top:8px">${t("dk.stoppedList")}: ${c.stoppedNames.map(esc).join(", ")}</div>` : "";
 		return { c: "#2496ed", html: `${head}<div class="sm faint" style="margin-top:6px">${t("dk.sorted")}</div><div class="bars" style="margin-top:6px">${rows.join("")}</div>${stopped}` };
 	},
@@ -565,7 +587,9 @@ const TILES = {
 		const gh = `<span class="logo" style="--c:var(--text)">${svg("<path d='M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21'/>", 1.7)}</span>`;
 		const head = `<div class="th">${gh}<span class="n">${tile.title ? esc(tile.title) : t("rel.title")}</span><span class="meta">${items.length ? (updates ? `<span class="rel-new-count">${t(updates === 1 ? "rel.update1" : "rel.updates", { n: updates })}</span>` : fresh ? `<span class="rel-new-count">${t("rel.new", { n: fresh })}</span>` : t("rel.upToDate")) : ""}</span></div>`;
 		if (!items.length) return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="sm faint" style="margin-top:8px">${t("rel.none")}</div><div class="md-btns"><button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
-		const rows = items.slice(0, tile.h * 3 + (tile.h > 1 ? 0 : -1)).map((i) => {
+		// rows of 47 px below the head, above the buttons
+		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 88) / 47));
+		const rows = items.slice(0, fit).map((i) => {
 			const svc = (i.d && i.d.service && x.service(i.d.service)) || x.services().find((s) => s.name.toLowerCase().replace(/\s+/g, "") === i.repo.split("/")[1].toLowerCase().replace(/[-_]/g, ""));
 			const l = i.d && i.d.latest;
 			return `<div class="rel-row${i.isNew ? " new" : ""}${i.update ? " upd" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div>${i.update && svc && svc.container ? `<button class="rel-upd-btn" data-rel-update>${t("upd.short")}</button>` : ""}<div class="rel-ver"><div class="v">${l ? esc(l.tag.replace(/^release-/i, "")) : "–"}</div><div class="ss">${i.d && i.d.current === true ? `<span class="rel-ok">✓ ${t("rel.current")}</span>` : i.update ? `<span class="rel-upd">${t("rel.runs", { v: esc(i.d.running) })}</span>` : l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
@@ -674,8 +698,8 @@ const TILES = {
 	// the time, big; more places below
 	clock(tile) {
 		const zones = (tile.zones || []).slice(0, tile.h === 1 ? (tile.w > 1 ? 2 : 0) : 4);
-		const more = zones.length ? `<div class="clk-zones">${zones.map((z) => `<div><span class="faint">${esc(z.name || z.zone.split("/").pop().replace(/_/g, " "))}</span><span class="num" data-clock-zone="${esc(z.zone)}"></span></div>`).join("")}</div>` : "";
-		return { c: "#9dbcff", cls: "clk-tile", html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
+		const more = zones.length ? `<div class="clk-zones">${zones.map((z) => `<div><span class="num" data-clock-zone="${esc(z.zone)}"></span><span class="faint">${esc(z.name || z.zone.split("/").pop().replace(/_/g, " "))}</span></div>`).join("")}</div>` : "";
+		return { c: "#9dbcff", cls: `clk-tile${zones.length ? " has-zones" : ""}`, html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
 	},
 
 	// all file systems of the host
@@ -711,12 +735,15 @@ const TILES = {
 		if (!d) return { c: "#9dbcff", html: head };
 		const err = d.errors.length ? `<div class="sm warn-text" title="${esc(d.errors.join("\n"))}">⚠ ${esc(d.errors[0])}</div>` : "";
 		if (!d.events.length) return { c: "#9dbcff", html: `${head}${err}<div class="sm faint bottom">${t("ical.none")}</div>` };
-		const max = tile.h * 3 + (tile.h > 1 ? 1 : 0);
+		// fill the height that's there (measured): a day title 25 px, an entry 29 px, 46 px with its place
+		let room = tile.h * 118 + (tile.h - 1) * 12 - 28 - 26 - (err ? 18 : 0);
 		const out = [];
 		let lastDay = null;
 		for (const e of d.events.filter((e) => e.end > Date.now() || e.allDay)) {
-			if (out.length >= max) break;
 			const day = new Date(e.t).toDateString();
+			const need = (day !== lastDay ? (lastDay ? 25 : 19) : 0) + (e.where && tile.w > 1 ? 46 : 29);
+			if (need > room) break;
+			room -= need;
 			const label = fmtWhen(e.t, false);
 			if (day !== lastDay) {
 				out.push(`<div class="ic-day${label === t("cal.today") ? " today" : ""}">${esc(label === t("cal.today") || label === t("cal.tomorrow") ? label : new Date(e.t).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "numeric" }))}</div>`);
@@ -758,6 +785,6 @@ const TILES = {
 			}
 			return `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><span class="logo" style="--c:#9dbcff;width:22px;height:22px;border-radius:7px">${svg(GLYPHS.link)}</span>${esc(l.name || hostName)}</a>`;
 		});
-		return { c: "#9dbcff", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("links.title")}</span></div>${rows.length ? `<div class="links">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("links.empty")}</div>`}` };
+		return { c: "#9dbcff", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("links.title")}</span></div>${rows.length ? `<div class="links" style="--lc:${tile.w}">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("links.empty")}</div>`}` };
 	}
 };

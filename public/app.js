@@ -1675,14 +1675,19 @@ function tickClocks() {
 		if (tt && tt.textContent !== time) tt.textContent = time;
 		if (dd && dd.textContent !== date) dd.textContent = date;
 	}
+	// other places: their time, "+1" / "−1" when it's another day there
+	const ymd = (tz) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 	for (const el of document.querySelectorAll("[data-clock-zone]")) {
 		let text = "–";
+		let day = 0;
 		try {
 			text = now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", timeZone: el.dataset.clockZone });
+			day = Math.round((Date.parse(ymd(el.dataset.clockZone)) - Date.parse(ymd(undefined))) / 86400000);
 		} catch {
 			// unknown zone
 		}
-		if (el.textContent !== text) el.textContent = text;
+		const html = `${text}${day ? `<sup>${day > 0 ? "+" : "−"}${Math.abs(day)}</sup>` : ""}`;
+		if (el.innerHTML !== html) el.innerHTML = html;
 	}
 }
 setInterval(tickClocks, 1000);
