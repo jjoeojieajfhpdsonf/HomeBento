@@ -7,6 +7,7 @@ A dashboard for the services at home that does more than link to them: every til
 - **Actions:** start, stop and restart Docker containers and read their logs right from the dashboard. MagicMirror can be restarted through [MagicMirror Manager](https://github.com/jjoeojieajfhpdsonf/magicMirrorManager).
 - **Sets itself up:** one click turns your running containers into services with matching tiles. The web port is found by trying the container's ports, and the API keys of Sonarr, Radarr and Prowlarr are read from their containers.
 - **Set up in the browser:** add services and tiles, arrange them by dragging, change sizes, several pages. Docker containers are suggested with name, address and icon (`homepage.*` labels are understood too).
+- **Command palette:** ⌘K (or Ctrl K, or "/") finds services, actions, pages and links – "son restart" restarts Sonarr.
 - **Notifications:** optional push message when a service goes down or comes back (ntfy or any URL that takes a POST).
 - **Light:** one Node.js process, **no dependencies**, phone and laptop layouts, German and English.
 

@@ -110,6 +110,7 @@ function topBar() {
 		S.state.config.title ? h("h1", {}, S.state.config.title) : null,
 		tabs,
 		h("div", { class: "sp" }),
+		h("button", { class: "search-btn", onclick: () => palette(), "aria-label": t("pal.placeholder") }, html(UI.search), h("span", { class: "ph" }, t("pal.placeholder")), h("kbd", {}, /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K")),
 		h("button", { class: "icon-btn", title: t("app.settings"), "aria-label": t("app.settings"), onclick: settingsSheet, html: UI.gear }),
 		h("button", { class: `btn${S.editing ? " on" : ""}`, onclick: toggleEdit }, S.editing ? t("app.done") : t("app.edit"))
 	);
@@ -881,6 +882,134 @@ function boardSheet(b) {
 			: null
 	);
 }
+
+// ---------- command palette (⌘K) ----------
+
+let pal = null;
+function palette() {
+	if (pal) return pal.input.focus();
+	const input = h("input", { class: "pal-in", placeholder: t("pal.placeholder"), autocomplete: "off", spellcheck: "false", "aria-label": t("pal.placeholder") });
+	const list = h("div", { class: "pal-res", role: "listbox" });
+	const el = h("div", { class: "pal", role: "dialog", "aria-modal": "true" }, input, list);
+	const scrim = h("div", { class: "pal-scrim", onclick: () => close() });
+	document.body.append(scrim, el);
+	requestAnimationFrame(() => (el.classList.add("on"), scrim.classList.add("on")));
+	let sel = 0;
+	let results = [];
+	const close = () => {
+		el.remove();
+		scrim.remove();
+		pal = null;
+	};
+	const run = (i) => {
+		const r = results[i];
+		close();
+		if (r) r.run();
+	};
+	const draw = () => {
+		results = paletteResults(input.value.trim());
+		sel = Math.min(sel, Math.max(0, results.length - 1));
+		let last = null;
+		list.replaceChildren(
+			...results.flatMap((r, i) => {
+				const cap = r.cap !== last ? h("div", { class: "pal-cap" }, r.cap) : null;
+				last = r.cap;
+				return [cap, h("div", { class: `pal-it${i === sel ? " sel" : ""}`, role: "option", onmousemove: () => mark(i), onclick: () => run(i) }, html(r.icon), h("span", { class: "pal-t" }, r.title), r.hint ? h("span", { class: "pal-k" }, r.hint) : null)];
+			})
+		);
+	};
+	const mark = (i) => {
+		sel = i;
+		list.querySelectorAll(".pal-it").forEach((x, k) => x.classList.toggle("sel", k === i));
+		const cur = list.querySelectorAll(".pal-it")[i];
+		if (cur) cur.scrollIntoView({ block: "nearest" });
+	};
+	input.addEventListener("input", () => ((sel = 0), draw()));
+	input.addEventListener("keydown", (e) => {
+		if (e.key === "ArrowDown") (mark(Math.min(results.length - 1, sel + 1)), e.preventDefault());
+		else if (e.key === "ArrowUp") (mark(Math.max(0, sel - 1)), e.preventDefault());
+		else if (e.key === "Enter") (run(sel), e.preventDefault());
+		else if (e.key === "Escape") (close(), e.stopPropagation());
+	});
+	pal = { input, close };
+	draw();
+	input.focus();
+}
+
+function paletteResults(q) {
+	const low = q.toLowerCase();
+	const words = low.split(/\s+/).filter(Boolean);
+	const hit = (text) => !words.length || words.every((w) => text.toLowerCase().includes(w));
+	// "restart", "logs" … in the query narrows to that action
+	const wantsAction = /neu|start|restart|log|detail|tailscale/.test(low);
+	const nameWords = (s) => words.filter((w) => s.name.toLowerCase().includes(w));
+	const glyph = (g) => `<span class="logo" style="--c:var(--muted)">${svg(g, 2)}</span>`;
+	const I = {
+		restart: glyph("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>"),
+		logs: glyph("<path d='M5 6h14M5 12h14M5 18h9'/>"),
+		info: glyph("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>"),
+		page: glyph("<rect x='4' y='4' width='7' height='7' rx='2'/><rect x='13' y='4' width='7' height='7' rx='2'/><rect x='4' y='13' width='7' height='7' rx='2'/><rect x='13' y='13' width='7' height='7' rx='2'/>"),
+		link: glyph(GLYPHS.link),
+		web: glyph("<circle cx='11' cy='11' r='7'/><path d='M20 20l-3.5-3.5'/>"),
+		gear: glyph("<circle cx='12' cy='12' r='3'/><path d='M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1'/>"),
+		ts: glyph("<circle cx='6' cy='6' r='1.6'/><circle cx='12' cy='6' r='1.6'/><circle cx='18' cy='6' r='1.6'/><circle cx='6' cy='12' r='1.6'/><circle cx='12' cy='12' r='1.6'/><circle cx='18' cy='12' r='1.6'/><circle cx='12' cy='18' r='1.6'/>")
+	};
+	const out = [];
+	const st = (s) => (S.live && S.live.status[s.id]) || {};
+	const order = { down: 0, slow: 1 };
+	const list = services()
+		.filter((s) => !words.length || nameWords(s).length || hit(`${s.name} ${s.url} ${s.kind || ""}`))
+		.sort((a, b) => (order[st(a).status] ?? 2) - (order[st(b).status] ?? 2) || a.name.localeCompare(b.name));
+	const capS = t("pal.services");
+	const capA = t("pal.actions");
+	for (const s of (wantsAction && !list.some((x) => nameWords(x).length) ? [] : list).slice(0, words.length ? 8 : 6)) {
+		const status = st(s).status;
+		out.push({ cap: capS, icon: logo(s), title: s.name, hint: status === "down" ? t("status.down") : status === "slow" ? t("status.slow") : (s.url || "").replace(/^https?:\/\//, ""), run: () => (s.url ? window.open(urlFor(s), "_blank", "noopener") : serviceSheet(s.id)) });
+	}
+	// actions: for the services named in the query, or for the problem ones when only an action was typed
+	const named = list.filter((s) => nameWords(s).length);
+	const targets = named.length ? named : wantsAction ? services().filter((s) => ["down", "slow"].includes(st(s).status) || /log|detail|tailscale/.test(low)) : [];
+	if (words.length) {
+		for (const s of targets.slice(0, 6)) {
+			const down = st(s).status === "down";
+			if (s.container && (!/log|detail|tailscale/.test(low) || /neu|start/.test(low))) out.push({ cap: capA, icon: I.restart, title: t(down ? "pal.start" : "pal.restart", { n: s.name }), run: () => paletteAction(s, down ? "start" : "restart") });
+			if (s.kind === "mmmanager" && (!wantsAction || /neu|start/.test(low))) out.push({ cap: capA, icon: I.restart, title: t("mm.restart"), run: () => paletteAction(s, "restart") });
+			if (s.container && (!wantsAction || /log/.test(low))) out.push({ cap: capA, icon: I.logs, title: t("pal.logs", { n: s.name }), run: () => logsSheet(s) });
+			if (!wantsAction || /detail/.test(low)) out.push({ cap: capA, icon: I.info, title: t("pal.details", { n: s.name }), run: () => serviceSheet(s.id) });
+			if (tsLink(s) && (!wantsAction || /tailscale/.test(low))) out.push({ cap: capA, icon: I.ts, title: t("pal.tailscale", { n: s.name }), hint: tsLink(s).replace(/^https:\/\//, ""), run: () => window.open(tsLink(s), "_blank", "noopener") });
+		}
+	}
+	for (const b of S.state.config.boards) {
+		const name = b.name || t("board.default");
+		if (b.id !== S.boardId && words.length && hit(`${name} ${t("pal.pageWord")}`)) out.push({ cap: t("pal.pages"), icon: I.page, title: t("pal.page", { n: name }), run: () => switchBoard(b.id) });
+	}
+	const links = S.state.config.boards.flatMap((b) => b.tiles.filter((x) => x.type === "links").flatMap((x) => x.links || []));
+	for (const l of links.filter((l) => words.length && hit(`${l.name} ${l.url}`)).slice(0, 5)) out.push({ cap: t("pal.links"), icon: I.link, title: l.name || l.url, hint: l.url.replace(/^https?:\/\//, ""), run: () => window.open(l.url, "_blank", "noopener") });
+	if (words.length && hit(t("app.settings"))) out.push({ cap: t("app.settings"), icon: I.gear, title: t("app.settings"), run: settingsSheet });
+	if (words.length && hit(t("tile.add"))) out.push({ cap: t("app.settings"), icon: I.page, title: t("tile.add"), run: addTileSheet });
+	if (q) out.push({ cap: t("pal.web"), icon: I.web, title: t("pal.webSearch", { q }), run: () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, "_blank", "noopener") });
+	return out;
+}
+
+async function paletteAction(s, what) {
+	toast(t(what === "start" ? "act.starting" : "act.restarting", { n: s.name }));
+	const r = await guard(() => api("POST", `/api/services/${s.id}/action`, { what }));
+	if (r) toast(t("act.done"));
+	setTimeout(loadLive, 1500);
+	setTimeout(loadLive, 8000);
+}
+
+document.addEventListener("keydown", (e) => {
+	if (!S.state || $(".login")) return;
+	const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+	if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+		e.preventDefault();
+		palette();
+	} else if (e.key === "/" && !typing && !topSheet()) {
+		e.preventDefault();
+		palette();
+	}
+});
 
 // ---------- settings and login ----------
 

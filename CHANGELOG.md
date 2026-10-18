@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0 – 2026-10-18
+
+- Command palette (⌘K / Ctrl K, "/" or the search field in the bar): open services, start or restart them, logs, details, open through Tailscale, switch pages, links from link tiles, settings, web search. Typing just "restart" offers the services that have a problem.
+
 ## 0.4.0 – 2026-10-18
 
 - Tailscale: share a service in the tailnet with one switch (Tailscale Serve, HTTPS, same port), see and remove all serve entries in the settings, and open services at their Tailscale address when HomeBento is used through Tailscale.
