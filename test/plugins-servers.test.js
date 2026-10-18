@@ -168,7 +168,8 @@ test("all six plugins are loaded with the plugin interface", () => {
 		assert.ok(p, `${kind} loaded`);
 		assert.equal(typeof p.fetch, "function");
 		assert.ok(p.match instanceof RegExp);
-		assert.match(p.repo, /^[\w.-]+\/[\w.-]+$/);
+		// Proxmox and TrueNAS only tag on GitHub: no repo for the Updates tile
+		if (p.repo !== undefined) assert.match(p.repo, /^[\w.-]+\/[\w.-]+$/);
 		for (const f of p.fields) assert.ok(f.key && f.label);
 	}
 	assert.ok(plugins.proxmox.match.test("proxmox-ve"));
