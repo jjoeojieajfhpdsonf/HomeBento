@@ -15,10 +15,14 @@ const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
 const { Releases, parseRepo, runningVersion, sameVersion } = require("./lib/releases");
 const widgets = require("./lib/widgets");
+const apiwidget = require("./lib/apiwidget");
+const markets = require("./lib/markets");
+const holidays = require("./lib/holidays");
+const importers = require("./lib/importers");
+const { Alerts } = require("./lib/alerts");
 const os = require("node:os");
 const { KINDS } = require("./lib/kinds");
 const { UserError } = require("./lib/errors");
-const { request } = require("./lib/util");
 
 const PORT = Number(process.env.PORT) || 8095;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -36,15 +40,24 @@ const integrations = new Integrations(store);
 const auth = new Auth(process.env.PASSWORD, DATA_DIR);
 const tailscale = new Tailscale();
 const releases = new Releases(DATA_DIR);
-const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_SECONDS, onChange: notify });
+// status changes go to the alerts (messages to the channels in the settings)
+const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_SECONDS, onChange: (ev, s) => alerts.onChange(ev, s) });
+const alerts = new Alerts({ store, monitor, host, envUrl: NOTIFY_URL });
 
-// A message when a service goes down or comes back (ntfy-style: POST text to NOTIFY_URL).
-function notify(ev, s) {
-	if (!NOTIFY_URL || ev.to === "slow" || ev.from === "slow" || ev.from === "pending") return;
-	const text = ev.to === "down" ? `${s.name} is down${ev.detail ? `: ${ev.detail}` : ""}` : `${s.name} is up again`;
-	request(NOTIFY_URL, { method: "POST", body: text, headers: { Title: "HomeBento", Tags: ev.to === "down" ? "warning" : "white_check_mark" } }).then((r) => {
-		if (!r.status || r.status >= 400) console.error(`Notification failed: ${r.error || `HTTP ${r.status}`}`);
-	});
+// A copy of the configuration every day (data/backups, the last 14 days).
+const BACKUPS = path.join(DATA_DIR, "backups");
+function backup(reason = "daily") {
+	fs.mkdirSync(BACKUPS, { recursive: true });
+	const name = `config-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}-${reason}.json`;
+	fs.writeFileSync(path.join(BACKUPS, name), JSON.stringify(store.exportConfig(false), null, "\t"));
+	const files = fs.readdirSync(BACKUPS).filter((f) => /^config-.*\.json$/.test(f)).sort();
+	for (const f of files.slice(0, Math.max(0, files.length - 20))) fs.rmSync(path.join(BACKUPS, f), { force: true });
+	return name;
+}
+function dailyBackup() {
+	const today = new Date().toISOString().slice(0, 10);
+	const have = fs.existsSync(BACKUPS) && fs.readdirSync(BACKUPS).some((f) => f.startsWith(`config-${today}`));
+	if (!have) backup("daily");
 }
 
 // Sonarr, Radarr and Prowlarr keep their API key in /config/config.xml: read it from the
@@ -164,7 +177,7 @@ route("GET", "/api/state", async (body, p, query, req) => ({
 	docker: docker.available !== false,
 	host: host.name,
 	auth: auth.enabled,
-	notify: !!NOTIFY_URL,
+	notify: alerts.channels().length > 0,
 	checkSeconds: CHECK_SECONDS,
 	// the addresses of this machine: services on it can be opened under whatever address HomeBento was opened with
 	selfHosts: selfHosts()
@@ -255,7 +268,27 @@ route("GET", "/api/live", async (body, p, query, req) => {
 		extra.rss = {};
 		await Promise.all(board.tiles.filter((x) => x.type === "rss" && (x.feeds || []).length).map(async (t) => (extra.rss[t.id] = await widgets.feeds(t.feeds))));
 	}
-	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel, ...extra };
+	// own API tiles, markets, holidays
+	const lang = query.get("lang") === "de" ? "de" : "en";
+	if (types.has("api")) {
+		extra.api = {};
+		await Promise.all(board.tiles.filter((t) => t.type === "api" && t.api && t.api.url).map(async (t) => (extra.api[t.id] = await apiwidget.fetchApi({ ...t.api, key: t.id, lang }, store.secretsOf(`tile:${t.id}`)))));
+	}
+	if (types.has("markets")) {
+		extra.markets = {};
+		await Promise.all(
+			board.tiles.filter((t) => t.type === "markets").map(async (t) => {
+				const [q, f, c] = await Promise.all([
+					(t.symbols || []).length ? markets.quotes(t.symbols).catch((err) => [{ error: err.message }]) : [],
+					(t.fx || []).length ? markets.fx(t.base || "CHF", t.fx).catch((err) => [{ error: err.message }]) : [],
+					(t.crypto || []).length ? markets.crypto(t.crypto, (t.base || "CHF").toLowerCase()).catch((err) => [{ error: err.message }]) : []
+				]);
+				extra.markets[t.id] = { quotes: q, fx: f, crypto: c };
+			})
+		);
+	}
+	if (types.has("holidays")) extra.holidays = Object.fromEntries(board.tiles.filter((t) => t.type === "holidays").map((t) => [t.id, holidays.next(t.canton || "ZH", new Date(), 8)]));
+	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel, alerts: alerts.list(), ...extra };
 });
 
 route("GET", "/api/services/:id", async (body, p) => {
@@ -450,6 +483,7 @@ route("POST", "/api/services/:id/update", (body, p) => {
 	const running = [...updateJobs.values()].find((j) => j.sid === s.id && j.state === "running");
 	if (running) return { job: running.id };
 	const job = { id: `${Date.now().toString(36)}`, sid: s.id, name: s.name, state: "running", log: [], started: Date.now() };
+	alerts.hush(s.id, 15 * 60000);
 	updateJobs.set(job.id, job);
 	const log = (line) => job.log.push(`${new Date().toLocaleTimeString("de-CH")} ${line}`);
 	const healthy = s.url ? async () => (await monitor.probe(s)).status !== "down" : null;
@@ -484,6 +518,108 @@ route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
 route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.id, body.tiles) }));
 // The place for the weather, set in the settings (a weather tile can have its own).
 const location = async () => store.config.location || null;
+
+// ---------- alerts ----------
+
+route("GET", "/api/alerts", () => alerts.view());
+route("POST", "/api/alerts", (body) => {
+	store.setAlerts(body);
+	// passwords and tokens of the channels: "" removes, missing keeps
+	for (const [cid, sec] of Object.entries(body.secrets && typeof body.secrets === "object" ? body.secrets : {})) if ((store.config.alerts.channels || []).some((c) => c.id === cid)) store.mergeSecrets(`channel:${cid}`, sec);
+	return alerts.view();
+});
+route("POST", "/api/alerts/test", async (body) => {
+	if (!body.channel || !body.channel.type) throw new UserError("Channel missing");
+	try {
+		return await alerts.test(body.channel, body.secrets);
+	} catch (err) {
+		throw new UserError(err.message);
+	}
+});
+route("POST", "/api/services/:id/mute", (body, p) => {
+	const until = body.minutes ? Date.now() + Number(body.minutes) * 60000 : null;
+	const s = store.muteService(p.id, until);
+	if (until) monitor.note(s, "action", "Muted");
+	return { mutedUntil: s.mutedUntil || null };
+});
+
+// ---------- own API tiles ----------
+
+// A tile's header values (tokens) stay on the server.
+const tileById = (tid) => store.config.boards.flatMap((b) => b.tiles).find((t) => t.id === tid) || null;
+route("POST", "/api/tiles/:id/secrets", (body, p) => {
+	if (!tileById(p.id)) throw new UserError("Tile not found – save the page first");
+	store.mergeSecrets(`tile:${p.id}`, body.secrets);
+	return { secrets: Object.fromEntries(Object.keys(store.secretsOf(`tile:${p.id}`)).map((k) => [k, true])) };
+});
+route("GET", "/api/tiles/:id/secrets", (body, p) => ({ secrets: Object.fromEntries(Object.keys(store.secretsOf(`tile:${p.id}`)).map((k) => [k, true])) }));
+// One try with the settings from the form: the answer and the paths in it, to pick from.
+route("POST", "/api/api-preview", async (body) => {
+	const saved = body.tile ? store.secretsOf(`tile:${body.tile}`) : {};
+	const secrets = { ...saved, ...Object.fromEntries(Object.entries(body.secrets || {}).filter(([, v]) => v)) };
+	return apiwidget.preview(body.api || {}, secrets);
+});
+
+// ---------- configuration: export, import, backups ----------
+
+route("GET", "/api/config/export", (body, p, query) => store.exportConfig(query.get("secrets") === "1"));
+route("POST", "/api/config/import", (body) => {
+	backup("before-import");
+	store.importConfig(body);
+	return { ok: true };
+});
+route("GET", "/api/backups", () => ({ items: fs.existsSync(BACKUPS) ? fs.readdirSync(BACKUPS).filter((f) => /^config-.*\.json$/.test(f)).sort().reverse().map((f) => ({ name: f, size: fs.statSync(path.join(BACKUPS, f)).size })) : [] }));
+route("POST", "/api/backups", () => ({ name: backup("manual") }));
+route("POST", "/api/backups/:name/restore", (body, p) => {
+	if (!/^config-[\w-]+\.json$/.test(p.name)) throw new UserError("Unknown backup");
+	const file = path.join(BACKUPS, p.name);
+	if (!fs.existsSync(file)) throw new UserError("Unknown backup");
+	const data = JSON.parse(fs.readFileSync(file, "utf8"));
+	// a backup has no logins: keep the current ones
+	backup("before-restore");
+	store.importConfig({ ...data, secrets: store.secrets });
+	return { ok: true };
+});
+// From other dashboards (Homepage, Dashy, Homer, Heimdall, browser bookmarks): look first, then take over.
+route("POST", "/api/import", (body) => {
+	const text = String(body.text || "");
+	if (!text.trim()) throw new UserError("The file is empty");
+	if (text.length > 2_000_000) throw new UserError("The file is too large");
+	let r;
+	try {
+		r = importers.importConfig(text, String(body.filename || ""));
+	} catch (err) {
+		throw new UserError(err.message);
+	}
+	const have = new Set(store.config.services.map((s) => s.url.replace(/\/+$/, "")));
+	const groups = r.groups.map((g) => ({ name: g.name, services: g.services.map((x) => ({ ...x, exists: !!(x.url && have.has(x.url.replace(/\/+$/, ""))), secrets: Object.fromEntries(Object.keys(x.secrets || {}).map((k) => [k, true])) })) }));
+	if (!body.apply) return { source: r.source, groups, links: r.links, warnings: r.warnings };
+	backup("before-import");
+	const skip = new Set(Array.isArray(body.skip) ? body.skip : []);
+	let added = 0;
+	for (const [gi, g] of r.groups.entries()) {
+		const tiles = [];
+		for (const [si, x] of g.services.entries()) {
+			if (skip.has(`${gi}:${si}`) || groups[gi].services[si].exists || !x.name) continue;
+			const svc = store.saveService({ name: x.name, url: x.url || "", icon: x.icon || "", kind: x.kind || null, container: x.container || null, secrets: x.secrets || {} });
+			tiles.push({ type: "service", service: svc.id, w: 1, h: 1 });
+			added++;
+		}
+		// a page per group (its services in the list / as tiles)
+		if (body.pages && tiles.length) {
+			const b = store.addBoard(g.name || r.source);
+			store.setTiles(b.id, tiles);
+		}
+	}
+	// bookmarks: a links tile per group on the first page
+	if (r.links.length) {
+		const first = store.config.boards[0];
+		const byGroup = new Map();
+		for (const l of r.links) byGroup.set(l.group || "", [...(byGroup.get(l.group || "") || []), l]);
+		store.setTiles(first.id, [...first.tiles, ...[...byGroup].map(([name, list]) => ({ type: "links", w: 2, h: 2, title: name || undefined, links: list.slice(0, 20).map((l) => ({ name: l.name, url: l.url })) }))]);
+	}
+	return { added, links: r.links.length };
+});
 
 route("GET", "/api/geocode", async (body, p, query) => ({ items: await widgets.geocode(String(query.get("q") || "").slice(0, 80), query.get("lang") === "en" ? "en" : "de") }));
 route("GET", "/api/disks", () => ({ items: host.disks() }));
@@ -532,6 +668,9 @@ const server = http.createServer(async (req, res) => {
 			return send(req, res, 404, "Not found", "text/plain");
 		}
 	}
+	// camera tiles: the image or the MJPEG stream, passed through
+	const cam = /^\/api\/camera\/([a-f0-9]{10})$/.exec(url.pathname);
+	if (cam && req.method === "GET") return camera(req, res, cam[1]);
 	const r = routes.find((x) => x.method === req.method && x.re.test(url.pathname));
 	if (!r) return send(req, res, 404, { error: "Not found" });
 	try {
@@ -546,10 +685,37 @@ const server = http.createServer(async (req, res) => {
 	}
 });
 
+function camera(req, res, tid) {
+	const t = tileById(tid);
+	if (!t || t.type !== "camera" || !t.url) return send(req, res, 404, "Not found", "text/plain");
+	const sec = store.secretsOf(`tile:${tid}`);
+	const u = new URL(t.url);
+	const lib = u.protocol === "https:" ? require("node:https") : http;
+	const headers = { "User-Agent": "HomeBento" };
+	if (sec.user || sec.password) headers.Authorization = `Basic ${Buffer.from(`${sec.user || ""}:${sec.password || ""}`).toString("base64")}`;
+	const up = lib.get(u, { headers, rejectUnauthorized: !t.insecure, timeout: 15000 }, (r) => {
+		if (r.statusCode !== 200) {
+			r.resume();
+			return send(req, res, 502, `Camera answered HTTP ${r.statusCode}`, "text/plain");
+		}
+		res.writeHead(200, { "Content-Type": r.headers["content-type"] || "image/jpeg", "Cache-Control": "no-store" });
+		r.pipe(res);
+		req.on("close", () => r.destroy());
+	});
+	up.on("timeout", () => up.destroy(new Error("Timeout")));
+	up.on("error", (err) => {
+		if (!res.headersSent) send(req, res, 502, `Camera not reachable (${err.message})`, "text/plain");
+		else res.end();
+	});
+}
+
 server.listen(PORT, HOST, () => {
 	console.log(`HomeBento ${VERSION} on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
 	console.log(`Data in ${DATA_DIR} · Docker: ${docker.available === false ? "not found" : docker.socket} · Tailscale: ${tailscale.available ? tailscale.socket : "not found"} · checks every ${CHECK_SECONDS} s`);
 	monitor.start();
+	alerts.start();
+	dailyBackup();
+	setInterval(dailyBackup, 3600000).unref();
 	// fill in API keys that can be read from containers (e.g. after an update that added this)
 	setTimeout(() => Promise.all(store.config.services.map((s) => autoKeys(s).catch(() => false))).then((r) => r.some(Boolean) && console.log("API keys read from containers")), 2000);
 });
