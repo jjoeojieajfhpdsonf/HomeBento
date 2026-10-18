@@ -23,10 +23,11 @@ test.before(async () => {
 		const p = url.pathname;
 		// Jellyfin
 		if (p.startsWith("/jf/")) {
-			if (req.headers["x-emby-token"] !== KEY) return json({}, 401);
+			if (req.headers.authorization !== `MediaBrowser Client="HomeBento", Device="HomeBento", DeviceId="homebento", Version="1", Token="${KEY}"`) return json({}, 401);
 			if (p === "/jf/Sessions") return json([{ UserName: "Joël", DeviceName: "Apple TV", PlayState: { PositionTicks: 50, IsPaused: false }, NowPlayingItem: { Type: "Episode", SeriesName: "Severance", Name: "Woe's Hollow", ParentIndexNumber: 2, IndexNumber: 4, RunTimeTicks: 100, SeriesId: "a".repeat(32), Id: "b".repeat(32) } }, { UserName: "idle" }]);
 			if (p === "/jf/Users") return json([{ Id: "u1", Policy: { IsAdministrator: true } }]);
 			if (p === "/jf/Items/Counts") return json({ MovieCount: 120, SeriesCount: 30, EpisodeCount: 900 });
+			if (p === "/jf/Items/Latest") return json({}, 404); // older server: only the /Users/{id} route
 			if (p === "/jf/Users/u1/Items/Latest") return json([{ Type: "Episode", SeriesName: "Shōgun", SeriesId: "c".repeat(32), Id: "d".repeat(32) }, { Type: "Movie", Name: "Dune", Id: "e".repeat(32), ProductionYear: 2024 }]);
 		}
 		// Sonarr / Radarr

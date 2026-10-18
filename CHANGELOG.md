@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 – 2026-10-18
+
+- Jellyfin 10.11 and newer: the API key goes in the `Authorization` header (the old `X-Emby-Token` is rejected there), and "recently added" uses the new route.
+- Service tiles: uptime only shows when a service had a problem ("97 % up"); otherwise "since 3 days".
+
 ## 0.2.0 – 2026-10-18
 
 - "Set up automatically": running containers with a web page become services with matching tiles in one click (also "Add all" in the Docker suggestions).

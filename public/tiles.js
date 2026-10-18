@@ -169,8 +169,9 @@ function facts(s, st, d) {
 		if (c.cpu !== null) out.push({ text: `CPU ${nf(c.cpu, c.cpu < 10 ? 1 : 0)} %`, title: c.status });
 		if (c.memory) out.push({ text: fmtBytes(c.memory), title: c.status });
 	}
-	if (st && st.uptime !== null && st.uptime !== undefined && st.status !== "down") out.push({ text: `${nf(st.uptime, st.uptime === 100 ? 0 : 1)} %`, title: t("fact.uptime") });
-	if (st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000) out.push({ text: fmtDuration(Date.now() - st.since), title: t("status.since", { t: fmtDuration(Date.now() - st.since) }) });
+	// uptime only when something happened; a healthy service just says how long it has been up
+	if (st && st.uptime !== null && st.uptime !== undefined && st.uptime < 100) out.push({ text: t("fact.online", { v: nf(st.uptime, 1) }), cls: st.uptime < 99 ? "warn" : "", title: t("fact.uptime") });
+	if (st && st.since && st.status === "up" && Date.now() - st.since > 10 * 60000) out.push({ text: t("status.since", { t: fmtDuration(Date.now() - st.since) }) });
 	return out.slice(0, 2);
 }
 const factsHtml = (list) => (list.length ? `<div class="facts">${list.map((f) => `<span class="${f.cls || ""}"${f.title ? ` title="${esc(f.title)}"` : ""}>${esc(f.text)}</span>`).join("")}</div>` : "");
