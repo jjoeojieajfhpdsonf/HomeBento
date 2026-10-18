@@ -265,8 +265,12 @@ function renderServiceList() {
 	const list = pageServices();
 	if (!list.length) return el.replaceChildren();
 	const live = S.live || { status: {}, data: {}, hours: {} };
-	const groups = serviceGroups(list);
+	const all = serviceGroups(list);
 	const first = board().id === S.state.config.boards[0].id;
+	// filter by area (first page only): "Alle" or one group
+	if (S.listFilter && !all.some((g) => g.name === S.listFilter)) S.listFilter = null;
+	const groups = S.listFilter ? all.filter((g) => g.name === S.listFilter) : all;
+	const shown = groups.flatMap((g) => g.items);
 	const rowHtml = (s) => {
 		const st = live.status[s.id] || { status: "pending" };
 		const d = live.data[s.id];
@@ -279,15 +283,20 @@ function renderServiceList() {
 		const acts = `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
 		return `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s">${esc(sub)}</div></div><div class="svc-info${st.status === "down" ? " bad" : d && d.error ? " warn" : ""}" title="${esc(info)}">${esc(info)}</div><div class="svc-spark${hasDips ? " dips" : ""}">${spark(hours.map((b) => b.ms))}</div><div class="svc-ms num">${fmtMs(st.ms)}</div><div class="svc-up num">${up}</div>${acts}`;
 	};
-	const key = groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|");
+	const key = `${S.listFilter || ""}|${groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|")}`;
 	if (el.dataset.key !== key) {
 		el.dataset.key = key;
+		const chips = first && all.length > 1
+			? h("div", { class: "svc-chips" },
+					h("button", { class: `chip${!S.listFilter ? " on" : ""}`, onclick: () => ((S.listFilter = null), renderServiceList()) }, t("logs.all")),
+					all.map((g) => h("button", { class: `chip${S.listFilter === g.name ? " on" : ""}`, onclick: () => ((S.listFilter = g.name), renderServiceList()) }, g.name)))
+			: null;
 		el.replaceChildren(
-			h("div", { class: "svc-head" }, h("b", {}, first ? t("list.all") : t("list.title")), h("span", { class: "faint sm" }, String(list.length))),
+			h("div", { class: "svc-head" }, h("b", {}, first && !S.listFilter ? t("list.all") : S.listFilter || t("list.title")), h("span", { class: "faint sm" }, String(shown.length)), chips),
 			h("div", { class: "svc-rows" }, groups.flatMap((g) => [g.name && groups.length > 1 ? h("div", { class: "svc-group" }, g.name) : null, ...g.items.map((s) => h("div", { class: "svc-row", "data-sid": s.id }))]))
 		);
 	}
-	for (const s of list) {
+	for (const s of shown) {
 		const row = el.querySelector(`.svc-row[data-sid="${s.id}"]`);
 		if (!row) continue;
 		const st = live.status[s.id] || { status: "pending" };

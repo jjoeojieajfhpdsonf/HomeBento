@@ -172,8 +172,10 @@ route("GET", "/api/live", async (body, p, query) => {
 	const types = new Set(board.tiles.map((t) => t.type));
 	const status = {};
 	for (const s of cfg.services) status[s.id] = monitor.summary(s.id);
-	// services whose content is shown: their own tile, and content tiles (calendar = all Sonarr/Radarr)
+	// services whose content is shown: their own tile, content tiles (calendar = all Sonarr/Radarr),
+	// and in the combined layout every service (the list shows their figures)
 	const wanted = new Set(board.tiles.filter((t) => t.service).map((t) => t.service));
+	if (cfg.layout === "combined") for (const s of cfg.services) wanted.add(s.id);
 	if (types.has("calendar")) for (const s of cfg.services) if (s.kind === "sonarr" || s.kind === "radarr") wanted.add(s.id);
 	// a content tile without its own service shows the first matching one
 	for (const t of board.tiles) if (!t.service && ["jellyfin", "recent", "downloads", "solar"].includes(t.type)) for (const s of cfg.services) if (s.kind && KINDS[s.kind].tile === (t.type === "recent" ? "jellyfin" : t.type)) wanted.add(s.id);

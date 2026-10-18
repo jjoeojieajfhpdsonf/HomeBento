@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 – 2026-10-18
+
+- Service list: filter by area (All · one chip per page) above the list on the first page.
+- Combined layout: figures for every listed service (qBittorrent speeds, Prowlarr indexers …), not only for those with a tile on the page.
+
 ## 0.7.1 – 2026-10-18
 
 - Combined layout like the prototype: the first page lists all services grouped by the page they live on, every row with the same columns (name, short info, 24 h history, response time, uptime, actions). The history comes from the stored hourly data, so it survives restarts.
