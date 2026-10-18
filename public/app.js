@@ -214,6 +214,20 @@ function renderGrid() {
 	});
 	while (grid.children.length > els.length) grid.lastChild.remove();
 	tickClocks();
+	fitPosters();
+}
+
+// Poster rows: only as many as fit whole, spread over the full width (no poster cut off at the edge).
+function fitPosters() {
+	for (const row of document.querySelectorAll(".jf-posters")) {
+		const items = [...row.children];
+		if (!items.length) continue;
+		const gap = 8;
+		const height = Math.min(row.clientHeight, 210);
+		const n = Math.max(1, Math.min(items.length, Math.floor((row.clientWidth + gap) / (height * (2 / 3) + gap))));
+		row.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+		items.forEach((it, i) => (it.style.display = i < n ? "" : "none"));
+	}
 }
 
 // ---------- combined layout: problem strip and service list ----------
@@ -291,7 +305,7 @@ function renderAttention() {
 let attResize = null;
 window.addEventListener("resize", () => {
 	clearTimeout(attResize);
-	attResize = setTimeout(() => S.state && renderAttention(), 150);
+	attResize = setTimeout(() => S.state && (renderAttention(), fitPosters()), 150);
 });
 
 function renderServiceList() {
