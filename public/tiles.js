@@ -815,8 +815,11 @@ const TILES = {
 			...d.fx.map((f) => (f.error ? "" : `<div class="mk-row"><div class="mk-name"><b>${esc(f.pair)}</b><span class="faint">${t("mk.rate")}</span></div>${tile.w > 1 ? "<div></div>" : ""}<div class="mk-val"><b class="num">${nf(f.rate, 4)}</b>${pct(f.changePct)}</div></div>`)),
 			...d.crypto.map((c) => (c.error ? "" : `<div class="mk-row"><div class="mk-name"><b>${esc(c.id.replace(/^\w/, (m) => m.toUpperCase()))}</b><span class="faint">${esc(tile.base || "CHF")}</span></div>${tile.w > 1 ? "<div></div>" : ""}<div class="mk-val"><b class="num">${price(c.price)}</b>${pct(c.changePct)}</div></div>`))
 		].filter(Boolean);
-		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 60) / 44));
-		return { c: "#5fd39a", cls: "mk-tile", html: `${head}<div class="mk-list">${rows.slice(0, fit).join("")}</div>` };
+		// two lines per value while they fit, else one line each (so nothing falls off)
+		const room = tile.h * 118 + (tile.h - 1) * 12 - 60;
+		const dense = rows.length > Math.floor(room / 44);
+		const fit = Math.max(1, Math.floor(room / (dense ? 31 : 44)));
+		return { c: "#5fd39a", cls: "mk-tile", html: `${head}<div class="mk-list${dense ? " dense" : ""}">${rows.slice(0, fit).join("")}</div>` };
 	},
 
 	// the next public holidays of a canton

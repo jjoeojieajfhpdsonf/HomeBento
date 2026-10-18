@@ -98,8 +98,9 @@ async function loadLive() {
 
 // ---------- layout ----------
 
-// the combined layout stays while editing: what you edit looks like what you see
-const combined = () => S.state.config.layout === "combined";
+// One layout: problems on top, content tiles, the services as a list below. A service tile
+// only says which page a service belongs to (its row in that page's list).
+const combined = () => true;
 
 function render() {
 	const app = $("#app");
@@ -1502,7 +1503,6 @@ async function addTileSheet() {
 			toast(t("add.added"));
 			draw();
 		};
-		content.push(row(glyphLogo("<path d='M12 3l9 4.5v9L12 21l-9-4.5v-9z'/>", "#5fd39a"), t("add.status"), t("add.statusSub"), add({ type: "status" }), onBoard((x) => x.type === "status") && t("add.onBoard")));
 		content.push(row(glyphLogo("server", "#9dbcff"), t("add.host"), t("add.hostSub"), add({ type: "host" }), onBoard((x) => x.type === "host") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M4 18V8M9 18V5M14 18v-7M19 18V9'/>", "#5fd39a"), t("add.uptime"), t("add.uptimeSub"), add({ type: "uptime" }), onBoard((x) => x.type === "uptime") && t("add.onBoard")));
 		if (S.state.docker) content.push(row(glyphLogo("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>", "#2496ed"), "Docker", t("add.dockerSub"), add({ type: "docker" }), onBoard((x) => x.type === "docker") && t("add.onBoard")));
@@ -1537,7 +1537,7 @@ async function addTileSheet() {
 		content.push(row(glyphLogo("<path d='M5 5a14 14 0 0114 14M5 11a8 8 0 018 8'/><circle cx='6' cy='18' r='1.3'/>", "#ff9f5a"), t("rss.title"), t("add.rssSub"), addAndSetUp({ type: "rss", feeds: [] })));
 		content.push(row(glyphLogo("<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17M7 6.8h.01M9.5 6.8h.01'/>", "#9dbcff"), t("frame.title"), t("add.frameSub"), addAndSetUp({ type: "iframe" })));
 		content.push(row(glyphLogo("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", "#9dbcff"), t("api.title"), t("add.apiSub"), addAndSetUp({ type: "api", api: { url: "", method: "GET", headers: [], fields: [], ttl: 60 } })));
-		content.push(row(glyphLogo("<path d='M4 17l5-5 4 3 7-8'/><path d='M15 7h5v5'/>", "#5fd39a"), t("mk.title"), t("add.marketsSub"), addAndSetUp({ type: "markets", symbols: ["^SSMI"], fx: ["EUR", "USD"], crypto: [], base: "CHF" })));
+		content.push(row(glyphLogo("<path d='M4 17l5-5 4 3 7-8'/><path d='M15 7h5v5'/>", "#5fd39a"), t("mk.title"), t("add.marketsSub"), addAndSetUp({ type: "markets", symbols: ["^GSPC"], fx: ["EUR", "USD"], crypto: [], base: "CHF" })));
 		content.push(row(glyphLogo("<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>", "#ff6066"), t("hol.title"), t("add.holidaysSub"), addAndSetUp({ type: "holidays", canton: "ZH" })));
 		content.push(row(glyphLogo("<circle cx='12' cy='13' r='7.5'/><path d='M12 9v4l2.5 2M9.5 2.5h5'/>", "#c792ea"), t("cd.title"), t("add.countdownSub"), addAndSetUp({ type: "countdown", items: [] })));
 		content.push(row(glyphLogo("<rect x='3' y='6' width='13' height='12' rx='2.5'/><path d='M16 10l5-3v10l-5-3'/>", "#9dbcff"), t("cam.title"), t("add.cameraSub"), addAndSetUp({ type: "camera", mode: "snapshot", refresh: 5 })));
@@ -2050,14 +2050,6 @@ function settingsSheet() {
 	sheet.body.append(
 		h("div", { class: "box" },
 			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
-			h("div", { class: "field" }, h("label", {}, t("settings.layout")),
-				h("select", { class: "input", onchange: async (e) => {
-					if (await guard(() => api("POST", "/api/settings", { layout: e.target.value }))) {
-						await loadState();
-						render();
-					}
-				} }, [["tiles", t("settings.layoutTiles")], ["combined", t("settings.layoutCombined")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.layout || "tiles") === v }, l))),
-				h("div", { class: "help" }, t("settings.layoutHelp"))),
 			widthField(),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {

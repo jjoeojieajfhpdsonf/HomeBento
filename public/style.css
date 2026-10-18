@@ -252,7 +252,7 @@ svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb,
 .jf-posters .poster { height: 100%; max-height: 210px; aspect-ratio: 2/3; flex: none; }
 .jf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; flex: 1; min-height: 0; }
 .jf-split > div { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.jf-side { margin-top: 10px; }
+.jf-side { margin-top: 10px; overflow: hidden; }
 .jf-side .jf-posters { margin-top: 6px; }
 .nowp .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prog { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 6px; }
@@ -677,7 +677,9 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 30px; 
 .link-edit.with-color { grid-template-columns: 34px 1fr 2fr 30px; }
 .color-in { width: 30px; height: 30px; border: 0; padding: 0; background: none; border-radius: 8px; cursor: pointer; }
 .row-x { width: 30px; height: 30px; border-radius: 50%; background: var(--tile-3); display: grid; place-items: center; }
-.chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 12px; }
+.chips-row .chip, .al-add .chip, .cal-login .chip { padding: 5px 11px; border-radius: 999px; background: var(--tile-3); color: var(--muted); font-size: 12.5px; font-weight: 560; }
+.chips-row .chip:hover, .al-add .chip:hover, .cal-login .chip:hover { color: var(--text); background: rgba(255,255,255,.1); }
 
 /* ---------- windows: background stays put ---------- */
 html.sheet-open, html.sheet-open body { overflow: hidden; }
@@ -879,3 +881,11 @@ body.wide .wrap { max-width: none; }
 .ts-port-hint { color: var(--accent); font: inherit; padding: 0; }
 .ts-port-hint:hover { text-decoration: underline; }
 .upd-box .grow { flex: 1; min-width: 0; }
+
+/* markets: one line per value when there are many */
+.mk-list.dense .mk-row { min-height: 30px; padding: 3px 0; grid-template-columns: minmax(0, 1fr) 56px auto; }
+.mk-list.dense .mk-name { display: flex; align-items: baseline; gap: 6px; }
+.mk-list.dense .mk-name .faint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-list.dense .mk-val { display: flex; align-items: baseline; gap: 8px; }
+.mk-list.dense .mk-ch { min-width: 52px; text-align: right; }
+.mk-list.dense .mk-spark, .mk-list.dense .mk-spark .spark { height: 18px; }

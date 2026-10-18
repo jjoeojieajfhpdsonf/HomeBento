@@ -13,6 +13,21 @@ A dashboard for the services at home that does more than link to them: every til
 - **Command palette:** ⌘K (or Ctrl K, or "/") finds services, actions, pages and links – "son restart" restarts Sonarr.
 - **Light:** one Node.js process, **no dependencies**, German and English.
 
+![The overview: problems on top, tiles, every service below](docs/overview.webp)
+
+<details>
+<summary>More pictures</summary>
+
+| | |
+|---|---|
+| ![Media](docs/media.webp) | ![Home](docs/home.webp) |
+| ![System](docs/system.webp) | ![Service details with an update](docs/details.webp) |
+| ![Notifications](docs/notifications.webp) | ![Own API tile: test the address, click the values](docs/own-api.webp) |
+
+</details>
+
+All pictures are from the demo (`node demo/server.js`, see below) and made with `node demo/screenshots.js`.
+
 Icons come from [dashboard-icons](https://github.com/homarr-labs/dashboard-icons).
 
 ## Install with Docker (recommended)

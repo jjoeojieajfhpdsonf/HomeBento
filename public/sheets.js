@@ -379,7 +379,7 @@ const MORE_OPTIONS = {
 		const sheet = openSheet();
 		sheet.head(h("div", { class: "tt" }, h("b", {}, t("mk.title"))));
 		const title = h("input", { class: "input", value: tile.title || "", placeholder: t("mk.title"), maxlength: 40 });
-		const symbols = h("input", { class: "input", value: (tile.symbols || []).join(", "), placeholder: "^SSMI, NESN.SW, AAPL", autocapitalize: "characters", spellcheck: "false" });
+		const symbols = h("input", { class: "input", value: (tile.symbols || []).join(", "), placeholder: "^GSPC, NVDA, AAPL", autocapitalize: "characters", spellcheck: "false" });
 		const fx = h("input", { class: "input", value: (tile.fx || []).join(", "), placeholder: "EUR, USD", autocapitalize: "characters" });
 		const crypto = h("input", { class: "input", value: (tile.crypto || []).join(", "), placeholder: "bitcoin, ethereum", autocapitalize: "off", spellcheck: "false" });
 		const base = h("select", { class: "input" }, ["CHF", "EUR", "USD", "GBP"].map((c) => h("option", { value: c, selected: (tile.base || "CHF") === c }, c)));
@@ -387,7 +387,8 @@ const MORE_OPTIONS = {
 			const cur = input.value.split(",").map((x) => x.trim()).filter(Boolean);
 			if (!cur.includes(v)) input.value = [...cur, v].join(", ");
 		};
-		const presets = [["SMI", "^SSMI"], ["S&P 500", "^GSPC"], ["Nasdaq", "^IXIC"], ["DAX", "^GDAXI"], ["MSCI World", "URTH"], ["Nestlé", "NESN.SW"], ["Novartis", "NOVN.SW"], ["Roche", "ROG.SW"], ["UBS", "UBSG.SW"], ["Apple", "AAPL"], ["Gold", "GC=F"]];
+		// the biggest indices and companies worldwide (any other symbol can be typed)
+		const presets = [["S&P 500", "^GSPC"], ["Nasdaq 100", "^NDX"], ["Dow Jones", "^DJI"], ["MSCI World", "URTH"], ["Euro Stoxx 50", "^STOXX50E"], ["DAX", "^GDAXI"], ["Nikkei 225", "^N225"], ["Nvidia", "NVDA"], ["Apple", "AAPL"], ["Microsoft", "MSFT"], ["Alphabet", "GOOGL"], ["Amazon", "AMZN"], ["Meta", "META"], ["Tesla", "TSLA"], ["Gold", "GC=F"]];
 		const split = (el, up) => el.value.split(",").map((x) => (up ? x.trim().toUpperCase() : x.trim().toLowerCase())).filter(Boolean);
 		sheet.body.append(
 			h("div", { class: "box" }, field(t("settings.title"), title)),

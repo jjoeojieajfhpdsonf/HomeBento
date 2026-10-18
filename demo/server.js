@@ -102,7 +102,6 @@ const svcTiles = (names) => names.map((n) => ({ type: "service", service: sid[n]
 // ---------- pages ----------
 
 store.config.title = "";
-store.config.layout = "combined";
 store.config.location = { name: "Zürich", lat: 47.3769, lon: 8.5417 };
 const pages = [
 	["Overview", [
@@ -114,7 +113,7 @@ const pages = [
 		{ type: "jellyfin", w: 3, h: 2 },
 		{ type: "calendar", w: 3, h: 2 },
 		{ type: "host", w: 2, h: 2 },
-		{ type: "markets", w: 2, h: 2, symbols: ["^SSMI", "NESN.SW", "AAPL"], fx: ["EUR", "USD"], crypto: ["bitcoin"], base: "CHF" },
+		{ type: "markets", w: 2, h: 2, symbols: ["^GSPC", "NVDA", "AAPL"], fx: ["EUR", "USD"], crypto: ["bitcoin"], base: "CHF" },
 		{ type: "holidays", w: 2, h: 2, canton: "ZH" },
 		{ type: "notes", w: 2, h: 2, text: "## This week\n- [x] Check the backup\n- [ ] Clean up Sonarr series\n- [ ] Update **FlareSolverr**\n- Router firmware: see the [changelog](https://example.com)" },
 		{ type: "rss", w: 2, h: 2, feeds: [{ name: "Tech-Feed", url: "https://demo.invalid/tech.xml" }, { name: "Local", url: "https://demo.invalid/lokal.xml" }] },
@@ -452,7 +451,7 @@ function marketsDemo(t) {
 		const p = price * (1 + wob(symbol, 0.004, 40000));
 		return { symbol, name, price: Math.round(p * 100) / 100, currency: cur, change: (p * pct) / 100, changePct: Math.round((pct + wob(`${symbol}c`, 0.3, 40000)) * 100) / 100, marketState: "REGULAR", spark: Array.from({ length: 16 }, (_, i) => p * (1 + Math.sin(i / 2.5 + rnd(symbol) * 5) * 0.004 + (i * pct) / 1600)) };
 	};
-	const all = { "^SSMI": q("^SSMI", "SMI", 12384, "CHF", 0.42), "NESN.SW": q("NESN.SW", "Nestlé", 81.6, "CHF", -0.8), AAPL: q("AAPL", "Apple", 231.4, "USD", 1.2) };
+	const all = { "^GSPC": q("^GSPC", "S&P 500", 6684, "USD", 0.42), NVDA: q("NVDA", "Nvidia", 183.2, "USD", -0.8), AAPL: q("AAPL", "Apple", 231.4, "USD", 1.2) };
 	return {
 		quotes: (t.symbols || []).map((sym) => all[sym] || q(sym, sym, 100, "CHF", 0.1)),
 		fx: (t.fx || []).map((c) => ({ pair: `CHF/${c}`, rate: c === "EUR" ? 1.0712 : c === "USD" ? 1.2468 : 1, changePct: c === "EUR" ? 0.12 : -0.31 })),
@@ -626,7 +625,6 @@ route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.i
 route("POST", "/api/settings", (body) => {
 	if (body.location !== undefined) store.setLocation(body.location);
 	if (body.title !== undefined) store.setTitle(body.title);
-	if (body.layout !== undefined) store.setLayout(body.layout);
 	if (body.width !== undefined) store.setWidth(body.width);
 });
 route("GET", "/api/alerts", () => alertsView());

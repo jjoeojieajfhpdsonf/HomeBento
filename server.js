@@ -198,9 +198,9 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	const status = {};
 	for (const s of cfg.services) status[s.id] = monitor.summary(s.id);
 	// services whose content is shown: their own tile, content tiles (calendar = all Sonarr/Radarr),
-	// and in the combined layout every service (the list shows their figures)
+	// and every service (the list shows their figures)
 	const wanted = new Set(board.tiles.filter((t) => t.service).map((t) => t.service));
-	if (cfg.layout === "combined") for (const s of cfg.services) wanted.add(s.id);
+	for (const s of cfg.services) wanted.add(s.id);
 	if (types.has("calendar")) for (const s of cfg.services) if (s.kind === "sonarr" || s.kind === "radarr") wanted.add(s.id);
 	// a content tile without its own service shows the first matching one
 	// the mirror tile shows MagicMirror and restarts it through the manager
@@ -638,7 +638,6 @@ route("GET", "/api/disks", () => ({ items: host.disks() }));
 route("POST", "/api/settings", (body) => {
 	if (body.location !== undefined) store.setLocation(body.location);
 	if (body.title !== undefined) store.setTitle(body.title);
-	if (body.layout !== undefined) store.setLayout(body.layout);
 	if (body.width !== undefined) store.setWidth(body.width);
 });
 
