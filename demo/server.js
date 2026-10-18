@@ -81,6 +81,7 @@ const SERVICES = [
 	["Gitea", 3002, "gitea", "gitea"],
 	["UniFi", 8443, "unifi", "unifi", "192.168.1.1", "https"],
 	["FlareSolverr", 8191, null, "flaresolverr"],
+	["Watchtower", 8070, "watchtower", "watchtower"],
 	["Dozzle", 8089, null, "dozzle"]
 ];
 const sid = {};
@@ -97,22 +98,22 @@ store.config.layout = "combined";
 store.config.location = { name: "Zürich", lat: 47.3769, lon: 8.5417 };
 const pages = [
 	["Übersicht", [
+		// top left: the time, below it what's downloading; next to it weather and appointments
+		{ type: "clock", w: 2, h: 1, zones: [{ name: "New York", zone: "America/New_York" }, { name: "Tokio", zone: "Asia/Tokyo" }] },
 		{ type: "weather", w: 2, h: 2 },
-		{ type: "solar", w: 2, h: 2 },
 		{ type: "ical", w: 2, h: 2, calendars: [{ name: "Familie", url: "https://demo.invalid/familie.ics", color: "#9dbcff" }, { name: "Arbeit", url: "https://demo.invalid/arbeit.ics", color: "#f5b83d" }] },
+		{ type: "downloads", w: 2, h: 1 },
 		{ type: "jellyfin", w: 3, h: 2 },
 		{ type: "calendar", w: 3, h: 2 },
-		{ type: "clock", w: 2, h: 1, zones: [{ name: "New York", zone: "America/New_York" }, { name: "Tokio", zone: "Asia/Tokyo" }] },
-		{ type: "downloads", w: 2, h: 1 },
+		{ type: "solar", w: 2, h: 2 },
 		{ type: "host", w: 2, h: 2 },
 		{ type: "notes", w: 2, h: 2, text: "## Diese Woche\n- [x] Backup prüfen\n- [ ] Sonarr-Serien aufräumen\n- [ ] **FlareSolverr** aktualisieren\n- Router-Firmware: siehe [Changelog](https://example.com)" },
-		{ type: "rss", w: 2, h: 2, feeds: [{ name: "Tech-Feed", url: "https://demo.invalid/tech.xml" }, { name: "Lokal", url: "https://demo.invalid/lokal.xml" }] },
-		{ type: "links", w: 2, h: 1, links: [{ name: "Router", url: "http://192.168.1.1" }, { name: "Drucker", url: "http://192.168.1.30" }, { name: "GitHub", url: "https://github.com" }] }
+		{ type: "rss", w: 3, h: 2, feeds: [{ name: "Tech-Feed", url: "https://demo.invalid/tech.xml" }, { name: "Lokal", url: "https://demo.invalid/lokal.xml" }] },
+		{ type: "links", w: 3, h: 2, links: [{ name: "Router", url: "http://192.168.1.1" }, { name: "Drucker", url: "http://192.168.1.30" }, { name: "GitHub", url: "https://github.com" }] }
 	]],
 	["Medien", [
 		{ type: "jellyfin", w: 3, h: 2 },
 		{ type: "calendar", w: 3, h: 2 },
-		{ type: "recent", w: 3, h: 2 },
 		{ type: "downloads", w: 3, h: 1 },
 		...svcTiles(["Jellyfin", "Sonarr", "Radarr", "Prowlarr", "qBittorrent", "Jellyseerr", "Bazarr", "Lidarr", "Plex", "Tautulli", "SABnzbd"])
 	]],
@@ -135,7 +136,7 @@ const pages = [
 		{ type: "releases", w: 2, h: 3, repos: ["jellyfin/jellyfin", "Sonarr/Sonarr", "Radarr/Radarr", "qbittorrent/qBittorrent", "home-assistant/core", "immich-app/immich", "louislam/uptime-kuma", "jjoeojieajfhpdsonf/HomeBento"], seen: {} },
 		{ type: "tailscale", w: 2, h: 2 },
 		{ type: "events", w: 2, h: 3 },
-		...svcTiles(["Portainer", "Proxmox", "TrueNAS", "Pi-hole", "AdGuard Home", "Traefik", "Nginx Proxy Manager", "wg-easy", "Uptime Kuma", "Grafana", "Prometheus", "Glances", "Syncthing", "Scrutiny", "Speedtest Tracker", "Vaultwarden", "Gitea", "UniFi", "FlareSolverr", "Dozzle"])
+		...svcTiles(["Portainer", "Proxmox", "TrueNAS", "Pi-hole", "AdGuard Home", "Traefik", "Nginx Proxy Manager", "wg-easy", "Uptime Kuma", "Grafana", "Prometheus", "Glances", "Syncthing", "Scrutiny", "Speedtest Tracker", "Vaultwarden", "Gitea", "UniFi", "FlareSolverr", "Dozzle", "Watchtower"])
 	]]
 ];
 store.config.boards = [];
@@ -293,6 +294,8 @@ const PLUGINS = {
 	speedtest: () => ({ metrics: [m("912", "↓ Mbit/s"), m("483", "↑ Mbit/s"), m("6 ms", "Ping"), m("18 min", L("Letzter Test", "Last test"))] }),
 	vaultwarden: () => ({ metrics: [m(L("Ja", "Yes"), L("Erreichbar", "Up")), m("4 ms", L("Antwort", "Response")), m("1.34.3", "Version")] }),
 	gitea: () => ({ metrics: [m(37, L("Repositories", "Repositories")), m(2, L("Ungelesen", "Unread")), m(1, "Pull Requests")], items: [{ title: "homelab/ansible #12", sub: "Update docker role", status: "ok" }], summary: "1.24.6" }),
+	// Watchtower updates containers on its own schedule (here: every night at 4:00)
+	watchtower: () => ({ metrics: [m(38, L("Geprüft", "Scanned")), m(2, L("Aktualisiert", "Updated")), m(0, L("Fehlgeschlagen", "Failed"))], items: [{ title: "dozzle", sub: "amir20/dozzle:latest · updated 04:00", status: "ok" }, { title: "flaresolverr", sub: "ghcr.io/flaresolverr/flaresolverr:latest · updated 04:00", status: "ok" }], summary: "Last scan today 04:00 · next 04:00" }),
 	unifi: () => ({ metrics: [m(43, "Clients"), m(6, L("Geräte", "Devices")), m(0, L("Meldungen", "Alerts")), m(31, "WLAN")], items: [{ title: "wan", sub: "ok", status: "ok" }, { title: "wlan", sub: "ok · 31 clients", status: "ok" }, { title: "lan", sub: "ok · 12 clients", status: "ok" }], summary: "WAN 203.0.113.24" })
 };
 
@@ -469,7 +472,8 @@ route("GET", "/api/services/:id", (body, p) => {
 		days: Array.from({ length: 30 }, (_, i) => (s.name === "FlareSolverr" && i === 29 ? 0.97 : i === 12 && s.name === "Uptime Kuma" ? 0.99 : 1)),
 		uptime: { day: 100, week: 99.9, month: s.name === "FlareSolverr" ? 99.8 : 100 },
 		events: events().filter((e) => e.sid === s.id),
-		container: s.container ? { ...container(s), image: `lscr.io/linuxserver/${s.container}:latest` } : null
+		container: s.container ? { ...container(s), image: `lscr.io/linuxserver/${s.container}:latest` } : null,
+		release: releaseOf(s)
 	};
 });
 route("GET", "/api/services/:id/logs", (body, p) => {
@@ -491,8 +495,47 @@ route("POST", "/api/services/:id/action", (body, p) => {
 	EVENTS.unshift([now(), s.name, "action", body.what === "relay" ? "Switched" : "Restarted"]);
 	return { container: { state: "running", status: "Up 1 second" } };
 });
-route("POST", "/api/services/:id/update", () => {
-	throw new UserError("Not in the demo");
+// The update of a container, played through: pull, swap, check, done (takes about 12 seconds).
+const jobs = new Map();
+function releaseOf(s) {
+	const e = Object.entries(RELEASES).find(([, r]) => r[2] === s.name);
+	if (!e) return undefined;
+	const [repo, [tag, age, , running]] = e;
+	return { repo, latest: { tag, name: tag, date: now() - age, url: `https://github.com/${repo}/releases/tag/${tag}` }, running, current: running.replace(/^v/, "") === tag.replace(/^(v|release-)/, "") };
+}
+route("POST", "/api/services/:id/update", (body, p) => {
+	const s = svc(p.id);
+	const rel = releaseOf(s);
+	const image = `lscr.io/linuxserver/${s.container}:latest`;
+	const steps = [
+		[0, `Pulling ${image} …`],
+		[2500, "Downloaded newer image (sha256:4f1c…a92e, 143 MB)"],
+		[3500, `Renaming the running container to ${s.container}-old`],
+		[4500, "Creating the new container with the same volumes, ports, networks and environment"],
+		[6000, "Stopping the old container …"],
+		[7000, "Starting the new container …"],
+		[8500, "Waiting until the service answers …"],
+		[11000, `${s.name} answers (HTTP 200 in 31 ms)`],
+		[11500, `Removing the old container ${s.container}-old`]
+	];
+	const job = { id: Date.now().toString(36), sid: s.id, name: s.name, started: now(), steps, rel };
+	jobs.set(job.id, job);
+	return { job: job.id };
+});
+route("GET", "/api/updates/:id", (body, p) => {
+	const j = jobs.get(p.id);
+	if (!j) throw new UserError("Unknown update");
+	const dt = now() - j.started;
+	const log = j.steps.filter(([at]) => at <= dt).map(([at, line]) => `${new Date(j.started + at).toLocaleTimeString("de-CH")} ${line}`);
+	const done = dt > 12000;
+	if (done && j.rel && !j.applied) {
+		// from now on it runs the new version
+		const r = RELEASES[j.rel.repo];
+		r[3] = r[0].replace(/^(v|release-)/, "");
+		j.applied = true;
+		EVENTS.unshift([now(), j.name, "action", "Updated"]);
+	}
+	return { id: j.id, sid: j.sid, name: j.name, state: done ? "done" : "running", log, updated: done, started: j.started };
 });
 route("POST", "/api/services/:id/tailscale", () => tailscale());
 route("POST", "/api/tailscale/remove", () => tailscale());

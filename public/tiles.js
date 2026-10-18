@@ -470,13 +470,14 @@ const TILES = {
 				? `<div class="nowps">${data.now.slice(0, maxNow).map(nowRow).join("")}${data.now.length > maxNow ? `<div class="sm faint">${t("jf.more", { n: data.now.length - maxNow })}</div>` : ""}</div>`
 				: `<div class="sm faint" style="margin:8px 0 4px">${t("jf.nothing")}</div>`;
 		}
-		const count = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
-		const rows = tile.h >= 3 && data.now.length < 2 ? 2 : 1;
 		// a separate "recently added" tile on the same page: don't show the posters twice
 		const separate = x.tiles.some((o) => o.type === "recent" && (o.service || (x.ofKind("jellyfin")[0] || {}).id) === s.id);
-		const room = tile.h - 1 - (data.now.length >= 2 ? 1 : 0);
-		const recent = !separate && room >= 1 ? data.recent.slice(0, 14) : [];
-		const posters = recent.length ? `<div class="sm muted jf-rec">${t("jf.recent")}</div><div class="jf-posters">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
+		const recent = !separate && tile.h > 1 ? data.recent.slice(0, 14) : [];
+		const posterList = `<div class="jf-posters">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>`;
+		// wide and someone watching: who watches on the left, what's new on the right (full height)
+		if (recent.length && data.now.length && tile.w >= 3) return { c: colorOf(s), cls: "jf-tile", html: `${head}<div class="jf-split"><div>${now}</div><div class="jf-side"><div class="sm muted">${t("jf.recent")}</div>${posterList}</div></div>` };
+		// otherwise below each other; the posters take the height that's left
+		const posters = recent.length ? `${data.now.length < 2 ? `<div class="sm muted jf-rec">${t("jf.recent")}</div>` : ""}${posterList}` : "";
 		return { c: colorOf(s), cls: "jf-tile", html: head + now + posters };
 	},
 

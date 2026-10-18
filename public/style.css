@@ -172,9 +172,9 @@ svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb,
 .issue .d { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .issue .btn { padding: 6px 12px; font-size: 13px; }
 .att-toggle { display: flex; align-items: center; gap: 8px; max-width: 100%; margin: calc(var(--gap) * -0.5) 4px var(--gap); padding: 2px 0; font-size: 12.5px; color: var(--muted); text-align: left; }
-.att-toggle b { font-weight: 600; color: var(--text); flex: none; }
+.att-toggle b { font-weight: 600; color: var(--muted); flex: none; }
 .att-toggle span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.att-toggle:hover b { color: var(--accent); }
+.att-toggle:hover, .att-toggle:hover b { color: var(--text); }
 .att-toggle .chev { flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); }
 .att-toggle .chev.up { transform: translateY(1px) rotate(-135deg); }
 .allok { color: var(--muted); font-size: 13px; margin: 0 4px 12px; display: flex; align-items: center; gap: 8px; }
@@ -250,6 +250,10 @@ svg.spark { width: 100%; height: 34px; display: block; color: color-mix(in srgb,
 /* posters fill the rest of the tile: as many as fit side by side */
 .jf-posters { display: flex; gap: 8px; flex: 1; min-height: 0; margin-top: 8px; overflow: hidden; align-items: flex-end; }
 .jf-posters .poster { height: 100%; max-height: 210px; aspect-ratio: 2/3; flex: none; }
+.jf-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; flex: 1; min-height: 0; }
+.jf-split > div { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.jf-side { margin-top: 10px; }
+.jf-side .jf-posters { margin-top: 6px; }
 .nowp .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prog { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 6px; }
 .prog i { display: block; height: 100%; border-radius: 4px; background: var(--text); transition: width .8s; }
@@ -479,7 +483,13 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .rows .done { color: var(--faint); font-size: 12px; }
 .rows > button:disabled { opacity: .5; cursor: default; }
 
-.ts-port { width: 110px; flex: none; }
+.ts-port { width: 96px; flex: none; min-width: 0; }
+.ts-port-row .icon-row { flex-wrap: wrap; min-width: 0; }
+.ts-port-row .icon-row > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+.upd-box { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px 10px 14px; border-radius: 14px; background: rgba(157,188,255,.07); box-shadow: inset 0 0 0 1px rgba(157,188,255,.16); }
+.upd-box .title { font-weight: 600; }
+.upd-box .sub { font-size: 12.5px; color: var(--muted); }
+.upd-box .btn { padding: 6px 12px; font-size: 13px; }
 .ts-port-row .icon-row { gap: 6px; }
 
 /* Tailscale tile */
@@ -608,9 +618,11 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 30px; 
 /* other places: each its own little block – time, name below */
 .clk-zones { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 12px; }
 .t.h1 .clk-zones { margin-top: 4px; }
-.t.h1.has-zones .clk-t { font-size: 30px; }
-.t.h1.has-zones .clk-d { margin-top: 2px; font-size: 12.5px; }
-.t.h1.has-zones .clk-zones .num { font-size: 14px; }
+/* wide and low: the time on the left, the other places side by side on the right */
+.t.h1.has-zones:not(.w1) { flex-direction: row; align-items: center; justify-content: space-between; gap: 18px; }
+.t.h1.has-zones:not(.w1) .clk-zones { margin: 0; flex-wrap: nowrap; gap: 18px; }
+.t.h1.has-zones:not(.w1) .clk-zones .num { font-size: 20px; }
+.t.h1.has-zones.w1 .clk-t { font-size: 28px; }
 .clk-zones > div { display: grid; gap: 1px; padding-left: 10px; border-left: 2px solid var(--line); min-width: 0; }
 .clk-zones .num { font-size: 15px; font-weight: 640; }
 .clk-zones .num sup { font-size: 10px; font-weight: 600; color: var(--muted); margin-left: 3px; }

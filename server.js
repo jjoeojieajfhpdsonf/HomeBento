@@ -180,7 +180,8 @@ route("GET", "/api/state", async (body, p, query, req) => ({
 	notify: alerts.channels().length > 0,
 	checkSeconds: CHECK_SECONDS,
 	// the addresses of this machine: services on it can be opened under whatever address HomeBento was opened with
-	selfHosts: selfHosts()
+	selfHosts: selfHosts(),
+	cantons: holidays.CANTONS
 }));
 
 function selfHosts() {
@@ -306,6 +307,13 @@ route("GET", "/api/services/:id", async (body, p) => {
 		const c = (monitor.containers || []).find((x) => x.name === s.container);
 		const st = monitor.stats.get(s.container) || {};
 		out.container = c ? { state: c.state, status: c.status, image: c.image, cpu: st.cpu ?? null, memory: st.memory ?? null } : { error: docker.available === false ? "Docker is not connected" : `Container "${s.container}" not found` };
+		// a newer release than the container runs? (GitHub, cached like the Updates tile)
+		const sug = releases.suggest([s], monitor.containers)[0];
+		const running = runningVersion(c);
+		if (sug && running) {
+			const r = await releases.get(sug.repo).catch(() => null);
+			if (r && r.latest) out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
+		}
 	}
 	return out;
 });

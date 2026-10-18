@@ -744,6 +744,14 @@ async function serviceSheet(sid) {
 				kpi(t("sheet.uptime30"), d.uptime.month === null ? "–" : `${nf(d.uptime.month, d.uptime.month === 100 ? 0 : 2)} %`),
 				kpi(t("sheet.state"), `${statusText(st)}${st.since ? ` · ${fmtDuration(Date.now() - st.since)}` : ""}`))
 		);
+		// a newer version than the container runs: update right here
+		if (d.release && d.release.current === false && s.container) {
+			const rel = d.release;
+			parts.push(h("div", { class: "upd-box" },
+				h("div", { class: "grow" }, h("div", { class: "title" }, t("upd.available")), h("div", { class: "sub" }, `${rel.running} → ${rel.latest.tag.replace(/^release-/i, "")}`)),
+				h("a", { class: "btn", href: rel.latest.url, target: "_blank", rel: "noopener noreferrer" }, t("upd.notes")),
+				h("button", { class: "btn primary", onclick: () => updateService(s, rel) }, t("upd.go"))));
+		}
 		// what the service itself reports (Sonarr/Radarr/Prowlarr health checks)
 		const warnings = (integ && integ.data && integ.data.warnings) || [];
 		if (warnings.length) {
@@ -1254,7 +1262,7 @@ document.addEventListener("click", (e) => {
 
 // Update a container: ask, then follow the log until it is done (or rolled back).
 async function updateService(s, d) {
-	const what = d && d.running && d.latest ? `${d.running} → ${d.latest.tag}` : "";
+	const what = d && d.running && d.latest ? `${d.running} → ${d.latest.tag.replace(/^release-/i, "")}` : "";
 	if (!(await confirmSheet(t("upd.confirm", { n: s.name, v: what }), t("upd.go")))) return;
 	const r = await guard(() => api("POST", `/api/services/${s.id}/update`));
 	if (!r) return;
