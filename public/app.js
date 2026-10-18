@@ -701,7 +701,7 @@ document.addEventListener("pointercancel", () => {
 function openSheet({ wide } = {}) {
 	const below = topSheet();
 	if (below) below.classList.add("behind");
-	const el = h("div", { class: `sheet${wide ? " wide" : ""}`, role: "dialog", "aria-modal": "true" });
+	const el = h("div", { class: `sheet${wide ? " wide" : ""}${below ? " stacked" : ""}`, role: "dialog", "aria-modal": "true" });
 	const head = h("div", { class: "hd" });
 	const body = h("div", { class: "bd" });
 	el.append(head, body);

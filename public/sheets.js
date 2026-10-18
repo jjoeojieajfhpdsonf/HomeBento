@@ -257,7 +257,9 @@ function kioskSheet() {
 	const night = h("input", { type: "checkbox", checked: o.nightDim });
 	const from = h("input", { class: "input", type: "time", value: o.dimFrom });
 	const to = h("input", { class: "input", type: "time", value: o.dimTo });
-	const dim = h("input", { type: "range", min: 0.2, max: 0.9, step: 0.05, value: o.dim });
+	const fillDim = () => dim.style.setProperty("--p", `${((Number(dim.value) - 0.2) / 0.7) * 100}%`);
+	const dim = h("input", { type: "range", class: "width-range", min: 0.2, max: 0.9, step: 0.05, value: o.dim, oninput: () => fillDim() });
+	fillDim();
 	const read = () => ({ rotate: Number(rotate.value), pages: pages.every((p) => p.input.checked) ? [] : pages.filter((p) => p.input.checked).map((p) => p.b.id), nightDim: night.checked, dimFrom: from.value || "22:00", dimTo: to.value || "07:00", dim: Number(dim.value) });
 	const link = () => {
 		const x = read();
