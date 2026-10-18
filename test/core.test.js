@@ -130,3 +130,11 @@ test("releases: running version from image labels and comparing versions", () =>
 	assert.equal(parseRepo("github.com/amir20/dozzle/releases"), "amir20/dozzle");
 	assert.equal(parseRepo("nonsense"), null);
 });
+
+test("releases: the running version comes from the image, not from stale container labels", () => {
+	const { runningVersion } = require("../lib/releases");
+	// a container recreated with the old image's labels copied, now running the new image
+	const c = { labels: { "org.opencontainers.image.version": "5.2.2_v2.0.13-ls462", "com.docker.compose.project": "media" }, imageLabels: { "org.opencontainers.image.version": "5.2.4_v2.0.15-ls481" } };
+	assert.equal(runningVersion(c), "5.2.4_v2.0.15-ls481");
+	assert.equal(runningVersion({ labels: { "org.opencontainers.image.version": "1.2.3" } }), "1.2.3");
+});
