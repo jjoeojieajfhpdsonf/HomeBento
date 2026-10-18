@@ -198,20 +198,49 @@ function emptyCard() {
 
 // ---------- tile clicks and edit mode ----------
 
-// ticking a note right on the board (outside edit mode)
+// Notes are used right on the board: tick, add with Enter, remove with ×.
+function noteTile(el) {
+	const t0 = el && el.closest(".bento > .t[data-id]");
+	return t0 ? board().tiles.find((x) => x.id === t0.dataset.id) : null;
+}
+async function saveNotes(tile, focusAdd) {
+	const b = board();
+	renderGrid();
+	if (focusAdd) {
+		const input = document.querySelector(`.bento > .t[data-id="${tile.id}"] .note-add`);
+		if (input) input.focus();
+	}
+	await guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles }));
+}
 document.addEventListener("change", (e) => {
 	const box = e.target.closest("input[data-note]");
 	if (!box || S.editing) return;
-	const el = box.closest(".bento > .t[data-id]");
-	const b = board();
-	const tile = b.tiles.find((x) => x.id === el.dataset.id);
+	const tile = noteTile(box);
 	if (!tile || !tile.notes) return;
 	tile.notes[Number(box.dataset.note)].done = box.checked;
-	guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles })).then(() => renderGrid());
+	saveNotes(tile);
+});
+document.addEventListener("keydown", (e) => {
+	const input = e.target.closest && e.target.closest(".note-add");
+	if (!input || e.key !== "Enter" || S.editing) return;
+	const text = input.value.trim();
+	const tile = noteTile(input);
+	if (!text || !tile) return;
+	tile.notes = [...(tile.notes || []), { text, done: false }];
+	input.value = "";
+	saveNotes(tile, true);
+});
+document.addEventListener("click", (e) => {
+	const del = e.target.closest("[data-note-del]");
+	if (!del || S.editing) return;
+	const tile = noteTile(del);
+	if (!tile || !tile.notes) return;
+	tile.notes.splice(Number(del.dataset.noteDel), 1);
+	saveNotes(tile);
 });
 
 document.addEventListener("click", (e) => {
-	if (e.target.closest(".note-row") && !S.editing) return;
+	if (e.target.closest(".note-row, .note-add") && !S.editing) return;
 	const setup = e.target.closest("[data-setup]");
 	if (setup) {
 		e.stopPropagation();

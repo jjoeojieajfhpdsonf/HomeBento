@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 – 2026-10-18
+
+- Notes are edited right on the tile: type and press Enter to add, tick, × to remove – no edit mode needed.
+
 ## 0.5.0 – 2026-10-18
 
 - Command palette (⌘K / Ctrl K, "/" or the search field in the bar): open services, start or restart them, logs, details, open through Tailscale, switch pages, links from link tiles, settings, web search. Typing just "restart" offers the services that have a problem.

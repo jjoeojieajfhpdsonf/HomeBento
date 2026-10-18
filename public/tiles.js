@@ -253,8 +253,8 @@ const TILES = {
 
 	notes(tile) {
 		const notes = tile.notes || [];
-		const rows = notes.map((n, i) => `<label class="note-row${n.done ? " done" : ""}"><input type="checkbox" data-note="${i}"${n.done ? " checked" : ""}><span>${esc(n.text)}</span></label>`);
-		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("notes.title")}</span></div>${rows.length ? `<div class="notes">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("notes.empty")}</div>`}` };
+		const rows = notes.map((n, i) => `<div class="note-row${n.done ? " done" : ""}"><input type="checkbox" data-note="${i}"${n.done ? " checked" : ""} aria-label="${esc(n.text)}"><span>${esc(n.text)}</span><button class="note-del" data-note-del="${i}" aria-label="${t("tile.remove")}">×</button></div>`);
+		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("notes.title")}</span></div><div class="notes">${rows.join("")}</div><input class="note-add" placeholder="${t("notes.addPh")}" maxlength="200" aria-label="${t("notes.add")}">` };
 	},
 
 	status(tile, x) {
