@@ -1,5 +1,5 @@
 "use strict";
-// Service Dashboard – a dependency-free dashboard for the services at home:
+// HomeBento – a dependency-free dashboard for the services at home:
 // status with history, Docker actions, and tiles that show what each service is doing.
 const http = require("node:http");
 const fs = require("node:fs");
@@ -36,7 +36,7 @@ const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_
 function notify(ev, s) {
 	if (!NOTIFY_URL || ev.to === "slow" || ev.from === "slow" || ev.from === "pending") return;
 	const text = ev.to === "down" ? `${s.name} is down${ev.detail ? `: ${ev.detail}` : ""}` : `${s.name} is up again`;
-	request(NOTIFY_URL, { method: "POST", body: text, headers: { Title: "Service Dashboard", Tags: ev.to === "down" ? "warning" : "white_check_mark" } }).then((r) => {
+	request(NOTIFY_URL, { method: "POST", body: text, headers: { Title: "HomeBento", Tags: ev.to === "down" ? "warning" : "white_check_mark" } }).then((r) => {
 		if (!r.status || r.status >= 400) console.error(`Notification failed: ${r.error || `HTTP ${r.status}`}`);
 	});
 }
@@ -281,7 +281,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-	console.log(`Service Dashboard ${VERSION} on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
+	console.log(`HomeBento ${VERSION} on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
 	console.log(`Data in ${DATA_DIR} · Docker: ${docker.available === false ? "not found" : docker.socket} · checks every ${CHECK_SECONDS} s`);
 	monitor.start();
 });

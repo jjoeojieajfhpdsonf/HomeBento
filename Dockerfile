@@ -1,4 +1,4 @@
-# Service Dashboard – no dependencies, so the image is just Node and the source.
+# HomeBento – no dependencies, so the image is just Node and the source.
 FROM node:22-alpine
 WORKDIR /app
 COPY package.json server.js ./

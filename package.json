@@ -1,5 +1,5 @@
 {
-	"name": "service-dashboard",
+	"name": "homebento",
 	"version": "0.1.0",
 	"description": "A dashboard for the services at home: status with history, Docker actions and tiles that show what each service is doing. No dependencies.",
 	"main": "server.js",
@@ -11,5 +11,10 @@
 		"node": ">=20"
 	},
 	"license": "MIT",
-	"author": "Joël Herren"
+	"author": "Joël Herren",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jjoeojieajfhpdsonf/HomeBento.git"
+	},
+	"homepage": "https://github.com/jjoeojieajfhpdsonf/HomeBento"
 }

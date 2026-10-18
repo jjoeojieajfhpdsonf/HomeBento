@@ -1,5 +1,5 @@
 "use strict";
-// Service Dashboard web app: boards of tiles, live data every few seconds, edit mode,
+// HomeBento web app: boards of tiles, live data every few seconds, edit mode,
 // service details with actions, and forms for services and tiles. No framework.
 
 const S = { state: null, live: null, boardId: null, editing: false, tiles: null, drag: null };
@@ -65,7 +65,7 @@ const ctx = () => ({
 
 async function loadState() {
 	S.state = await api("GET", "/api/state");
-	const saved = localStorage.getItem("sd.board");
+	const saved = localStorage.getItem("homebento.board");
 	if (!S.boardId) S.boardId = S.state.config.boards.some((b) => b.id === saved) ? saved : S.state.config.boards[0].id;
 	if (!S.state.config.boards.some((b) => b.id === S.boardId)) S.boardId = S.state.config.boards[0].id;
 }
@@ -117,7 +117,7 @@ function topBar() {
 function switchBoard(id) {
 	if (S.editing) S.tiles = null;
 	S.boardId = id;
-	localStorage.setItem("sd.board", id);
+	localStorage.setItem("homebento.board", id);
 	if (S.editing) S.tiles = structuredClone(board().tiles);
 	S.live = null;
 	render();

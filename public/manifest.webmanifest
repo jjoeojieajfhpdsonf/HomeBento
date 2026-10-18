@@ -1,6 +1,6 @@
 {
-	"name": "Service Dashboard",
-	"short_name": "Dashboard",
+	"name": "HomeBento",
+	"short_name": "HomeBento",
 	"start_url": "/",
 	"display": "standalone",
 	"background_color": "#101012",

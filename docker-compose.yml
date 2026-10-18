@@ -1,7 +1,7 @@
 services:
-  service-dashboard:
+  homebento:
     build: .
-    container_name: service-dashboard
+    container_name: homebento
     restart: unless-stopped
     # host network: the dashboard reaches every service the way you do, and sees the host's name
     network_mode: host

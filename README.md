@@ -1,4 +1,4 @@
-# Service Dashboard
+# HomeBento
 
 A dashboard for the services at home that does more than link to them: every tile shows what its service is doing, problems come with the action to fix them, and everything is set up in the browser – no YAML.
 
@@ -14,8 +14,8 @@ Icons come from [dashboard-icons](https://github.com/homarr-labs/dashboard-icons
 ## Install with Docker (recommended)
 
 ```bash
-git clone <this repository> service-dashboard
-cd service-dashboard
+git clone https://github.com/jjoeojieajfhpdsonf/HomeBento.git homebento
+cd homebento
 docker compose up -d --build
 ```
 
@@ -73,10 +73,10 @@ Containers are suggested with a guessed name, address and icon. Labels override 
 
 ```yaml
 labels:
-  service-dashboard.name: Sonarr
-  service-dashboard.href: https://sonarr.home.lan
-  service-dashboard.icon: sonarr
-  service-dashboard.ignore: "true"   # don't suggest this container
+  homebento.name: Sonarr
+  homebento.href: https://sonarr.home.lan
+  homebento.icon: sonarr
+  homebento.ignore: "true"   # don't suggest this container
 ```
 
 `homepage.name`, `homepage.href` and `homepage.icon` work as well.
