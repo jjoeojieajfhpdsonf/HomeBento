@@ -275,6 +275,20 @@ function markdown(src) {
 	return out.join("");
 }
 
+// Subscribed repositories with their newest release; "new" until it was looked at
+// (without a record: released in the last 14 days).
+function releaseItems(tile, data) {
+	const seen = tile.seen || {};
+	return (tile.repos || [])
+		.map((repo) => {
+			const d = data[repo];
+			const l = d && d.latest;
+			const isNew = !!(l && (seen[repo] ? seen[repo] !== l.tag : l.date && Date.now() - l.date < 14 * 86400000));
+			return { repo, d, isNew, date: (l && l.date) || 0 };
+		})
+		.sort((a, b) => b.isNew - a.isNew || b.date - a.date);
+}
+
 // ---------- tiles ----------
 
 const TILES = {
@@ -444,8 +458,8 @@ const TILES = {
 		const s = (id) => x.service(id);
 		const rows = list.map((e) => {
 			const svc = s(e.sid);
-			const cls = e.to === "down" ? "bad" : e.to === "slow" ? "warn" : "ok";
-			return `<div class="e"><span class="w">${esc(fmtAgo(e.t))}</span><div class="mid"><div class="tt">${esc(svc ? svc.name : e.name)} <span class="ev-${cls}">${t(`ev.${e.to}`)}</span></div>${e.detail ? `<div class="ss">${esc(e.detail)}</div>` : ""}</div></div>`;
+			const cls = e.to === "down" ? "bad" : e.to === "slow" ? "warn" : e.to === "up" ? "ok" : "info";
+			return `<div class="e"><span class="w">${esc(fmtAgo(e.t))}</span><div class="mid"><div class="tt">${esc(svc ? svc.name : e.name)} <span class="ev-${cls}">${t(`ev.${e.to}`)}</span></div>${e.detail ? `<div class="ss">${esc(t(`evd.${e.detail}`, {}) === `evd.${e.detail}` ? e.detail : t(`evd.${e.detail}`))}</div>` : ""}</div></div>`;
 		});
 		return { c: "#9dbcff", html: `${head}<div class="cal">${rows.join("")}</div>` };
 	},
@@ -461,6 +475,21 @@ const TILES = {
 			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener">${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
 		});
 		return { c: "#9aa4b2", cls: "ts-tile", html: `${head}<div class="ts-items">${rows.join("") || `<div class="sm faint">${t("ts.none")}</div>`}</div><button class="md-clear" data-ts-manage>${t("ts.manage")}</button>` };
+	},
+
+	releases(tile, x) {
+		const data = x.live.releases || {};
+		const items = releaseItems(tile, data);
+		const fresh = items.filter((i) => i.isNew).length;
+		const gh = `<span class="logo" style="--c:var(--text)">${svg("<path d='M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21'/>", 1.7)}</span>`;
+		const head = `<div class="th">${gh}<span class="n">${tile.title ? esc(tile.title) : t("rel.title")}</span><span class="meta">${items.length ? (fresh ? `<span class="rel-new-count">${t("rel.new", { n: fresh })}</span>` : t("rel.upToDate")) : ""}</span></div>`;
+		if (!items.length) return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="sm faint" style="margin-top:8px">${t("rel.none")}</div><div class="md-btns"><button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
+		const rows = items.slice(0, tile.h * 3 + (tile.h > 1 ? 0 : -1)).map((i) => {
+			const svc = (i.d && i.d.service && x.service(i.d.service)) || x.services().find((s) => s.name.toLowerCase().replace(/\s+/g, "") === i.repo.split("/")[1].toLowerCase().replace(/[-_]/g, ""));
+			const l = i.d && i.d.latest;
+			return `<div class="rel-row${i.isNew ? " new" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div><div class="rel-ver"><div class="v">${l ? esc(l.tag) : "–"}</div><div class="ss">${l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
+		});
+		return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 	},
 
 	links(tile) {

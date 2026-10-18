@@ -160,7 +160,7 @@ function switchBoard(id) {
 	S.boardId = id;
 	localStorage.setItem("homebento.board", id);
 	if (S.editing) S.tiles = structuredClone(board().tiles);
-	S.live = null;
+	// keep the last live data: the page is drawn right away with it, no empty flash
 	render();
 	loadLive();
 }
@@ -872,31 +872,75 @@ async function statusSheet() {
 	);
 }
 
-// Server details; follows the live data like the tile does.
+// Server details; follows the live data like the tile does. Click a value for its 24 h chart.
 function hostSheet() {
 	if (!S.live || !S.live.host) return;
 	const sheet = openSheet();
+	let open = null;
+	let points = null;
+	const loadHistory = async () => {
+		const r = await api("GET", "/api/host/history").catch(() => null);
+		points = r ? r.points : [];
+		fill();
+	};
+	// [t, cpu, mem, disk, rx, tx, temp, load]
+	const SERIES = { cpu: [[1, "#9dbcff"]], memory: [[2, "#f5b83d"]], disk: [[3, "#9aa4b2"]], net: [[4, "#5fd39a"], [5, "#9dbcff"]], temp: [[6, "#ff8a65"]], load: [[7, "#c792ea"]] };
+	const UNIT = { cpu: (v) => `${nf(v, 0)} %`, memory: (v) => `${nf(v, 1)} %`, disk: (v) => `${nf(v, 1)} %`, net: (v) => `${fmtBytes(v)}/s`, temp: (v) => `${nf(v, 0)} °C`, load: (v) => nf(v, 2) };
 	const fill = () => {
 		const hst = S.live && S.live.host;
 		if (!hst) return;
 		const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 		sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
-		const row = (k, v) => h("div", {}, h("span", {}, k), h("span", { class: "num" }, v));
+		const row = (key, k, v) => {
+			const isOpen = open === key;
+			const r = [h("button", { class: `host-row${isOpen ? " open" : ""}`, onclick: () => ((open = isOpen ? null : key), !points && open ? loadHistory() : fill()) }, h("span", {}, k), h("span", { class: "num" }, v, h("span", { class: "chev", html: svg("<path d='M9 6l6 6-6 6'/>", 2) })))];
+			if (isOpen) r.push(h("div", { class: "host-chart" }, points ? chart(points, SERIES[key], UNIT[key], key === "net" ? [t("host.down"), t("host.upNet")] : null) : h("div", { class: "faint sm" }, "…")));
+			return r;
+		};
+		const top = sheet.body.scrollTop;
 		sheet.body.replaceChildren(
-			h("div", { class: "box kv" },
-				row(t("host.cpu"), `${hst.cpu} %`),
-				row(t("host.cores"), String(hst.cores)),
-				row(t("host.load"), nf(hst.load, 2)),
-				row(t("host.memory"), `${t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })} (${pct(hst.memUsed, hst.memTotal)} %)`),
-				hst.diskTotal ? row(t("host.disk"), `${t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) })} (${pct(hst.diskUsed, hst.diskTotal)} %)`) : null,
-				hst.net ? row(t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s · ↑ ${fmtBytes(hst.net.tx)}/s`) : null,
-				hst.temp !== null ? row(t("host.temp"), `${hst.temp} °C`) : null),
+			h("div", { class: "box kv host-kv" },
+				row("cpu", t("host.cpu"), `${hst.cpu} %`),
+				h("div", {}, h("span", {}, t("host.cores")), h("span", { class: "num" }, String(hst.cores))),
+				row("load", t("host.load"), nf(hst.load, 2)),
+				row("memory", t("host.memory"), `${t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })} (${pct(hst.memUsed, hst.memTotal)} %)`),
+				hst.diskTotal ? row("disk", t("host.disk"), `${t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) })} (${pct(hst.diskUsed, hst.diskTotal)} %)`) : null,
+				hst.net ? row("net", t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s · ↑ ${fmtBytes(hst.net.tx)}/s`) : null,
+				hst.temp !== null ? row("temp", t("host.temp"), `${hst.temp} °C`) : null),
 			h("div", { class: "note", style: "margin-top:12px" }, t("host.loadHelp"))
 		);
+		sheet.body.scrollTop = top;
 	};
 	fill();
 	S.hostFill = fill;
 	sheet.onclose = () => (S.hostFill = null);
+}
+
+// A 24 h line chart with min/max/now and an hour axis. series: [[index in point, colour]]
+function chart(points, series, unit, names) {
+	const w = 520, hh = 130;
+	const pts = points.filter((p) => series.some(([i]) => p[i] !== null && p[i] !== undefined));
+	if (pts.length < 2) return h("div", { class: "faint sm" }, t("host.noHistory"));
+	const t0 = Date.now() - 24 * 3600 * 1000;
+	const vals = pts.flatMap((p) => series.map(([i]) => p[i]).filter((v) => v !== null && v !== undefined));
+	const max = Math.max(...vals, 1) * 1.1;
+	const x = (tm) => ((tm - t0) / (24 * 3600 * 1000)) * w;
+	const y = (v) => hh - (v / max) * (hh - 6);
+	const paths = series.map(([i, color]) => {
+		const d = pts.filter((p) => p[i] !== null && p[i] !== undefined).map((p, k) => `${k ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[i]).toFixed(1)}`).join("");
+		return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+	});
+	const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${w}" y1="${hh * f}" y2="${hh * f}" stroke="rgba(255,255,255,.05)"/>`).join("");
+	const last = pts[pts.length - 1];
+	const stat = series.map(([i, color], k) => {
+		const v = pts.map((p) => p[i]).filter((v2) => v2 !== null && v2 !== undefined);
+		return h("span", { class: "chart-stat" }, h("i", { style: `background:${color}` }), names ? `${names[k]} ` : "", `${t("host.now")} ${unit(last[i] ?? 0)} · ${t("host.max")} ${unit(Math.max(...v))} · Ø ${unit(v.reduce((a, b) => a + b, 0) / v.length)}`);
+	});
+	const hours = [0, 6, 12, 18, 24].map((hr) => new Date(t0 + hr * 3600 * 1000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }));
+	return h("div", {},
+		h("div", { html: `<svg class="host-svg" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none">${grid}${paths.join("")}</svg>` }),
+		h("div", { class: "axis", style: "padding:4px 0 0" }, hours.map((x2) => h("span", {}, x2))),
+		h("div", { class: "chart-stats" }, stat));
 }
 
 // ---------- service form ----------
@@ -1058,6 +1102,115 @@ function archiveSheet(tile) {
 	draw();
 }
 
+// ---------- releases ----------
+
+// The tile object to change: the edit copy while editing, else the board's own.
+function liveTile(id) {
+	return (S.editing ? S.tiles : board().tiles).find((x) => x.id === id);
+}
+async function saveBoardTiles() {
+	const b = board();
+	if (S.editing) b.tiles = structuredClone(S.tiles);
+	renderGrid();
+	const r = await guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles }));
+	if (r && !S.editing) b.tiles = r.board.tiles;
+	loadLive();
+}
+
+document.addEventListener("click", (e) => {
+	const el = e.target.closest(".bento > .t[data-id]");
+	if (!el) return;
+	const rel = e.target.closest("[data-release]");
+	const manage = e.target.closest("[data-rel-manage]");
+	const seenAll = e.target.closest("[data-rel-seen]");
+	if (!rel && !manage && !seenAll) return;
+	e.stopPropagation();
+	if (S.editing) return;
+	const tile = liveTile(el.dataset.id);
+	if (!tile) return;
+	if (manage) return releasesManageSheet(tile);
+	if (seenAll) {
+		const data = (S.live && S.live.releases) || {};
+		tile.seen = { ...(tile.seen || {}) };
+		for (const r of tile.repos || []) if (data[r] && data[r].latest) tile.seen[r] = data[r].latest.tag;
+		return saveBoardTiles();
+	}
+	const [repo, tag] = rel.dataset.release.split("|");
+	releaseSheet(tile, repo, tag);
+}, true);
+
+// Release notes; opening them counts as seen.
+async function releaseSheet(tile, repo, tag) {
+	const n = await guard(() => api("GET", `/api/releases/notes?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`));
+	if (!n) return;
+	tile.seen = { ...(tile.seen || {}), [repo]: tag };
+	saveBoardTiles();
+	const sheet = openSheet({ wide: true });
+	sheet.head(h("div", { class: "tt" }, h("b", {}, `${repo.split("/")[1]} ${n.tag}`), h("span", { class: "sub" }, `${repo}${n.date ? ` · ${new Date(n.date).toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` : ""}`)));
+	sheet.body.append(
+		n.name && n.name !== n.tag ? h("div", { class: "sec", style: "margin-top:4px" }, n.name) : null,
+		h("div", { class: "md rel-notes", html: n.body ? markdown(n.body.replace(/\r/g, "").replace(/<!--[\s\S]*?-->/g, "")) : `<p class="faint">${t("rel.noNotes")}</p>` }),
+		h("div", { class: "acts" }, h("a", { class: "btn primary", href: n.url, target: "_blank", rel: "noopener" }, html(UI.open), t("rel.onGithub")))
+	);
+}
+
+// Subscriptions: what is subscribed, suggestions from the services, any repository by hand.
+async function releasesManageSheet(tile) {
+	const sheet = openSheet();
+	sheet.head(h("div", { class: "tt" }, h("b", {}, t("rel.manageTitle"))));
+	const sugg = (await api("GET", "/api/releases/suggest").catch(() => ({ items: [] }))).items;
+	const input = h("input", { class: "input", placeholder: "owner/repo · https://github.com/…", autocapitalize: "off", spellcheck: "false" });
+	const msg = h("div");
+	const add = async (repo) => {
+		tile.repos = [...new Set([...(tile.repos || []), repo])];
+		await saveBoardTiles();
+		draw();
+	};
+	const draw = () => {
+		const data = (S.live && S.live.releases) || {};
+		const subscribed = (tile.repos || []).map((r) =>
+			h("div", { class: "ts-row" }, h("div", { class: "grow" }, h("div", { class: "title" }, r), h("div", { class: "sub" }, data[r] && data[r].latest ? data[r].latest.tag : data[r] && data[r].error ? data[r].error : "…")),
+				h("button", { class: "ts-x", style: "opacity:1", title: t("tile.remove"), onclick: async () => {
+					tile.repos = tile.repos.filter((x) => x !== r);
+					if (tile.seen) delete tile.seen[r];
+					await saveBoardTiles();
+					draw();
+				}, html: UI.x }))
+		);
+		const open = sugg.filter((x) => !(tile.repos || []).includes(x.repo));
+		const sRows = open.map((x) => {
+			const svc = serviceById(x.service);
+			return h("div", { class: "ts-row" }, html(svc ? logo(svc) : ""), h("div", { class: "grow" }, h("div", { class: "title" }, svc ? svc.name : x.repo), h("div", { class: "sub" }, x.repo)), h("button", { class: "btn", style: "padding:6px 12px;background:var(--tile-3)", onclick: () => add(x.repo) }, "+"));
+		});
+		sheet.body.replaceChildren(
+			h("div", { class: "sec" }, t("rel.subscribed"), h("span", { class: "faint" }, String((tile.repos || []).length))),
+			h("div", { class: "box" }, subscribed.length ? subscribed : h("div", { class: "ts-row" }, h("span", { class: "sub" }, t("rel.none")))),
+			open.length ? h("div", { class: "sec" }, t("rel.suggestions"), h("button", { class: "btn", style: "padding:4px 10px", onclick: async () => {
+				tile.repos = [...new Set([...(tile.repos || []), ...open.map((x) => x.repo)])];
+				await saveBoardTiles();
+				draw();
+			} }, t("add.all"))) : null,
+			open.length ? h("div", { class: "box" }, sRows) : null,
+			h("div", { class: "sec" }, t("rel.other")),
+			h("div", { class: "box" }, h("div", { class: "field" }, h("div", { class: "icon-row" }, input, h("button", { class: "btn primary", onclick: async (e) => {
+				const b = e.currentTarget;
+				b.classList.add("busy");
+				try {
+					const r = await api("GET", `/api/releases/check?repo=${encodeURIComponent(input.value)}`);
+					input.value = "";
+					msg.replaceChildren();
+					await add(r.repo);
+				} catch (err) {
+					msg.replaceChildren(h("div", { class: "note bad", style: "margin-top:8px" }, err.message));
+				}
+				b.classList.remove("busy");
+			} }, t("rel.add"))))),
+			msg
+		);
+	};
+	draw();
+}
+
 // Info card for a movie or show (Jellyfin, Radarr, Sonarr).
 async function mediaSheet(sid, ref) {
 	const s = serviceById(sid);
@@ -1085,7 +1238,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1120,6 +1273,13 @@ async function addTileSheet() {
 		content.push(row(glyphLogo("<path d='M4 18V8M9 18V5M14 18v-7M19 18V9'/>", "#5fd39a"), t("add.uptime"), t("add.uptimeSub"), add({ type: "uptime" }), onBoard((x) => x.type === "uptime") && t("add.onBoard")));
 		if (S.state.docker) content.push(row(glyphLogo("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>", "#2496ed"), "Docker", t("add.dockerSub"), add({ type: "docker" }), onBoard((x) => x.type === "docker") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='8.5'/>", "#9dbcff"), t("ev.title"), t("add.eventsSub"), add({ type: "events" }), onBoard((x) => x.type === "events") && t("add.onBoard")));
+		content.push(row(glyphLogo("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", "#9dbcff"), t("rel.title"), t("add.releasesSub"), async () => {
+			// start with the repositories of the services
+			const s0 = await api("GET", "/api/releases/suggest").catch(() => ({ items: [] }));
+			addTile({ type: "releases", repos: [...new Set(s0.items.map((x) => x.repo))], seen: {} });
+			toast(t("add.added"));
+			draw();
+		}, onBoard((x) => x.type === "releases") && t("add.onBoard")));
 		if (S.state.tailscale && S.state.tailscale.available) content.push(row(glyphLogo("<circle cx='6' cy='6' r='1.8'/><circle cx='12' cy='6' r='1.8'/><circle cx='18' cy='6' r='1.8'/><circle cx='6' cy='12' r='1.8'/><circle cx='12' cy='12' r='1.8'/><circle cx='18' cy='12' r='1.8'/><circle cx='12' cy='18' r='1.8'/>", "#9aa4b2"), "Tailscale", t("add.tsSub"), add({ type: "tailscale" }), onBoard((x) => x.type === "tailscale") && t("add.onBoard")));
 		for (const s of services()) {
 			const k = s.kind && S.state.kinds[s.kind];

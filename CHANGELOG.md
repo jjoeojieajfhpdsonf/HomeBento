@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 – 2026-10-18
+
+- Updates tile: subscribe to GitHub repositories (suggested from your services via the image label or a list of known projects, or any owner/repo), see the newest version of each, new ones marked until you look; click for the release notes.
+- Server details: click CPU, load, memory, disk, network or temperature for a 24 h chart (one sample a minute, kept on disk).
+- Events: actions through HomeBento (start, stop, restart, Tailscale) are listed too; an explanation while nothing happened yet.
+- Switching pages keeps the last data on screen (no flicker of the problem strip).
+- Versions are tagged on GitHub from now on.
+
 ## 0.8.0 – 2026-10-18
 
 - Details, logs, settings and info cards open as a panel from the right on desktop; short questions stay in the middle.

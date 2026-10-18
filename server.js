@@ -13,6 +13,7 @@ const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
+const { Releases, parseRepo } = require("./lib/releases");
 const os = require("node:os");
 const { KINDS } = require("./lib/kinds");
 const { UserError } = require("./lib/errors");
@@ -29,10 +30,11 @@ const NOTIFY_URL = process.env.NOTIFY_URL || ""; // e.g. https://ntfy.sh/my-topi
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const store = new Store(DATA_DIR);
 const docker = new Docker();
-const host = new Host();
+const host = new Host({ dataDir: DATA_DIR });
 const integrations = new Integrations(store);
 const auth = new Auth(process.env.PASSWORD, DATA_DIR);
 const tailscale = new Tailscale();
+const releases = new Releases();
 const monitor = new Monitor({ store, docker, dataDir: DATA_DIR, interval: CHECK_SECONDS, onChange: notify });
 
 // A message when a service goes down or comes back (ntfy-style: POST text to NOTIFY_URL).
@@ -202,7 +204,15 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	}
 	const events = types.has("events") ? monitor.events.slice(-30).reverse() : null;
 	const ts = types.has("tailscale") ? await tailscaleInfo(req) : null;
-	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts };
+	// newest releases of the repositories subscribed in release tiles
+	let rel = null;
+	const repos = [...new Set(board.tiles.filter((t) => t.type === "releases").flatMap((t) => t.repos || []))];
+	if (repos.length) {
+		rel = Object.fromEntries((await Promise.all(repos.map((r) => releases.get(r)))).map((r) => [r.repo, r]));
+		// which service a repository belongs to (name and icon in the tile)
+		for (const x of releases.suggest(cfg.services, monitor.containers)) if (rel[x.repo]) rel[x.repo].service = x.service;
+	}
+	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel };
 });
 
 route("GET", "/api/services/:id", async (body, p) => {
@@ -283,11 +293,13 @@ route("POST", "/api/services/:id/action", async (body, p) => {
 	const what = String(body.what || "");
 	if (s.container && ["start", "stop", "restart"].includes(what)) {
 		const c = await docker.action(s.container, what);
+		monitor.note(s, "action", { start: "Started", stop: "Stopped", restart: "Restarted" }[what]);
 		// look again in a moment, when the service had time to come up
 		setTimeout(() => monitor.check(s).catch(() => {}), what === "stop" ? 500 : 6000);
 		return { container: { state: c.state, status: c.status } };
 	}
 	const r = await integrations.action(s, what);
+	monitor.note(s, "action", "Restarted");
 	setTimeout(() => monitor.check(s).catch(() => {}), 8000);
 	return r;
 });
@@ -350,6 +362,7 @@ route("POST", "/api/services/:id/tailscale", async (body, p, query, req) => {
 	if (!isLocal(s, req, st.dnsName)) throw new UserError("Only services on this server can be shared through its Tailscale");
 	const { port, target } = targetFor(s.url);
 	const tsPort = Number(body.port) || (port === 80 ? 8080 : port);
+	monitor.note(s, "tailscale", body.enable ? `Shared on port ${tsPort}` : "No longer shared");
 	if (body.enable) {
 		// moving to another port: the old entry of this service goes away
 		const { list } = await tailscale.mappings();
@@ -368,6 +381,23 @@ route("POST", "/api/tailscale/remove", async (body, p, query, req) => {
 	return tailscaleInfo(req);
 });
 
+// repositories for the services (image label or well-known projects) and release notes
+route("GET", "/api/releases/suggest", () => ({ items: releases.suggest(store.config.services, monitor.containers) }));
+route("GET", "/api/releases/notes", (body, p, query) => {
+	const repo = parseRepo(query.get("repo"));
+	if (!repo) throw new UserError("Invalid repository");
+	return releases.notes(repo, String(query.get("tag") || ""));
+});
+route("GET", "/api/releases/check", async (body, p, query) => {
+	const repo = parseRepo(query.get("repo"));
+	if (!repo) throw new UserError("Please enter owner/repository or a GitHub link");
+	const r = await releases.get(repo);
+	if (r.error) throw new UserError(r.error);
+	return r;
+});
+
+route("GET", "/api/host/history", () => ({ points: host.history }));
+
 route("POST", "/api/boards", (body) => ({ board: store.addBoard(body.name) }));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
@@ -384,6 +414,7 @@ process.on("unhandledRejection", (err) => console.error("Unexpected error:", err
 for (const sig of ["SIGTERM", "SIGINT"]) {
 	process.on(sig, () => {
 		monitor.persist();
+		host.persist();
 		process.exit(0);
 	});
 }
