@@ -69,9 +69,48 @@ Everything else (services, logins, pages, tiles, title) is set in the dashboard.
 | Solar dashboard | power now, today's yield, day curve | – |
 | MagicMirror Manager | process state, version, restart | password, if the manager has one |
 
+More integrations come as plugins (one file each in `lib/plugins/`), with up to four key figures, a list for bigger tiles and the details, and warnings on the problem strip:
+
+| Area | Services |
+|---|---|
+| Media | Plex, Emby, Tautulli, Overseerr / Jellyseerr, Lidarr, Readarr, Bazarr |
+| Downloads | SABnzbd, NZBGet, Transmission, Deluge |
+| Network | Pi-hole (v5 and v6), AdGuard Home, Traefik, Nginx Proxy Manager, wg-easy, UniFi Network |
+| Servers and storage | Proxmox VE, TrueNAS, Glances, Portainer, Syncthing, Scrutiny |
+| Monitoring | Uptime Kuma, Prometheus, Grafana, Speedtest Tracker |
+| Home and apps | Home Assistant, Immich, Nextcloud, Frigate, Paperless-ngx, Gitea / Forgejo, Vaultwarden |
+
+Pick the kind in the service form; it asks for the login the service needs.
+
 Every other service gets status, response time, uptime, and – with a linked container – CPU, memory and container actions.
 
 Logins are stored on the server only (`data/secrets.json`) and never sent to the browser. Jellyfin posters are loaded through the dashboard so the API key stays on the server.
+
+### Writing a plugin
+
+A plugin is a file in `lib/plugins/` without dependencies:
+
+```js
+module.exports = {
+	kind: "myservice",                 // id, stored with the service
+	label: "My Service",               // or { de, en }
+	match: /my-?service/,              // recognises containers and names
+	repo: "owner/my-service",          // optional: GitHub releases for the Updates tile
+	ttl: 30000,                        // optional: cache time in ms
+	fields: [{ key: "apiKey", label: "API key", help: "Settings → API", secret: true }],
+	async fetch({ url, secrets, service, request, json }) {
+		const s = await json(`${url}/api/stats`, { headers: { "X-Api-Key": secrets.apiKey } });
+		return {
+			metrics: [{ value: s.items, label: { de: "Einträge", en: "Items" } }, { value: s.errors, label: "Errors", warn: s.errors > 0 }],
+			items: s.list.map((x) => ({ title: x.name, sub: x.detail, status: x.ok ? "ok" : "bad" })),
+			warnings: s.errors ? [`${s.errors} errors`] : [],
+			summary: `Version ${s.version}`
+		};
+	}
+};
+```
+
+`json` throws on HTTP errors (401/403 become "Access denied"); `request` gives the raw answer. Both honour "allow own certificate" of the service.
 
 ## Tailscale
 
@@ -80,6 +119,17 @@ If the server runs [Tailscale](https://tailscale.com), HomeBento can make a serv
 - "Reachable through Tailscale" serves the service at `https://<machine>.<tailnet>.ts.net:<same port>` (tailnet only, not public).
 - The settings list every Tailscale Serve entry of the machine, also those made by hand, and can remove them.
 - When you open HomeBento itself through Tailscale (away from home), tiles open the services at their Tailscale address.
+
+## Away from home
+
+Services are stored with their home address (e.g. `http://192.168.0.31:8096`). When HomeBento is opened another way – through Tailscale, a VPN or a domain – the services open like this:
+
+1. a service with an "address away from home" (service form) opens there,
+2. a service shared with Tailscale Serve opens at its `https://….ts.net` address (when HomeBento is opened through Tailscale),
+3. a service on the HomeBento machine opens at the same port under the address HomeBento was opened with (`http://100.101.1.2:8096` when opened at `http://100.101.1.2:8095`),
+4. everything else at its stored address.
+
+For services on other machines in the home network, set an address away from home (their Tailscale address) or let a Tailscale subnet router reach the home network.
 
 It needs tailscaled's socket (in the compose file: `/var/run/tailscale/tailscaled.sock`) and HTTPS certificates enabled for the tailnet. Only the entries you switch are changed; the rest of the serve configuration stays as it is.
 

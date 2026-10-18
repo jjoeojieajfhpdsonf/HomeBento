@@ -1,6 +1,6 @@
 {
 	"name": "homebento",
-	"version": "0.11.2",
+	"version": "0.12.0",
 	"description": "A dashboard for the services at home: status with history, Docker actions and tiles that show what each service is doing. No dependencies.",
 	"main": "server.js",
 	"scripts": {

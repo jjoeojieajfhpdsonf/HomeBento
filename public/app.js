@@ -726,6 +726,12 @@ async function serviceSheet(sid) {
 				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", {}, w))))
 			);
 		}
+		// plugins: their list (monitors, guests, pools, clients …)
+		if (integ && integ.data && Array.isArray(integ.data.metrics)) {
+			const pd = integ.data;
+			parts.push(h("div", { class: "kpis", style: `margin-top:8px;grid-template-columns:repeat(${Math.min(4, pd.metrics.length) || 1},1fr)` }, pd.metrics.map((x) => kpi(L(x.label), x.value !== null && typeof x.value === "object" ? L(x.value) : String(x.value ?? "–")))));
+			if (pd.items && pd.items.length) parts.push(h("div", { class: "sec" }, pd.summary || L(S.state.kinds[s.kind].label)), h("div", { class: "box pl-list" }, pd.items.slice(0, 40).map((i) => h("div", {}, h("i", { class: `st-dot ${i.status || ""}` }), h("div", { class: "grow" }, h("div", {}, i.title), i.sub ? h("div", { class: "sub" }, i.sub) : null)))));
+		}
 		parts.push(h("div", { class: "sec" }, t("sheet.last24")), h("div", { class: "box" }, bars(d.hours, true), h("div", { class: "axis" }, h("span", {}, "−24 h"), h("span", {}, t("time.now")))));
 		parts.push(h("div", { class: "sec" }, t("sheet.last30")), h("div", { class: "box" }, bars(d.days.map((ok) => ({ ok, ms: null })), false), h("div", { class: "axis" }, h("span", {}, "−30 d"), h("span", {}, t("cal.today")))));
 		if (s.container) parts.push(containerPart(s, d.container, fill));

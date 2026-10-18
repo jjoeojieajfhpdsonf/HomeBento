@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0 – 2026-10-18
+
+- 32 integrations as plugins (`lib/plugins/`): Plex, Emby, Tautulli, Overseerr/Jellyseerr, Lidarr, Readarr, Bazarr, SABnzbd, NZBGet, Transmission, Deluge, Pi-hole, AdGuard Home, Traefik, Nginx Proxy Manager, wg-easy, UniFi, Proxmox VE, TrueNAS, Glances, Portainer, Syncthing, Scrutiny, Uptime Kuma, Prometheus, Grafana, Speedtest Tracker, Home Assistant, Immich, Nextcloud, Frigate, Paperless-ngx, Gitea/Forgejo, Vaultwarden.
+- Plugin figures show in service tiles, the service list and the details (with their list: monitors, guests, pools, clients …); their warnings go to the problem strip.
+- README: plugin interface, opening services away from home.
+
 ## 0.11.2 – 2026-10-18
 
 - Edit mode keeps the combined layout: the same tiles as in the view, the service list stays (on other pages with "take off this page").

@@ -538,3 +538,16 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 30px; 
 }
 
 .sheet.center .hd b { white-space: pre-line; font-size: 15px; font-weight: 600; line-height: 1.45; }
+
+/* plugin lists: a status dot, the name, a detail */
+.pl-item { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.pl-item > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pl-item > span:first-of-type { flex: none; max-width: 60%; }
+.st-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+.st-dot.ok { background: var(--ok); }
+.st-dot.warn { background: var(--warn); }
+.st-dot.bad { background: var(--bad); }
+.pl-list > div { display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-size: 13.5px; min-width: 0; }
+.pl-list > div + div { border-top: 1px solid var(--line); }
+.pl-list .grow { min-width: 0; }
+.pl-list .sub { color: var(--faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

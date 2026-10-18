@@ -155,6 +155,7 @@ function statLine(s, st, d) {
 		if (s.kind === "prowlarr") return t("arr.indexers", { n: data.enabled });
 		if (s.kind === "qbittorrent") return data.torrents.length ? `↓ ${fmtSpeed(data.down)}` : t("dl.idle");
 		if (s.kind === "solar" && data.pv !== null) return fmtW(data.pv);
+		if (data.summary && Array.isArray(data.metrics)) return data.summary;
 		if (s.kind === "mmmanager" && data.process) return `${data.process === "online" ? t("mm.online") : data.process}${data.version ? ` · ${data.version}` : ""}`;
 	}
 	if (st.status === "unknown") return t("status.unknown");
@@ -166,7 +167,9 @@ function metrics(s, st, d, max = 3) {
 	const data = d && d.data;
 	const m = (v, l, cls) => ({ v: v === null || v === undefined ? "–" : String(v), l, cls });
 	let out = null;
-	if (data) {
+	// plugins bring their own figures
+	if (data && Array.isArray(data.metrics)) out = data.metrics.map((x) => m(x.value !== null && typeof x.value === "object" ? L(x.value) : x.value, L(x.label), x.warn ? "warn" : ""));
+	else if (data) {
 		if (s.kind === "jellyfin") out = [m(data.now.length, t("m.streams")), m(data.counts && nf(data.counts.movies), t("m.movies")), m(data.counts && nf(data.counts.series), t("m.series")), m(data.sessions, t("m.sessions"))];
 		if (s.kind === "sonarr") out = [m(data.library !== null ? nf(data.library) : null, t("m.series")), m(data.queue, t("m.queue")), m(data.wanted !== null ? nf(data.wanted) : null, t("m.wanted")), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
 		if (s.kind === "radarr") out = [m(data.library !== null ? nf(data.library) : null, t("m.movies")), m(data.queue, t("m.queue")), m(data.wanted !== null ? nf(data.wanted) : null, t("m.wanted")), m(data.warnings.length, t("m.warnings"), data.warnings.length ? "warn" : "")];
@@ -215,6 +218,7 @@ function subLine(s, st, d) {
 		}
 		if (s.kind === "qbittorrent" && data.torrents.length) return { text: data.torrents[0].name };
 		if (s.kind === "solar" && data.use !== null) return { text: t("solar.use", { v: fmtW(data.use) }) };
+		if (data.summary) return { text: data.summary };
 	}
 	const addr = s.url ? s.url.replace(/^https?:\/\//, "") : t("status.unknown");
 	return { text: st.ms !== null && st.ms !== undefined ? `${fmtMs(st.ms)} · ${addr}` : addr, cls: "faint" };
@@ -230,7 +234,8 @@ function moreLines(s, st, d) {
 	const lines = [];
 	const data = d && d.data;
 	if (data && data.warnings) for (const w of data.warnings.slice(0, 2)) lines.push(`<div class="s warn" title="${esc(w)}">⚠ ${esc(w)}</div>`);
-	if (data && data.items) for (const i of data.items.filter((x) => x.at > Date.now()).slice(0, 2)) lines.push(`<div class="s">${esc(fmtWhen(i.at, false))} · ${esc(i.title)}</div>`);
+	if (data && Array.isArray(data.metrics) && data.items) for (const i of data.items.slice(0, 3)) lines.push(`<div class="s pl-item"><i class="st-dot ${esc(i.status || "")}"></i><span>${esc(i.title)}</span>${i.sub ? `<span class="faint">${esc(i.sub)}</span>` : ""}</div>`);
+	else if (data && data.items) for (const i of data.items.filter((x) => x.at > Date.now()).slice(0, 2)) lines.push(`<div class="s">${esc(fmtWhen(i.at, false))} · ${esc(i.title)}</div>`);
 	if (st.container && st.container.status) lines.push(`<div class="s faint">${esc(st.container.status)}</div>`);
 	return lines.slice(0, 3).join("");
 }
