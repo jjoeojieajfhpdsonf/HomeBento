@@ -184,8 +184,9 @@ route("GET", "/api/live", async (body, p, query) => {
 			if (d) data[s.id] = d;
 		})
 	);
+	// 24 h per service: uptime tile, and the history in the service list
 	const hours = {};
-	if (types.has("uptime") || types.has("status")) for (const s of cfg.services) hours[s.id] = monitor.hours(s.id, 24);
+	for (const s of cfg.services) hours[s.id] = monitor.hours(s.id, 24);
 	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null };
 });
 

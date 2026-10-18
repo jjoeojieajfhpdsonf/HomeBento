@@ -186,7 +186,10 @@ function renderGrid() {
 		if (el.className !== cls) el.className = cls;
 		if (r.c) el.style.setProperty("--c", r.c);
 		const content = r.html + (S.editing ? controls(tile) : tileService(tile) ? `<button class="info" data-info aria-label="${t("sheet.details")}" title="${t("sheet.details")}">i</button>` : "");
-		if (el.dataset.html !== content && !el.contains(document.activeElement)) {
+		// don't redraw a tile while someone types in it (a ticked checkbox doesn't count)
+		const ae = document.activeElement;
+		const typing = ae && el.contains(ae) && (ae.tagName === "TEXTAREA" || (ae.tagName === "INPUT" && ae.type !== "checkbox"));
+		if (el.dataset.html !== content && !typing) {
 			el.innerHTML = content;
 			el.dataset.html = content;
 		}
@@ -204,10 +207,25 @@ function renderGrid() {
 
 // ---------- combined layout: problem strip and service list ----------
 
-// The services of this page: those with a tile here, in tile order (none: all services).
+// The first page shows all services; every other page those with a tile on it (in tile order).
 function pageServices() {
+	if (board().id === S.state.config.boards[0].id) return services();
 	const ids = [...new Set(tiles().filter((tl) => tl.service).map((tl) => tl.service))];
 	return ids.length ? ids.map(serviceById).filter(Boolean) : services();
+}
+
+// Groups for the list on the first page: the page a service lives on.
+function serviceGroups(list) {
+	const boards = S.state.config.boards;
+	if (board().id !== boards[0].id) return [{ name: null, items: list }];
+	const groups = new Map();
+	for (const s of list) {
+		const home = boards.slice(1).find((b) => b.tiles.some((tl) => tl.service === s.id)) || boards[0];
+		const name = home.name || t("board.default");
+		if (!groups.has(name)) groups.set(name, { name, order: boards.indexOf(home), items: [] });
+		groups.get(name).items.push(s);
+	}
+	return [...groups.values()].sort((a, b) => a.order - b.order);
 }
 
 function renderAttention() {
@@ -244,33 +262,44 @@ function renderServiceList() {
 	const el = $("#svc-list");
 	if (!el) return;
 	if (!combined()) return el.replaceChildren();
-	const list = tiles().some((tl) => tl.type === "service") ? pageServices() : [];
+	const list = pageServices();
 	if (!list.length) return el.replaceChildren();
-	let rows = el.querySelector(".svc-rows");
-	if (!rows) {
-		el.replaceChildren(h("div", { class: "svc-head" }, h("b", {}, t("list.title")), h("span", { class: "faint sm" }, String(list.length))), (rows = h("div", { class: "svc-rows" })));
-	} else el.querySelector(".svc-head .faint").textContent = String(list.length);
-	const live = S.live || { status: {}, data: {} };
-	const els = list.map((s) => {
+	const live = S.live || { status: {}, data: {}, hours: {} };
+	const groups = serviceGroups(list);
+	const first = board().id === S.state.config.boards[0].id;
+	const rowHtml = (s) => {
 		const st = live.status[s.id] || { status: "pending" };
 		const d = live.data[s.id];
-		const sub = subLine(s, st, d);
-		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : "";
+		const sub = s.url ? s.url.replace(/^https?:\/\//, "") : "";
+		const tag = st.status === "down" ? `<span class="tag down">${t("tag.down")}</span>` : st.status === "slow" ? `<span class="tag slow">${t("tag.slow")}</span>` : d && d.error ? `<span class="tag slow">${t("setup.needed")}</span>` : "";
+		const info = st.status === "down" ? st.error || t("status.down") : d && d.error ? d.error : listStat(s, st, d);
+		const hours = (live.hours && live.hours[s.id]) || [];
+		const up = st.uptime !== null && st.uptime !== undefined ? `${nf(st.uptime, st.uptime === 100 ? 0 : 1)} %` : "–";
+		const hasDips = hours.some((b) => b.ok !== null && b.ok < 0.999);
 		const acts = `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
-		const content = `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s ${sub.cls || ""}" title="${esc(sub.text)}">${esc(sub.text)}</div></div>${metricsHtml(metrics(s, st, d, 4))}<div class="svc-spark">${st.recent ? spark(st.recent) : ""}</div>${acts}`;
-		let row = rows.querySelector(`:scope > .svc-row[data-sid="${s.id}"]`);
-		if (!row) row = h("div", { class: "svc-row", "data-sid": s.id });
+		return `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s">${esc(sub)}</div></div><div class="svc-info${st.status === "down" ? " bad" : d && d.error ? " warn" : ""}" title="${esc(info)}">${esc(info)}</div><div class="svc-spark${hasDips ? " dips" : ""}">${spark(hours.map((b) => b.ms))}</div><div class="svc-ms num">${fmtMs(st.ms)}</div><div class="svc-up num">${up}</div>${acts}`;
+	};
+	const key = groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|");
+	if (el.dataset.key !== key) {
+		el.dataset.key = key;
+		el.replaceChildren(
+			h("div", { class: "svc-head" }, h("b", {}, first ? t("list.all") : t("list.title")), h("span", { class: "faint sm" }, String(list.length))),
+			h("div", { class: "svc-rows" }, groups.flatMap((g) => [g.name && groups.length > 1 ? h("div", { class: "svc-group" }, g.name) : null, ...g.items.map((s) => h("div", { class: "svc-row", "data-sid": s.id }))]))
+		);
+	}
+	for (const s of list) {
+		const row = el.querySelector(`.svc-row[data-sid="${s.id}"]`);
+		if (!row) continue;
+		const st = live.status[s.id] || { status: "pending" };
 		const cls = `svc-row ${st.status}`;
 		if (row.className !== cls) row.className = cls;
 		row.style.setProperty("--c", colorOf(s));
+		const content = rowHtml(s);
 		if (row.dataset.html !== content) {
 			row.innerHTML = content;
 			row.dataset.html = content;
 		}
-		return row;
-	});
-	els.forEach((r, i) => rows.children[i] !== r && rows.insertBefore(r, rows.children[i] || null));
-	while (rows.children.length > els.length) rows.lastChild.remove();
+	}
 }
 
 // clicks in the list: the row opens the service, the buttons do their thing
@@ -351,7 +380,7 @@ document.addEventListener("click", (e) => {
 		if (!tile) return;
 		// done tasks move to the archive (with the date), the rest stays
 		const lines = notesText(tile).split("\n");
-		const doneRe = /^\s*[-*]\s+\[[xX]\]\s*/;
+		const doneRe = /^\s*(?:[-*]\s+)?\[[xX]\]\s*/;
 		const now = Date.now();
 		tile.archive = [...(tile.archive || []), ...lines.filter((l) => doneRe.test(l)).map((l) => ({ text: l.replace(doneRe, ""), at: now }))];
 		tile.text = lines.filter((l) => !doneRe.test(l)).join("\n");

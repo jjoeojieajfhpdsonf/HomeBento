@@ -185,6 +185,15 @@ function metrics(s, st, d, max = 3) {
 	}
 	return out.slice(0, max);
 }
+// The key figures as one short line for the service list: "6 Filme · 0 Fehlend"
+function listStat(s, st, d) {
+	const data = d && d.data;
+	const m = metrics(s, st, d, 4);
+	if (!data && !(st && st.container && st.container.cpu !== undefined)) return st && st.since && st.status === "up" ? t("status.since", { t: fmtDuration(Date.now() - st.since) }) : "";
+	const say = (x) => (x.l === "CPU" ? `CPU ${x.v}` : x.l === "Version" ? `v${x.v}` : x.l === t("m.state") ? x.v : `${x.v} ${x.l}`);
+	return m.filter((x) => x.v !== "–" && !/^(Response|Antwort|up 24 h|online 24 h)$/.test(x.l)).slice(0, 3).map(say).join(" · ");
+}
+
 const metricsHtml = (list) => `<div class="metrics" style="--mc:${list.length}">${list.map((x) => `<div class="${x.cls || ""}"><div class="v" title="${esc(x.v)}">${esc(x.v)}</div><div class="l">${esc(x.l)}</div></div>`).join("")}</div>`;
 
 // One line under the name: what the service is doing right now, or its address.
@@ -240,7 +249,7 @@ function markdown(src) {
 	const close = () => list && (out.push(`</${list}>`), (list = null));
 	src.split("\n").forEach((line, i) => {
 		let m;
-		if ((m = /^\s*[-*]\s+\[([ xX])\]\s*(.*)$/.exec(line))) {
+		if ((m = /^\s*(?:[-*]\s+)?\[([ xX])\]\s*(.*)$/.exec(line))) {
 			if (list !== "ul") (close(), out.push('<ul class="tasks">'), (list = "ul"));
 			const done = m[1] !== " ";
 			out.push(`<li class="task${done ? " done" : ""}"><input type="checkbox" data-line="${i}"${done ? " checked" : ""}><span>${inline(m[2])}</span></li>`);
@@ -295,7 +304,7 @@ const TILES = {
 
 	notes(tile) {
 		const text = notesText(tile);
-		const done = /^\s*[-*]\s+\[[xX]\]/m.test(text);
+		const done = /^\s*(?:[-*]\s+)?\[[xX]\]/m.test(text);
 		const archived = (tile.archive || []).length;
 		const buttons = done || archived ? `<div class="md-btns">${done ? `<button class="md-clear" data-md-clear>${t("notes.archiveDone")}</button>` : ""}${archived ? `<button class="md-clear" data-md-archive>${t("notes.archive", { n: archived })}</button>` : ""}</div>` : "";
 		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="md" data-md title="${t("notes.hint")}">${text.trim() ? markdown(text) : `<p class="faint">${t("notes.hint")}</p>`}</div>${buttons}` };

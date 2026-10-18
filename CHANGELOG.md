@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 – 2026-10-18
+
+- Combined layout like the prototype: the first page lists all services grouped by the page they live on, every row with the same columns (name, short info, 24 h history, response time, uptime, actions). The history comes from the stored hourly data, so it survives restarts.
+- Notes: a ticked task is struck through right away and can be archived; "[ ] task" without a dash counts as a task too.
+
 ## 0.7.0 – 2026-10-18
 
 - New layout "Combined" (Settings → Layout): problems of the page on top with their action, the content tiles, and the services of the page as a list with key figures, history and actions on hover. "Tiles" stays the default; edit mode always shows all tiles.
