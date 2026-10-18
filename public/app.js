@@ -1510,7 +1510,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { api: [2, 2], markets: [2, 2], holidays: [2, 2], countdown: [2, 1], camera: [2, 2], weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { arr: [3, 2], api: [2, 2], markets: [2, 2], holidays: [2, 2], countdown: [2, 1], camera: [2, 2], weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1584,6 +1584,7 @@ async function addTileSheet() {
 			const k = s.kind && S.state.kinds[s.kind];
 			if (s.kind === "solar") content.push(row(logo(s), `${s.name}: ${t("en.title")}`, null, add({ type: "energy", service: s.id }), onBoard((x) => x.type === "energy") && t("add.onBoard")));
 			if (s.kind === "magicmirror") content.push(row(logo(s), `${s.name}: ${t("add.mirror")}`, null, add({ type: "mirror", service: s.id }), onBoard((x) => x.type === "mirror") && t("add.onBoard")));
+			if (["sonarr", "radarr", "prowlarr"].includes(s.kind)) content.push(row(logo(s), `${s.name}: ${t(s.kind === "prowlarr" ? "arr.addProwlarr" : "arr.add")}`, null, add({ type: "arr", service: s.id }), onBoard((x) => x.type === "arr" && x.service === s.id) && t("add.onBoard")));
 			if (!k || !k.tile || k.tile === "calendar") continue;
 			content.push(row(logo(s), `${s.name}: ${t(k.tile === "jellyfin" ? "jf.now" : k.tile === "downloads" ? "dl.title" : k.tile === "mystrom" ? "ms.devices" : "solar.title")}`, null, add({ type: k.tile, service: s.id }), onBoard((x) => x.type === k.tile && x.service === s.id) && t("add.onBoard")));
 			if (k.tile === "jellyfin") content.push(row(logo(s), `${s.name}: ${t("add.recent")}`, null, add({ type: "recent", service: s.id }), onBoard((x) => x.type === "recent" && x.service === s.id) && t("add.onBoard")));

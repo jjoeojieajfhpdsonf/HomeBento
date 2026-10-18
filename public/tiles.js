@@ -559,6 +559,7 @@ const TILES = {
 			return `<div class="r" title="${esc(r.name)}"><div class="top"><span class="dl-name"><b>${esc(n.title)}</b>${n.sub && tile.w > 1 ? `<span class="faint">${esc(n.sub)}</span>` : ""}</span><span class="muted num">${Math.round(r.progress * 100)} %${r.eta !== null && tile.w > 1 ? ` · ${t("dl.eta", { t: fmtEta(r.eta) })}` : ""}</span></div><div class="prog"><i style="width:${(r.progress * 100).toFixed(1)}%"></i></div></div>`;
 		});
 		const more = data.torrents.length > list.length ? ` · ${t("dl.active", { n: data.torrents.length })}` : "";
+		if (!rows.length && tile.h > 1) return { c: colorOf(s), html: `${head(`↓ ${fmtSpeed(data.down)}`)}<div class="dl-idle"><div class="big num">${nf(data.seeding || 0)}</div><div class="sm muted">${t("dl.seedingN")}</div><div class="sm faint" style="margin-top:6px">↑ ${fmtSpeed(data.up)} · ${t("dl.idle")}</div></div>` };
 		return { c: colorOf(s), html: head(`↓ ${fmtSpeed(data.down)}${more}`) + (rows.length ? `<div class="dl">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("dl.idle")}</div>`) };
 	},
 
@@ -807,6 +808,34 @@ const TILES = {
 	iframe(tile) {
 		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("frame.title")}</span></div>${optsHint(t("frame.empty"))}` };
 		return { c: "#9dbcff", cls: "frame-tile", html: `${tile.title ? `<div class="th"><span class="n">${esc(tile.title)}</span><a class="meta" href="${esc(tile.url)}" target="_blank" rel="noopener noreferrer">↗</a></div>` : ""}<iframe src="${esc(tile.url)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>` };
+	},
+
+	// Sonarr, Radarr, Prowlarr on their own: key figures, then what's downloading (or what's missing),
+	// for Prowlarr the indexers – the calendar tile keeps what comes next
+	arr(tile, x) {
+		const s = x.service(tile.service) || x.ofKind("sonarr")[0] || x.ofKind("radarr")[0];
+		if (!s) return { html: `<div class="th"><span class="n">Sonarr · Radarr</span></div><div class="sm faint bottom">${t("arr.needs")}</div>` };
+		const d = x.live.data[s.id];
+		const st = x.live.status[s.id] || {};
+		const head = (meta) => `<div class="th">${logo(s)}<span class="n">${esc(s.name)}</span><span class="meta">${meta || ""}</span></div>`;
+		if (!d || !d.data) return { c: colorOf(s), html: head() + setupHint(s, d) };
+		const v = d.data;
+		const nums = metricsHtml(metrics(s, st, d, tile.w === 1 ? 2 : 4));
+		const room = Math.max(0, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 54 - 58) / 38));
+		const ep = (e) => (e && e.season !== undefined ? `S${e.season} · E${e.number}${e.name && tile.w > 1 ? ` · ${e.name}` : ""}` : e && e.year ? String(e.year) : "");
+		let list = "";
+		let label = "";
+		if (s.kind === "prowlarr") {
+			label = t("arr.listIndexers");
+			list = (v.list || []).slice(0, room).map((i) => `<div class="arr-row"><i class="st-dot ${i.failingUntil ? "bad" : i.enabled ? "ok" : ""}"></i><div class="mid"><div class="tt">${esc(i.name)}</div></div><span class="arr-r">${i.failingUntil ? `<span class="warn-text">${t("arr.failingUntil", { t: new Date(i.failingUntil).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) })}</span>` : i.enabled ? esc(i.protocol || "") : t("arr.off")}</span></div>`).join("");
+		} else if ((v.queueItems || []).length) {
+			label = t("arr.listQueue");
+			list = v.queueItems.slice(0, room).map((q) => `<div class="arr-row q"><div class="mid"><div class="tt">${esc(q.title)}</div><div class="ss">${esc([ep(q.sub), q.problem ? "" : q.left ? t("dl.eta", { t: q.left.replace(/^00:/, "").replace(/^(\d+):(\d+):\d+$/, "$1 h $2 min") }) : q.state || ""].filter(Boolean).join(" · "))}${q.problem ? ` <span class="warn-text">${esc(q.problem)}</span>` : ""}</div>${q.progress !== null ? `<div class="prog"><i style="width:${(q.progress * 100).toFixed(1)}%"></i></div>` : ""}</div></div>`).join("");
+		} else if ((v.missing || []).length) {
+			label = t("arr.missing", { n: nf(v.wanted ?? v.missing.length) });
+			list = v.missing.slice(0, room).map((m) => `<div class="arr-row"><i class="st-dot warn"></i><div class="mid"><div class="tt">${esc(m.title)}</div><div class="ss">${esc([ep(m.sub), m.at ? fmtWhen(m.at, false) : ""].filter(Boolean).join(" · "))}</div></div></div>`).join("");
+		} else label = t("arr.allThere");
+		return { c: colorOf(s), cls: "arr-tile", html: `${head(v.warnings && v.warnings.length ? `<span class="warn-text">${t("arr.warnings", { n: v.warnings.length })}</span>` : "")}${nums}${room ? `<div class="sm muted arr-label">${esc(label)}</div><div class="arr-list">${list}</div>` : ""}` };
 	},
 
 	// own API: chosen values as figures, an optional list below

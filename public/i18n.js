@@ -701,6 +701,17 @@ const TEXT = {
 		"api.f.relative": "vor …",
 		"api.f.boolean": "Ja/Nein",
 		"ev.alert": "Warnung",
+		"arr.needs": "Füge Sonarr, Radarr oder Prowlarr als Service hinzu",
+		"arr.listIndexers": "Indexer",
+		"arr.failingUntil": "gesperrt bis {t}",
+		"arr.off": "aus",
+		"arr.listQueue": "Wird geladen",
+		"arr.missing": "Fehlt ({n})",
+		"arr.allThere": "Nichts in der Warteschlange, nichts fehlt",
+		"arr.warnings": "{n} Warnungen",
+		"arr.add": "Warteschlange und Fehlendes",
+		"arr.addProwlarr": "Indexer",
+		"dl.seedingN": "Torrents werden geteilt",
 		"common.close": "Schliessen"
 	},
 	en: {
@@ -1380,6 +1391,17 @@ const TEXT = {
 		"api.f.relative": "… ago",
 		"api.f.boolean": "Yes/No",
 		"ev.alert": "warning",
+		"arr.needs": "Add Sonarr, Radarr or Prowlarr as a service",
+		"arr.listIndexers": "Indexers",
+		"arr.failingUntil": "blocked until {t}",
+		"arr.off": "off",
+		"arr.listQueue": "Downloading",
+		"arr.missing": "Missing ({n})",
+		"arr.allThere": "Nothing in the queue, nothing missing",
+		"arr.warnings": "{n} warnings",
+		"arr.add": "queue and missing",
+		"arr.addProwlarr": "indexers",
+		"dl.seedingN": "torrents seeding",
 		"common.close": "Close"
 	}
 };
