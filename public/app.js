@@ -221,7 +221,8 @@ function serviceGroups(list) {
 	const groups = new Map();
 	for (const s of list) {
 		const home = boards.slice(1).find((b) => b.tiles.some((tl) => tl.service === s.id)) || boards[0];
-		const name = home.name || t("board.default");
+		// services that only live on the first page: "More", not the name of the overview
+		const name = home === boards[0] ? t("list.other") : home.name || t("board.default");
 		if (!groups.has(name)) groups.set(name, { name, order: boards.indexOf(home), items: [] });
 		groups.get(name).items.push(s);
 	}
@@ -1136,8 +1137,39 @@ document.addEventListener("click", (e) => {
 		return saveBoardTiles();
 	}
 	const [repo, tag] = rel.dataset.release.split("|");
+	if (e.target.closest("[data-rel-update]")) {
+		const d = S.live && S.live.releases && S.live.releases[repo];
+		const s = d && d.service && serviceById(d.service);
+		if (s) updateService(s, d);
+		return;
+	}
 	releaseSheet(tile, repo, tag);
 }, true);
+
+// Update a container: ask, then follow the log until it is done (or rolled back).
+async function updateService(s, d) {
+	const what = d && d.running && d.latest ? `${d.running} → ${d.latest.tag}` : "";
+	if (!(await confirmSheet(t("upd.confirm", { n: s.name, v: what }), t("upd.go")))) return;
+	const r = await guard(() => api("POST", `/api/services/${s.id}/update`));
+	if (!r) return;
+	const sheet = openSheet({ wide: true });
+	sheet.head(...headOf(s));
+	const status = h("div", { class: "note" }, t("upd.running"));
+	const log = h("div", { class: "log" }, "");
+	sheet.body.append(status, log);
+	for (;;) {
+		await new Promise((res) => setTimeout(res, 1500));
+		const j = await api("GET", `/api/updates/${r.job}`).catch(() => null);
+		if (!j) break;
+		log.textContent = j.log.join("\n");
+		log.scrollTop = log.scrollHeight;
+		if (j.state === "running") continue;
+		status.className = `note ${j.state === "done" ? "ok" : "bad"}`;
+		status.textContent = j.state === "failed" ? j.error : j.updated ? t("upd.done", { n: s.name }) : j.pinned ? t("upd.pinned") : t("upd.same");
+		loadLive();
+		break;
+	}
+}
 
 // Release notes; opening them counts as seen.
 async function releaseSheet(tile, repo, tag) {
@@ -1150,7 +1182,13 @@ async function releaseSheet(tile, repo, tag) {
 	sheet.body.append(
 		n.name && n.name !== n.tag ? h("div", { class: "sec", style: "margin-top:4px" }, n.name) : null,
 		h("div", { class: "md rel-notes", html: n.body ? markdown(n.body.replace(/\r/g, "").replace(/<!--[\s\S]*?-->/g, "")) : `<p class="faint">${t("rel.noNotes")}</p>` }),
-		h("div", { class: "acts" }, h("a", { class: "btn primary", href: n.url, target: "_blank", rel: "noopener" }, html(UI.open), t("rel.onGithub")))
+		h("div", { class: "acts" },
+			(() => {
+				const d = S.live && S.live.releases && S.live.releases[repo];
+				const s = d && d.current === false && d.service && serviceById(d.service);
+				return s && s.container ? h("button", { class: "btn primary", onclick: () => (sheet.close(), updateService(s, d)) }, t("upd.button", { v: d.latest.tag })) : null;
+			})(),
+			h("a", { class: "btn", href: n.url, target: "_blank", rel: "noopener" }, html(UI.open), t("rel.onGithub")))
 	);
 }
 

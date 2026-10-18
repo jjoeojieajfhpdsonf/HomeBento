@@ -409,7 +409,44 @@ route("GET", "/api/releases/check", async (body, p, query) => {
 
 route("GET", "/api/host/history", () => ({ points: host.history }));
 
+// Container updates run in the background; the web app follows their log.
+const updateJobs = new Map();
+route("POST", "/api/services/:id/update", (body, p) => {
+	const s = store.service(p.id);
+	if (!s.container) throw new UserError("No container linked");
+	if (/homebento/i.test(s.container)) throw new UserError("HomeBento can't replace its own container – update it with git pull and docker compose");
+	const running = [...updateJobs.values()].find((j) => j.sid === s.id && j.state === "running");
+	if (running) return { job: running.id };
+	const job = { id: `${Date.now().toString(36)}`, sid: s.id, name: s.name, state: "running", log: [], started: Date.now() };
+	updateJobs.set(job.id, job);
+	const log = (line) => job.log.push(`${new Date().toLocaleTimeString("de-CH")} ${line}`);
+	const healthy = s.url ? async () => (await monitor.probe(s)).status !== "down" : null;
+	docker
+		.update(s.container, { log, healthy })
+		.then((r) => {
+			job.state = "done";
+			job.updated = r.updated;
+			job.pinned = r.pinned;
+			monitor.note(s, "action", r.updated ? "Updated" : "Already newest");
+			integrations.forget(s.id);
+			monitor.check(s).catch(() => {});
+		})
+		.catch((err) => {
+			job.state = "failed";
+			job.error = err.message;
+			log(err.message);
+			monitor.note(s, "action", "Update failed");
+		});
+	return { job: job.id };
+});
+route("GET", "/api/updates/:id", (body, p) => {
+	const j = updateJobs.get(p.id);
+	if (!j) throw new UserError("Unknown update");
+	return j;
+});
+
 route("POST", "/api/boards", (body) => ({ board: store.addBoard(body.name) }));
+route("POST", "/api/boards/order", (body) => store.orderBoards(body.ids));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
 route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.id, body.tiles) }));

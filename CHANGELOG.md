@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0 – 2026-10-18
+
+- Update containers from the Updates tile: pull the image, recreate the container with the same configuration (volumes, ports, environment, networks, labels), check that it comes up, and bring the old one back otherwise. Progress shows in a log.
+- Services that only live on the first page are grouped as "More" in the list.
+- API to order the pages.
+
 ## 0.9.0 – 2026-10-18
 
 - Updates tile: subscribe to GitHub repositories (suggested from your services via the image label or a list of known projects, or any owner/repo), see the newest version of each, new ones marked until you look; click for the release notes.
