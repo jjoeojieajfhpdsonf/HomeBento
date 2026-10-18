@@ -247,8 +247,9 @@ function renderAttention() {
 	}
 	// what's down first; more than four: the rest behind "+ n more"
 	items.sort((a, b) => !!a.soft - !!b.soft);
-	const MAX = 4;
-	const hidden = S.attAll ? 0 : Math.max(0, items.length - MAX + (items.length > MAX ? 1 : 0));
+	// (hiding a single one isn't worth the switch)
+	const MAX = items.length === 5 ? 5 : 4;
+	const hidden = S.attAll ? 0 : Math.max(0, items.length - MAX);
 	const key = JSON.stringify([S.attAll, items.map((i) => [i.s.id, i.title, i.sub])]);
 	if (el.dataset.key === key) return;
 	el.dataset.key = key;
@@ -261,9 +262,12 @@ function renderAttention() {
 					h("div", { class: "grow" }, h("div", { class: "it" }, i.title), h("div", { class: "d", title: i.sub }, i.sub)),
 					i.act ? h("button", { class: "btn primary", onclick: (e) => act(e.currentTarget, i.s, i.act[0]) }, i.act[1]) : null,
 					h("button", { class: "btn", onclick: () => (i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details")))),
-			hidden ? h("button", { class: "issue more", onclick: () => ((S.attAll = true), renderAttention()) }, h("div", { class: "grow" }, h("div", { class: "it" }, t("att.more", { n: hidden })), h("div", { class: "d" }, items.slice(items.length - hidden).map((i) => i.s.name).join(" · ")))) : null,
-			S.attAll && items.length > MAX ? h("button", { class: "issue more", onclick: () => ((S.attAll = false), renderAttention()) }, h("div", { class: "grow" }, h("div", { class: "it" }, t("att.less")))) : null
-		)
+		),
+		// a small switch below the strip: the rest by name, or back to four
+		items.length > MAX
+			? h("button", { class: "att-toggle", onclick: () => ((S.attAll = !S.attAll), renderAttention()) },
+					hidden ? [h("b", {}, t("att.more", { n: hidden })), h("span", {}, items.slice(MAX).map((i) => i.s.name).join(", ")), h("i", { class: "chev" })] : [h("b", {}, t("att.less")), h("i", { class: "chev up" })])
+			: null
 	);
 }
 
