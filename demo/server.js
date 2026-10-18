@@ -13,6 +13,9 @@ const path = require("node:path");
 const { Store } = require("../lib/store");
 const { KINDS } = require("../lib/kinds");
 const widgets = require("../lib/widgets");
+const holidays = require("../lib/holidays");
+const notify = require("../lib/notify");
+const importers = require("../lib/importers");
 const { UserError } = require("../lib/errors");
 
 const PORT = Number(process.env.PORT) || 8122;
@@ -21,6 +24,7 @@ const DIR = fs.mkdtempSync(path.join(os.tmpdir(), "homebento-demo-"));
 const store = new Store(DIR);
 const L = (de, en) => ({ de, en });
 const now = () => Date.now();
+const dayStr = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 const MIN = 60000;
 const HOUR = 3600000;
 const DAY = 86400000;
@@ -52,8 +56,8 @@ const SERVICES = [
 	["Tautulli", 8181, "tautulli", "tautulli"],
 	["SABnzbd", 8085, "sabnzbd", "sabnzbd"],
 	// home
-	["Solar", 8090, "solar", null],
-	["myStrom", 8091, "mystrom", null],
+	["EVCC", 7070, "evcc", "evcc"],
+	["OpenDTU", 80, "opendtu", "opendtu", "192.168.1.40"],
 	["MagicMirror", 8080, "magicmirror", null, "192.168.1.20"],
 	["Mirror Manager", 8090, "mmmanager", null, "192.168.1.20"],
 	["Home Assistant", 8123, "homeassistant", "home-assistant"],
@@ -85,6 +89,10 @@ const SERVICES = [
 	["Dozzle", 8089, null, "dozzle"]
 ];
 const sid = {};
+for (const [name, target, type, icon] of [["Router", "192.168.1.1", "ping", "router"], ["Drucker", "192.168.1.30:631", "tcp", "printer"], ["NAS (SSH)", "192.168.1.6:22", "tcp", "synology"]]) {
+	const s = store.saveService({ name, url: "", icon, checkType: type, checkTarget: target });
+	sid[name] = s.id;
+}
 for (const [name, port, kind, icon, hostIp, proto] of SERVICES) {
 	const s = store.saveService({ name, url: `${proto || "http"}://${hostIp || "192.168.1.10"}:${port}`, kind: kind && KINDS[kind] ? kind : null, icon: icon || "", container: hostIp ? null : (icon || name).toLowerCase().replace(/[^a-z0-9]+/g, "-") });
 	sid[name] = s.id;
@@ -98,34 +106,38 @@ store.config.layout = "combined";
 store.config.location = { name: "Zürich", lat: 47.3769, lon: 8.5417 };
 const pages = [
 	["Übersicht", [
-		// top left: the time, below it what's downloading; next to it weather and appointments
+		// every row full: 6 columns
 		{ type: "clock", w: 2, h: 1, zones: [{ name: "New York", zone: "America/New_York" }, { name: "Tokio", zone: "Asia/Tokyo" }] },
 		{ type: "weather", w: 2, h: 2 },
 		{ type: "ical", w: 2, h: 2, calendars: [{ name: "Familie", url: "https://demo.invalid/familie.ics", color: "#9dbcff" }, { name: "Arbeit", url: "https://demo.invalid/arbeit.ics", color: "#f5b83d" }] },
 		{ type: "downloads", w: 2, h: 1 },
 		{ type: "jellyfin", w: 3, h: 2 },
 		{ type: "calendar", w: 3, h: 2 },
-		{ type: "solar", w: 2, h: 2 },
 		{ type: "host", w: 2, h: 2 },
+		{ type: "markets", w: 2, h: 2, symbols: ["^SSMI", "NESN.SW", "AAPL"], fx: ["EUR", "USD"], crypto: ["bitcoin"], base: "CHF" },
+		{ type: "holidays", w: 2, h: 2, canton: "ZH" },
 		{ type: "notes", w: 2, h: 2, text: "## Diese Woche\n- [x] Backup prüfen\n- [ ] Sonarr-Serien aufräumen\n- [ ] **FlareSolverr** aktualisieren\n- Router-Firmware: siehe [Changelog](https://example.com)" },
-		{ type: "rss", w: 3, h: 2, feeds: [{ name: "Tech-Feed", url: "https://demo.invalid/tech.xml" }, { name: "Lokal", url: "https://demo.invalid/lokal.xml" }] },
-		{ type: "links", w: 3, h: 2, links: [{ name: "Router", url: "http://192.168.1.1" }, { name: "Drucker", url: "http://192.168.1.30" }, { name: "GitHub", url: "https://github.com" }] }
+		{ type: "rss", w: 2, h: 2, feeds: [{ name: "Tech-Feed", url: "https://demo.invalid/tech.xml" }, { name: "Lokal", url: "https://demo.invalid/lokal.xml" }] },
+		{ type: "countdown", w: 2, h: 1, items: [{ name: "Herbstferien", date: dayStr(9) }, { name: "Geburtstag Mia", date: dayStr(23), yearly: true }, { name: "Weihnachten", date: `${new Date().getFullYear()}-12-24`, yearly: true }] },
+		{ type: "links", w: 2, h: 1, links: [{ name: "Router", url: "http://192.168.1.1" }, { name: "Drucker", url: "http://192.168.1.30" }, { name: "GitHub", url: "https://github.com" }] }
 	]],
 	["Medien", [
 		{ type: "jellyfin", w: 3, h: 2 },
 		{ type: "calendar", w: 3, h: 2 },
 		{ type: "downloads", w: 3, h: 1 },
+		{ type: "api", w: 3, h: 1, title: "Jellyfin-Statistik", api: { url: "http://192.168.1.10:3000/stats", fields: [{ label: "Plays (7 Tage)", path: "plays" }, { label: "Stunden", path: "hours" }, { label: "Top", path: "top" }] } },
 		...svcTiles(["Jellyfin", "Sonarr", "Radarr", "Prowlarr", "qBittorrent", "Jellyseerr", "Bazarr", "Lidarr", "Plex", "Tautulli", "SABnzbd"])
 	]],
 	["Zuhause", [
-		{ type: "mystrom", w: 2, h: 2 },
-		{ type: "energy", w: 2, h: 2 },
+		{ type: "camera", w: 3, h: 2, title: "Eingang", url: "http://192.168.1.50/snapshot.jpg", mode: "snapshot", refresh: 3 },
+		{ type: "weather", w: 3, h: 2, place: { name: "Zermatt", lat: 46.0207, lon: 7.7491 } },
 		{ type: "mirror", w: 2, h: 2 },
-		{ type: "weather", w: 2, h: 3, place: { name: "Zermatt", lat: 46.0207, lon: 7.7491 } },
-		{ type: "clock", w: 2, h: 1, seconds: true },
-		{ type: "weather", w: 1, h: 1 },
-		{ type: "iframe", w: 3, h: 2, title: "Grafana · Stromverbrauch", url: `http://localhost:${PORT}/demo-panel.html` },
-		...svcTiles(["Solar", "myStrom", "MagicMirror", "Mirror Manager", "Home Assistant", "Frigate", "Immich", "Paperless", "Nextcloud"])
+		{ type: "api", w: 2, h: 2, title: "Aare", api: { url: "https://aareguru.existenz.ch/v2018/current?city=bern", fields: [{ label: "Wasser", path: "aare.temperature", suffix: "°C" }, { label: "Abfluss", path: "aare.flow", suffix: "m³/s" }, { label: "Luft", path: "weather.current.tt", suffix: "°C" }] } },
+		{ type: "iframe", w: 2, h: 2, title: "Grafana · Stromverbrauch", url: `http://localhost:${PORT}/demo-panel.html` },
+		{ type: "clock", w: 2, h: 1, seconds: true, analog: true },
+		{ type: "countdown", w: 2, h: 1, items: [{ name: "Skiferien", date: dayStr(68) }, { name: "Abfall: Grüngut", date: dayStr(2) }] },
+		{ type: "holidays", w: 2, h: 1, canton: "BE" },
+		...svcTiles(["EVCC", "OpenDTU", "MagicMirror", "Mirror Manager", "Home Assistant", "Frigate", "Immich", "Paperless", "Nextcloud", "Router", "Drucker"])
 	]],
 	["System", [
 		{ type: "host", w: 2, h: 2 },
@@ -134,9 +146,10 @@ const pages = [
 		{ type: "docker", w: 3, h: 2 },
 		{ type: "uptime", w: 3, h: 2 },
 		{ type: "releases", w: 2, h: 3, repos: ["jellyfin/jellyfin", "Sonarr/Sonarr", "Radarr/Radarr", "qbittorrent/qBittorrent", "home-assistant/core", "immich-app/immich", "louislam/uptime-kuma", "jjoeojieajfhpdsonf/HomeBento"], seen: {} },
-		{ type: "tailscale", w: 2, h: 2 },
 		{ type: "events", w: 2, h: 3 },
-		...svcTiles(["Portainer", "Proxmox", "TrueNAS", "Pi-hole", "AdGuard Home", "Traefik", "Nginx Proxy Manager", "wg-easy", "Uptime Kuma", "Grafana", "Prometheus", "Glances", "Syncthing", "Scrutiny", "Speedtest Tracker", "Vaultwarden", "Gitea", "UniFi", "FlareSolverr", "Dozzle", "Watchtower"])
+		{ type: "tailscale", w: 2, h: 2 },
+		{ type: "api", w: 2, h: 1, title: "Backup", api: { url: "http://192.168.1.6:8200/api/last", fields: [{ label: "Letztes", path: "last", format: "relative" }, { label: "Grösse", path: "size", format: "bytes" }, { label: "Dauer", path: "took", format: "duration" }] } },
+		...svcTiles(["Portainer", "Proxmox", "TrueNAS", "Pi-hole", "AdGuard Home", "Traefik", "Nginx Proxy Manager", "wg-easy", "Uptime Kuma", "Grafana", "Prometheus", "Glances", "Syncthing", "Scrutiny", "Speedtest Tracker", "Vaultwarden", "Gitea", "UniFi", "FlareSolverr", "Dozzle", "Watchtower", "NAS (SSH)"])
 	]]
 ];
 store.config.boards = [];
@@ -296,6 +309,8 @@ const PLUGINS = {
 	gitea: () => ({ metrics: [m(37, L("Repositories", "Repositories")), m(2, L("Ungelesen", "Unread")), m(1, "Pull Requests")], items: [{ title: "homelab/ansible #12", sub: "Update docker role", status: "ok" }], summary: "1.24.6" }),
 	// Watchtower updates containers on its own schedule (here: every night at 4:00)
 	watchtower: () => ({ metrics: [m(38, L("Geprüft", "Scanned")), m(2, L("Aktualisiert", "Updated")), m(0, L("Fehlgeschlagen", "Failed"))], items: [{ title: "dozzle", sub: "amir20/dozzle:latest · updated 04:00", status: "ok" }, { title: "flaresolverr", sub: "ghcr.io/flaresolverr/flaresolverr:latest · updated 04:00", status: "ok" }], summary: "Last scan today 04:00 · next 04:00" }),
+	evcc: () => ({ metrics: [m(`${(5.2 + wob("ev", 0.6)).toFixed(1)} kW`, "PV"), m(`${(0.6 + wob("eh", 0.2)).toFixed(1)} kW`, L("Haus", "Home")), m(`${(2.1 + wob("eg", 0.4)).toFixed(1)} kW`, L("Einspeisung", "Export")), m("68 %", L("Batterie", "Battery"))], items: [{ title: L("Garage", "Garage").de, sub: "Tesla Model 3 · 61 % · 7.4 kW · PV", status: "ok" }] }),
+	opendtu: () => ({ metrics: [m(`${Math.round(1840 + wob("od", 120))} W`, L("Leistung", "Power")), m("9.6 kWh", L("Heute", "Today")), m("3.2 MWh", L("Total", "Total")), m("2/2", L("Wechselrichter", "Inverters"))], items: [{ title: "HMS-1600 Süd", sub: "1'120 W · 100 %", status: "ok" }, { title: "HM-800 West", sub: "720 W · 100 %", status: "ok" }] }),
 	unifi: () => ({ metrics: [m(43, "Clients"), m(6, L("Geräte", "Devices")), m(0, L("Meldungen", "Alerts")), m(31, "WLAN")], items: [{ title: "wan", sub: "ok", status: "ok" }, { title: "wlan", sub: "ok · 31 clients", status: "ok" }, { title: "lan", sub: "ok · 12 clients", status: "ok" }], summary: "WAN 203.0.113.24" })
 };
 
@@ -384,7 +399,7 @@ async function weatherFor(p) {
 const disks = () => [
 	{ mount: "/", device: "nvme0n1p2", type: "ext4", total: 500e9, used: 204e9 },
 	{ mount: "/mnt/media", device: "sdb1", type: "xfs", total: 8e12, used: 5.7e12 },
-	{ mount: "/mnt/backup", device: "sdc1", type: "ext4", total: 4e12, used: 3.55e12 },
+	{ mount: "/mnt/backup", device: "sdc1", type: "ext4", total: 4e12, used: 3.66e12 },
 	{ mount: "/boot", device: "nvme0n1p1", type: "vfat", total: 1e9, used: 0.12e9 }
 ];
 const ical = () => ({
@@ -412,6 +427,49 @@ const rss = () => ({
 	errors: []
 });
 
+// ---------- own API tiles, markets ----------
+
+function apiDemo(t) {
+	const v = (label, text, state) => ({ label, text, state: state || null });
+	if (t.title === "Aare") return { values: [v("Wasser", `${(14.2 + wob("aare", 0.2, 600000)).toFixed(1)} °C`), v("Abfluss", "112 m³/s"), v("Luft", "12 °C")], items: [{ title: "Bern, Schönau", sub: "«chli frisch»", status: "ok" }], at: now() };
+	if (t.title === "Backup") return { values: [v("Letztes", "vor 6 h"), v("Grösse", "412 GB"), v("Dauer", "38 min")], items: [], at: now() };
+	return { values: [v("Plays (7 Tage)", "84"), v("Stunden", "61"), v("Top", "Joël")], items: [], at: now() };
+}
+function marketsDemo(t) {
+	const q = (symbol, name, price, cur, pct) => {
+		const p = price * (1 + wob(symbol, 0.004, 40000));
+		return { symbol, name, price: Math.round(p * 100) / 100, currency: cur, change: (p * pct) / 100, changePct: Math.round((pct + wob(`${symbol}c`, 0.3, 40000)) * 100) / 100, marketState: "REGULAR", spark: Array.from({ length: 16 }, (_, i) => p * (1 + Math.sin(i / 2.5 + rnd(symbol) * 5) * 0.004 + (i * pct) / 1600)) };
+	};
+	const all = { "^SSMI": q("^SSMI", "SMI", 12384, "CHF", 0.42), "NESN.SW": q("NESN.SW", "Nestlé", 81.6, "CHF", -0.8), AAPL: q("AAPL", "Apple", 231.4, "USD", 1.2) };
+	return {
+		quotes: (t.symbols || []).map((sym) => all[sym] || q(sym, sym, 100, "CHF", 0.1)),
+		fx: (t.fx || []).map((c) => ({ pair: `CHF/${c}`, rate: c === "EUR" ? 1.0712 : c === "USD" ? 1.2468 : 1, changePct: c === "EUR" ? 0.12 : -0.31 })),
+		crypto: (t.crypto || []).map((id) => ({ id, price: Math.round(84210 + wob(id, 600, 30000)), changePct: 2.4 }))
+	};
+}
+
+// a camera picture that changes: an entrance with the time on it
+function cameraDemo() {
+	const time = new Date().toLocaleTimeString("de-CH");
+	const date = new Date().toLocaleDateString("de-CH");
+	const leaf = Math.round(wob("leaf", 8, 4000));
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4a5c"/><stop offset="1" stop-color="#1d242c"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4d48"/><stop offset="1" stop-color="#2a2c29"/></linearGradient></defs><rect width="640" height="360" fill="url(#s)"/><rect y="230" width="640" height="130" fill="url(#g)"/><rect x="250" y="90" width="140" height="160" rx="4" fill="#5b4636"/><rect x="262" y="104" width="116" height="146" fill="#6d5442"/><circle cx="364" cy="180" r="5" fill="#c9b37a"/><rect x="60" y="120" width="120" height="80" fill="#2c3e50" stroke="#566" stroke-width="4"/><rect x="460" y="120" width="120" height="80" fill="#2c3e50" stroke="#566" stroke-width="4"/><path d="M250 250 L200 360 L440 360 L390 250Z" fill="#6b6b66"/><g transform="translate(${560 + leaf} 210)"><circle r="34" fill="#2f5a3a"/><circle cx="-22" cy="12" r="26" fill="#2a5235"/></g><rect x="12" y="12" width="210" height="26" rx="4" fill="rgba(0,0,0,.45)"/><text x="22" y="30" font-family="monospace" font-size="15" fill="#e8e8e8">${date} ${time}</text><text x="560" y="345" font-family="monospace" font-size="13" fill="rgba(255,255,255,.6)">CAM 1</text></svg>`;
+}
+
+// ---------- messages (kept in memory) ----------
+
+const alertsCfg = {
+	channels: [
+		{ id: "a1b2c3d4e5", type: "telegram", name: "Joël", enabled: true, fields: { chatId: "123456789" }, events: { down: true, up: true, warn: true, resources: true }, secrets: { token: true }, error: null },
+		{ id: "f6a7b8c9d0", type: "ntfy", name: "Familie", enabled: true, fields: { url: "https://ntfy.sh/homebento-demo" }, events: { down: true, up: false, warn: false, resources: false }, secrets: {}, error: null }
+	],
+	delay: 2,
+	limits: { disk: 90, temp: 80, memory: 95, certDays: 14 },
+	mutedUntil: null,
+	lang: "de"
+};
+const alertsView = () => ({ ...alertsCfg, env: false, types: notify.CHANNELS, active: [{ key: "disk:/mnt/backup", kind: "disk", name: "/mnt/backup", value: 92, since: now() - 3 * HOUR }] });
+
 // ---------- HTTP ----------
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
@@ -429,7 +487,8 @@ route("GET", "/api/state", () => ({
 	auth: false,
 	notify: true,
 	checkSeconds: 60,
-	selfHosts: ["192.168.1.10", "localhost", "127.0.0.1"]
+	selfHosts: ["192.168.1.10", "localhost", "127.0.0.1"],
+	cantons: holidays.CANTONS
 }));
 
 route("GET", "/api/live", async (body, p, query) => {
@@ -458,6 +517,10 @@ route("GET", "/api/live", async (body, p, query) => {
 		}
 	}
 	if (types.has("disks")) out.disks = disks();
+	out.alerts = [{ key: "disk:/mnt/backup", kind: "disk", name: "/mnt/backup", value: 92, since: now() - 3 * HOUR, sid: null }];
+	if (types.has("api")) out.api = Object.fromEntries(board.tiles.filter((t) => t.type === "api").map((t) => [t.id, apiDemo(t)]));
+	if (types.has("markets")) out.markets = Object.fromEntries(board.tiles.filter((t) => t.type === "markets").map((t) => [t.id, marketsDemo(t)]));
+	if (types.has("holidays")) out.holidays = Object.fromEntries(board.tiles.filter((t) => t.type === "holidays").map((t) => [t.id, holidays.next(t.canton || "ZH", new Date(), 8)]));
 	if (types.has("network")) out.net = hostHistory().slice(-180).map((x) => [x[0], x[4], x[5]]);
 	if (types.has("ical")) out.ical = Object.fromEntries(board.tiles.filter((t) => t.type === "ical" && (t.calendars || []).length).map((t) => [t.id, ical()]));
 	if (types.has("rss")) out.rss = Object.fromEntries(board.tiles.filter((t) => t.type === "rss" && (t.feeds || []).length).map((t) => [t.id, rss()]));
@@ -553,6 +616,36 @@ route("POST", "/api/settings", (body) => {
 	if (body.title !== undefined) store.setTitle(body.title);
 	if (body.layout !== undefined) store.setLayout(body.layout);
 });
+route("GET", "/api/alerts", () => alertsView());
+route("POST", "/api/alerts", (body) => {
+	if (Array.isArray(body.channels)) alertsCfg.channels = body.channels.map((c) => ({ ...c, secrets: { ...((alertsCfg.channels.find((x) => x.id === c.id) || {}).secrets || {}), ...Object.fromEntries(Object.keys((body.secrets || {})[c.id] || {}).filter((k) => body.secrets[c.id][k]).map((k) => [k, true])) }, error: null }));
+	for (const k of ["delay", "limits", "lang"]) if (body[k] !== undefined) alertsCfg[k] = body[k];
+	if (body.mutedUntil !== undefined) alertsCfg.mutedUntil = body.mutedUntil > now() ? body.mutedUntil : null;
+	return alertsView();
+});
+route("POST", "/api/alerts/test", () => ({ ok: true }));
+route("POST", "/api/services/:id/mute", (body, p) => {
+	const s = store.muteService(p.id, body.minutes ? now() + Number(body.minutes) * MIN : null);
+	return { mutedUntil: s.mutedUntil || null };
+});
+route("GET", "/api/tiles/:id/secrets", () => ({ secrets: {} }));
+route("POST", "/api/tiles/:id/secrets", () => ({ secrets: {} }));
+route("POST", "/api/api-preview", () => ({ status: 200, ms: 42, json: { aare: { temperature: 14.2, flow: 112, location: "Bern" }, weather: { current: { tt: 12 } } }, paths: [{ path: "aare", sample: "{3}", type: "object" }, { path: "aare.temperature", sample: "14.2", type: "number" }, { path: "aare.flow", sample: "112", type: "number" }, { path: "aare.location", sample: "Bern", type: "string" }, { path: "weather.current.tt", sample: "12", type: "number" }] }));
+route("GET", "/api/config/export", () => store.exportConfig(false));
+route("POST", "/api/config/import", () => {
+	throw new UserError("Not in the demo");
+});
+route("GET", "/api/backups", () => ({ items: [0, 1, 2].map((i) => ({ name: `config-${new Date(now() - i * DAY).toISOString().slice(0, 10)}-04-00-daily.json`, size: 18000 })) }));
+route("POST", "/api/backups", () => ({ name: "demo" }));
+route("POST", "/api/backups/:name/restore", () => {
+	throw new UserError("Not in the demo");
+});
+route("POST", "/api/import", (body) => {
+	if (body.apply) throw new UserError("Not in the demo – the preview works though");
+	const r = importers.importConfig(String(body.text || ""), String(body.filename || ""));
+	return { source: r.source, groups: r.groups.map((g) => ({ name: g.name, services: g.services.map((x) => ({ ...x, secrets: Object.fromEntries(Object.keys(x.secrets || {}).map((k) => [k, true])) })) })), links: r.links, warnings: r.warnings };
+});
+
 route("GET", "/api/geocode", async (body, p, query) => {
 	try {
 		return { items: await widgets.geocode(String(query.get("q") || "").slice(0, 80), query.get("lang") === "en" ? "en" : "de") };
@@ -577,6 +670,10 @@ function poster(ref) {
 
 const server = http.createServer(async (req, res) => {
 	const url = new URL(req.url, "http://demo");
+	if (url.pathname.startsWith("/api/camera/")) {
+		res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "no-store" });
+		return res.end(cameraDemo());
+	}
 	if (url.pathname.startsWith("/api/img/")) {
 		res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "max-age=3600" });
 		return res.end(poster(url.pathname));

@@ -700,6 +700,10 @@ const TILES = {
 	clock(tile) {
 		const zones = (tile.zones || []).slice(0, tile.h === 1 ? (tile.w > 1 ? 2 : 0) : 4);
 		const more = zones.length ? `<div class="clk-zones">${zones.map((z) => `<div><span class="num" data-clock-zone="${esc(z.zone)}"></span><span class="faint">${esc(z.name || z.zone.split("/").pop().replace(/_/g, " "))}</span></div>`).join("")}</div>` : "";
+		// analog: a face with hands (turned every second), the date beside it
+		const ticks = Array.from({ length: 12 }, (_, i) => `<line x1="50" y1="${i % 3 ? 8 : 6}" x2="50" y2="${i % 3 ? 12 : 15}" transform="rotate(${i * 30} 50 50)" class="${i % 3 ? "tk" : "tk big"}"/>`).join("");
+		const analog = `<svg class="clk-face" viewBox="0 0 100 100" data-analog><circle cx="50" cy="50" r="47" class="rim"/>${ticks}<line class="ah" x1="50" y1="50" x2="50" y2="27"/><line class="am" x1="50" y1="50" x2="50" y2="15"/>${tile.seconds ? `<line class="as" x1="50" y1="58" x2="50" y2="12"/>` : ""}<circle cx="50" cy="50" r="2.6" class="hub"/></svg>`;
+		if (tile.analog) return { c: "#9dbcff", cls: `clk-tile analog${zones.length ? " has-zones" : ""}`, html: `${analog}<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div>${more}</div>` };
 		return { c: "#9dbcff", cls: `clk-tile${zones.length ? " has-zones" : ""}`, html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
 	},
 
@@ -773,6 +777,86 @@ const TILES = {
 	iframe(tile) {
 		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("frame.title")}</span></div>${optsHint(t("frame.empty"))}` };
 		return { c: "#9dbcff", cls: "frame-tile", html: `${tile.title ? `<div class="th"><span class="n">${esc(tile.title)}</span><a class="meta" href="${esc(tile.url)}" target="_blank" rel="noopener noreferrer">↗</a></div>` : ""}<iframe src="${esc(tile.url)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>` };
+	},
+
+	// own API: chosen values as figures, an optional list below
+	api(tile, x) {
+		const d = x.live.api && x.live.api[tile.id];
+		const host = (() => {
+			try {
+				return new URL(tile.api.url).hostname;
+			} catch {
+				return "";
+			}
+		})();
+		const head = `<div class="th"><span class="logo" style="--c:#9dbcff">${svg("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", 2)}</span><span class="n">${esc(tile.title || t("api.title"))}</span><span class="meta">${esc(host)}</span></div>`;
+		if (!tile.api || !tile.api.url) return { c: "#9dbcff", html: head + optsHint(t("api.empty")) };
+		if (!d) return { c: "#9dbcff", html: head };
+		if (d.error) return { c: "#9dbcff", html: `${head}<div class="sm warn-text bottom" title="${esc(d.error)}">⚠ ${esc(d.error)}</div>` };
+		const vals = (d.values || []).slice(0, tile.w * 2);
+		const nums = vals.length ? `<div class="metrics api-vals" style="--mc:${Math.min(vals.length, tile.w === 1 ? 2 : tile.w * 2)}">${vals.map((v) => `<div class="${v.state === "bad" ? "bad" : v.state === "warn" ? "warn" : ""}"><div class="v" title="${esc(v.text)}">${esc(v.text)}</div><div class="l">${esc(v.label)}</div></div>`).join("")}</div>` : "";
+		const room = Math.max(0, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 54 - (vals.length ? 52 : 0)) / 24));
+		const items = (d.items || []).slice(0, room).map((i) => `<div class="s pl-item"><i class="st-dot ${i.status === "bad" ? "bad" : i.status === "ok" ? "ok" : ""}"></i><span>${esc(i.title)}</span>${i.sub ? `<span class="faint">${esc(i.sub)}</span>` : ""}</div>`).join("");
+		return { c: "#9dbcff", cls: "api-tile", html: `${head}${nums}${items ? `<div class="api-items">${items}</div>` : ""}${d.stale ? `<div class="sm faint bottom">${t("api.stale")}</div>` : ""}` };
+	},
+
+	// shares, indices, currencies, coins: price, change, the day as a line
+	markets(tile, x) {
+		const d = x.live.markets && x.live.markets[tile.id];
+		const head = `<div class="th"><span class="logo" style="--c:#5fd39a">${svg("<path d='M4 17l5-5 4 3 7-8'/><path d='M15 7h5v5'/>", 2)}</span><span class="n">${esc(tile.title || t("mk.title"))}</span><span class="meta">${d && d.quotes.some((q) => q.marketState === "REGULAR") ? t("mk.open") : ""}</span></div>`;
+		if (!(tile.symbols || []).length && !(tile.fx || []).length && !(tile.crypto || []).length) return { c: "#5fd39a", html: head + optsHint(t("mk.empty")) };
+		if (!d) return { c: "#5fd39a", html: head };
+		const pct = (v) => (v === null || v === undefined ? "" : `<span class="mk-ch ${v > 0 ? "up" : v < 0 ? "down" : ""}">${v > 0 ? "+" : ""}${nf(v, 2)} %</span>`);
+		const price = (v) => (v === null || v === undefined ? "–" : nf(v, v >= 1000 ? 0 : v >= 10 ? 2 : 4));
+		const rows = [
+			...d.quotes.map((q) => (q.error ? `<div class="mk-row"><span class="mk-name">${esc(q.symbol)}</span><span class="faint sm">${esc(q.error)}</span></div>` : `<div class="mk-row"><div class="mk-name"><b>${esc(q.name || q.symbol)}</b><span class="faint">${esc(q.symbol)}</span></div>${tile.w > 1 ? `<div class="mk-spark${q.change < 0 ? " down" : ""}">${spark(q.spark || [])}</div>` : ""}<div class="mk-val"><b class="num">${price(q.price)}</b>${pct(q.changePct)}</div></div>`)),
+			...d.fx.map((f) => (f.error ? "" : `<div class="mk-row"><div class="mk-name"><b>${esc(f.pair)}</b><span class="faint">${t("mk.rate")}</span></div>${tile.w > 1 ? "<div></div>" : ""}<div class="mk-val"><b class="num">${nf(f.rate, 4)}</b>${pct(f.changePct)}</div></div>`)),
+			...d.crypto.map((c) => (c.error ? "" : `<div class="mk-row"><div class="mk-name"><b>${esc(c.id.replace(/^\w/, (m) => m.toUpperCase()))}</b><span class="faint">${esc(tile.base || "CHF")}</span></div>${tile.w > 1 ? "<div></div>" : ""}<div class="mk-val"><b class="num">${price(c.price)}</b>${pct(c.changePct)}</div></div>`))
+		].filter(Boolean);
+		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 60) / 44));
+		return { c: "#5fd39a", cls: "mk-tile", html: `${head}<div class="mk-list">${rows.slice(0, fit).join("")}</div>` };
+	},
+
+	// the next public holidays of a canton
+	holidays(tile, x) {
+		const list = (x.live.holidays && x.live.holidays[tile.id]) || [];
+		const cantons = (window.S && S.state && S.state.cantons) || {};
+		const head = `<div class="th"><span class="logo" style="--c:#ff6066">${svg("<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>", 2)}</span><span class="n">${esc(tile.title || t("hol.title"))}</span><span class="meta">${esc(cantons[tile.canton] ? L(cantons[tile.canton]) : tile.canton || "")}</span></div>`;
+		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 60) / 47));
+		const rows = list.slice(0, fit).map((d) => `<div class="hol-row"><div class="hol-date"><b class="num">${new Date(`${d.date}T12:00`).getDate()}.</b><span>${esc(new Date(`${d.date}T12:00`).toLocaleDateString(LOCALE, { month: "short" }))}</span></div><div class="mid"><div class="tt">${esc(L(d.name))}</div><div class="ss">${esc(new Date(`${d.date}T12:00`).toLocaleDateString(LOCALE, { weekday: "long" }))}${d.scope === "partial" ? ` · ${t("hol.partial")}` : ""}</div></div><span class="hol-in${d.days <= 7 ? " soon" : ""}">${d.days === 0 ? t("cal.today") : d.days === 1 ? t("cal.tomorrow") : t("hol.in", { n: d.days })}</span></div>`);
+		return { c: "#ff6066", cls: "hol-tile", html: `${head}<div class="hol-list">${rows.join("")}</div>` };
+	},
+
+	// days until something (birthday, holiday, release …), the nearest first
+	countdown(tile) {
+		const head = `<div class="th"><span class="n">${esc(tile.title || t("cd.title"))}</span></div>`;
+		const items = tile.items || [];
+		if (!items.length) return { c: "#c792ea", html: head + optsHint(t("cd.empty")) };
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const next = items
+			.map((c) => {
+				let d = new Date(`${c.date.slice(0, 10)}T00:00`);
+				if (c.yearly) {
+					d.setFullYear(today.getFullYear());
+					if (d < today) d.setFullYear(today.getFullYear() + 1);
+				}
+				return { ...c, days: Math.round((d - today) / 86400000), d };
+			})
+			.filter((c) => c.days >= 0 || c.days > -2)
+			.sort((a, b) => a.days - b.days);
+		if (!next.length) return { c: "#c792ea", html: `${head}<div class="sm faint bottom">${t("cd.past")}</div>` };
+		const big = next[0];
+		const say = (n) => (n === 0 ? t("cd.today") : n === 1 ? t("cd.tomorrow") : t("cd.days", { n }));
+		const rest = next.slice(1, tile.h === 1 ? (tile.w > 1 ? 3 : 1) : tile.h * 3).map((c) => `<div class="cd-row"><span>${esc(c.name)}</span><span class="num">${esc(say(c.days))}</span></div>`).join("");
+		return { c: "#c792ea", cls: `cd-tile${tile.h === 1 && tile.w > 1 ? " row" : ""}`, html: `${head}<div class="cd-main"><div class="cd-big num">${big.days === 0 ? "🎉" : big.days}</div><div><div class="cd-name">${esc(big.name)}</div><div class="faint sm">${big.days === 0 ? t("cd.today") : `${big.days === 1 ? t("cd.day1") : t("cd.daysWord")} · ${esc(big.d.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "numeric" }))}`}</div></div></div>${rest ? `<div class="cd-rest">${rest}</div>` : ""}` };
+	},
+
+	// a camera: still image (refreshed) or MJPEG stream, through HomeBento
+	camera(tile) {
+		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("cam.title")}</span></div>${optsHint(t("cam.empty"))}` };
+		const img = tile.mode === "mjpeg" ? `<img class="cam-img" src="/api/camera/${tile.id}" alt="">` : `<img class="cam-img" data-cam="${tile.id}" data-cam-refresh="${tile.refresh || 5}" src="/api/camera/${tile.id}" alt="">`;
+		return { c: "#9dbcff", cls: "cam-tile", html: `${img}<div class="cam-label"><span class="cam-dot"></span>${esc(tile.title || t("cam.title"))}</div>` };
 	},
 
 	links(tile) {

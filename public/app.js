@@ -245,6 +245,11 @@ function renderAttention() {
 		else if (d && d.error) items.push({ s, c: "var(--warn)", title: s.name, sub: d.error, setup: true });
 		else if (d && d.data && d.data.warnings && d.data.warnings.length) items.push({ s, c: "var(--warn)", title: d.data.warnings.length === 1 ? s.name : t("att.warnings", { n: s.name, c: d.data.warnings.length }), sub: d.data.warnings[0], soft: true });
 	}
+	// the server: storage, temperature, memory, containers restarting, certificates
+	for (const a of live.alerts || []) {
+		const svc = a.sid ? serviceById(a.sid) : null;
+		items.push({ s: svc || { id: `alert-${a.key}`, name: a.name, icon: "glyph:server" }, c: "var(--warn)", title: alertText(a), sub: a.kind === "cert" ? t("al.certSub") : t("al.since", { t: fmtAgo(a.since) }), soft: true, alert: true });
+	}
 	// what's down first; more than four: the rest behind "+ n more"
 	items.sort((a, b) => !!a.soft - !!b.soft);
 	// one row: as many as fit side by side (the grid's columns are at least 300 px)
@@ -262,7 +267,7 @@ function renderAttention() {
 					html(logo(i.s)),
 					h("div", { class: "grow" }, h("div", { class: "it" }, i.title), h("div", { class: "d", title: i.sub }, i.sub)),
 					i.act ? h("button", { class: "btn primary", onclick: (e) => act(e.currentTarget, i.s, i.act[0]) }, i.act[1]) : null,
-					h("button", { class: "btn", onclick: () => (i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details")))),
+					h("button", { class: "btn", onclick: () => (i.alert && !serviceById(i.s.id) ? (i.s.name.startsWith("/") ? hostSheet() : alertsSheet()) : i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details")))),
 		),
 		// a small switch below the strip: the rest by name, or back to four
 		items.length > MAX
@@ -306,7 +311,15 @@ function renderServiceList() {
 			: `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
 		return `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s">${esc(sub)}</div></div><div class="svc-info${st.status === "down" ? " bad" : d && d.error ? " warn" : ""}" title="${esc(info)}">${esc(info)}</div><div class="svc-spark${hasDips ? " dips" : ""}">${spark(hours.map((b) => b.ms))}</div><div class="svc-ms num">${fmtMs(st.ms)}</div><div class="svc-up num">${up}</div>${acts}`;
 	};
-	const key = `${S.editing ? "e" : ""}${S.listFilter || ""}|${groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|")}`;
+	// many services, all areas at once: compact columns, one per area (the chips open the full list)
+	const compact = first && !S.listFilter && !S.editing && groups.length > 1 && shown.length > 12;
+	const miniHtml = (s) => {
+		const st = live.status[s.id] || { status: "pending" };
+		const d = live.data[s.id];
+		const info = st.status === "down" ? st.error || t("status.down") : d && d.error ? d.error : (listStat(s, st, d) || "").split(" · ")[0] || fmtMs(st.ms);
+		return `${logo(s)}<span class="mini-n">${esc(s.name)}</span><span class="mini-i${st.status === "down" ? " bad" : d && d.error ? " warn" : ""}" title="${esc(info)}">${esc(info)}</span><i class="mini-dot ${st.status}${d && d.error ? " warn" : ""}"></i>`;
+	};
+	const key = `${compact ? "c" : ""}${S.editing ? "e" : ""}${S.listFilter || ""}|${groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|")}`;
 	if (el.dataset.key !== key) {
 		el.dataset.key = key;
 		const chips = first && all.length > 1
@@ -316,21 +329,43 @@ function renderServiceList() {
 			: null;
 		el.replaceChildren(
 			h("div", { class: "svc-head" }, h("b", {}, first && !S.listFilter ? t("list.all") : S.listFilter || t("list.title")), h("span", { class: "faint sm" }, String(shown.length)), chips),
-			h("div", { class: "svc-rows" }, groups.flatMap((g) => [g.name && groups.length > 1 ? h("div", { class: "svc-group" }, g.name) : null, ...g.items.map((s) => h("div", { class: "svc-row", "data-sid": s.id }))]))
+			compact
+				? (() => {
+						// columns of about the same height: a big area gets two or three of them
+						const per = Math.max(6, Math.ceil(shown.length / 4));
+						const spans = groups.map((g) => Math.min(3, Math.max(1, Math.round(g.items.length / per))));
+						return h("div", { class: "svc-cols", style: `grid-template-columns:repeat(${spans.reduce((a, b) => a + b, 0)},minmax(0,1fr))` },
+							groups.map((g, i) => h("div", { class: "svc-col", style: `grid-column:span ${spans[i]}` },
+								h("button", { class: "svc-col-head", onclick: () => ((S.listFilter = g.name), renderServiceList()) }, h("b", {}, g.name), h("span", { class: "svc-col-sum", "data-group": g.name }), h("span", { class: "faint" }, "›")),
+								h("div", { class: "svc-col-items", style: `column-count:${spans[i]}` }, g.items.map((s) => h("div", { class: "svc-row svc-mini", "data-sid": s.id }))))));
+					})()
+				: h("div", { class: "svc-rows" }, groups.flatMap((g) => [g.name && groups.length > 1 ? h("div", { class: "svc-group" }, g.name) : null, ...g.items.map((s) => h("div", { class: "svc-row", "data-sid": s.id }))]))
 		);
 	}
 	for (const s of shown) {
 		const row = el.querySelector(`.svc-row[data-sid="${s.id}"]`);
 		if (!row) continue;
 		const st = live.status[s.id] || { status: "pending" };
-		const cls = `svc-row ${st.status}`;
+		const cls = `svc-row${compact ? " svc-mini" : ""} ${st.status}`;
 		if (row.className !== cls) row.className = cls;
 		row.style.setProperty("--c", colorOf(s));
-		const content = rowHtml(s);
+		const content = compact ? miniHtml(s) : rowHtml(s);
 		if (row.dataset.html !== content) {
 			row.innerHTML = content;
 			row.dataset.html = content;
 		}
+	}
+	if (compact) groupSums(el, groups, live);
+}
+
+// compact columns: how each area is doing, in a word
+function groupSums(el, groups, live) {
+	for (const g of groups) {
+		const sum = el.querySelector(`.svc-col-sum[data-group="${CSS.escape(g.name)}"]`);
+		if (!sum) continue;
+		const bad = g.items.filter((s) => ["down", "slow"].includes((live.status[s.id] || {}).status) || (live.data[s.id] && live.data[s.id].error)).length;
+		const text = bad ? t("list.groupBad", { n: bad }) : t("list.groupOk", { n: g.items.length });
+		if (sum.textContent !== text) (sum.textContent = text), (sum.className = `svc-col-sum${bad ? " bad" : ""}`);
 	}
 }
 
@@ -583,7 +618,8 @@ function openTileDetails(tile) {
 	if (tile.service) return serviceSheet(tile.service);
 	if (tile.type === "status" || tile.type === "uptime") return statusSheet();
 	if (tile.type === "host") return hostSheet();
-	if (["notes", "links", "clock", "ical", "rss", "iframe"].includes(tile.type)) return;
+	if (["notes", "links", "clock", "ical", "rss", "iframe", "markets", "holidays", "countdown", "api"].includes(tile.type)) return;
+	if (tile.type === "camera") return cameraView(tile);
 	if (tile.type === "disks" || tile.type === "network") return hostSheet();
 	if (tile.type === "weather") return tileOptions(tile);
 	if (tile.type === "tailscale") return tailscaleSheet();
@@ -669,6 +705,7 @@ function openSheet({ wide } = {}) {
 	const body = h("div", { class: "bd" });
 	el.append(head, body);
 	document.body.append(el);
+	document.documentElement.classList.add("sheet-open");
 	$("#scrim").classList.add("on");
 	requestAnimationFrame(() => el.classList.add("on"));
 	const sheet = {
@@ -683,7 +720,7 @@ function openSheet({ wide } = {}) {
 			setTimeout(() => el.remove(), 220);
 			const next = topSheet();
 			if (next) next.classList.remove("behind");
-			else $("#scrim").classList.remove("on");
+			else $("#scrim").classList.remove("on"), document.documentElement.classList.remove("sheet-open");
 			if (sheet.onclose) sheet.onclose();
 		}
 	};
@@ -744,6 +781,20 @@ async function serviceSheet(sid) {
 				kpi(t("sheet.uptime30"), d.uptime.month === null ? "–" : `${nf(d.uptime.month, d.uptime.month === 100 ? 0 : 2)} %`),
 				kpi(t("sheet.state"), `${statusText(st)}${st.since ? ` · ${fmtDuration(Date.now() - st.since)}` : ""}`))
 		);
+		// HTTPS certificate and quiet time
+		const extra = [];
+		if (st.cert) extra.push(h("div", {}, h("span", {}, t("cert.label")), h("span", { class: st.cert.daysLeft <= 14 ? "warn-text" : "" }, st.cert.daysLeft < 0 ? t("cert.expired") : t("cert.valid", { n: st.cert.daysLeft, d: new Date(st.cert.validTo).toLocaleDateString(LOCALE) }) + (st.cert.selfSigned ? ` · ${t("cert.self")}` : ""))));
+		if (st.note) extra.push(h("div", {}, h("span", {}, t("check.note")), h("span", {}, st.note)));
+		const muted = s.mutedUntil && s.mutedUntil > Date.now() ? s.mutedUntil : null;
+		const mute = async (minutes) => {
+			const r = await guard(() => api("POST", `/api/services/${s.id}/mute`, { minutes }));
+			if (!r) return;
+			s.mutedUntil = r.mutedUntil;
+			toast(r.mutedUntil ? t("mute.on", { t: until(r.mutedUntil) }) : t("mute.off"));
+			fill();
+		};
+		extra.push(h("div", {}, h("span", {}, t("mute.label")), h("span", { class: "mute-btns" }, muted ? [h("span", {}, t("mute.until", { t: until(muted) })), h("button", { class: "chip", onclick: () => mute(0) }, t("mute.end"))] : [["1 h", 60], ["8 h", 480], ["24 h", 1440]].map(([l, m]) => h("button", { class: "chip", onclick: () => mute(m) }, l)))));
+		parts.push(h("div", { class: "box kv svc-extra" }, extra));
 		// a newer version than the container runs: update right here
 		if (d.release && d.release.current === false && s.container) {
 			const rel = d.release;
@@ -1046,6 +1097,20 @@ async function serviceForm(s, prefill = {}, onSaved) {
 	const container = h("select", { class: "input" }, h("option", { value: "" }, t("form.noContainer")));
 	if (cur.container) container.append(h("option", { value: cur.container, selected: true }, cur.container));
 	const check = h("input", { type: "checkbox", checked: cur.check !== false });
+	// how it's checked: HTTP, HTTP with a text, TCP port, ping, DNS
+	const ck = { type: cur.checkType || "http", target: cur.checkTarget || "", keyword: cur.keyword || "", absent: !!cur.keywordAbsent, codes: cur.codes || "", dnsServer: cur.dnsServer || "", dnsType: cur.dnsType || "A", dnsExpect: cur.dnsExpect || "", cert: cur.certWarn !== false };
+	const checkBox = h("div", { class: "check-box" });
+	const drawCheck = () => {
+		const inp = (k, ph, mono) => h("input", { class: `input${mono ? " mono" : ""}`, value: ck[k], placeholder: ph, autocapitalize: "off", spellcheck: "false", oninput: (e) => (ck[k] = e.target.value.trim()) });
+		const type = h("select", { class: "input", onchange: (e) => ((ck.type = e.target.value), drawCheck()) }, ["http", "keyword", "tcp", "ping", "dns"].map((x) => h("option", { value: x, selected: ck.type === x }, t(`check.${x}`))));
+		const rows = [h("div", { class: "field" }, h("label", {}, t("check.type")), type, h("div", { class: "help" }, t(`check.${ck.type}Help`)))];
+		if (ck.type === "keyword") rows.push(h("div", { class: "field" }, h("label", {}, t("check.keyword")), inp("keyword", t("check.keywordPh"))), h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("check.absent")), h("span", { class: "switch" }, h("input", { type: "checkbox", checked: ck.absent, onchange: (e) => (ck.absent = e.target.checked) }), h("span"))));
+		if (ck.type === "tcp" || ck.type === "ping" || ck.type === "dns") rows.push(h("div", { class: "field" }, h("label", {}, t(`check.target.${ck.type}`)), inp("target", ck.type === "tcp" ? "192.168.1.1:22" : ck.type === "dns" ? "example.com" : "192.168.1.1", true), h("div", { class: "help" }, t("check.targetHelp"))));
+		if (ck.type === "dns") rows.push(h("div", { class: "check-dns" }, h("div", { class: "field" }, h("label", {}, t("check.dnsServer")), inp("dnsServer", "192.168.1.2", true)), h("div", { class: "field" }, h("label", {}, t("check.dnsType")), h("select", { class: "input", onchange: (e) => (ck.dnsType = e.target.value) }, ["A", "AAAA", "CNAME", "MX", "TXT", "NS"].map((x) => h("option", { value: x, selected: ck.dnsType === x }, x)))), h("div", { class: "field" }, h("label", {}, t("check.dnsExpect")), inp("dnsExpect", "192.168.1.10", true))));
+		if (ck.type === "http" || ck.type === "keyword") rows.push(h("div", { class: "field" }, h("label", {}, t("check.codes")), inp("codes", "200-299, 401", true), h("div", { class: "help" }, t("check.codesHelp"))), h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("check.cert"), h("div", { class: "help" }, t("check.certHelp"))), h("span", { class: "switch" }, h("input", { type: "checkbox", checked: ck.cert, onchange: (e) => (ck.cert = e.target.checked) }), h("span"))));
+		checkBox.replaceChildren(...rows);
+	};
+	drawCheck();
 	const insecure = h("input", { type: "checkbox", checked: !!cur.insecure });
 	const secretsBox = h("div");
 	const inputs = {};
@@ -1072,7 +1137,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 	const values = () => {
 		const secrets = {};
 		for (const [k, input] of Object.entries(inputs)) if (input.value !== "") secrets[k] = input.value;
-		return { id: isNew ? undefined : s.id, name: name.value, url: url.value.trim(), urlAway: urlAway.value.trim(), icon: icon.value.trim(), kind: kind.value || null, container: container.value || null, check: check.checked, insecure: insecure.checked, secrets };
+		return { id: isNew ? undefined : s.id, checkType: ck.type, checkTarget: ck.target, keyword: ck.keyword, keywordAbsent: ck.absent, codes: ck.codes, dnsServer: ck.dnsServer, dnsType: ck.dnsType, dnsExpect: ck.dnsExpect, certWarn: ck.cert, name: name.value, url: url.value.trim(), urlAway: urlAway.value.trim(), icon: icon.value.trim(), kind: kind.value || null, container: container.value || null, check: check.checked, insecure: insecure.checked, secrets };
 	};
 	const testBtn = h("button", { class: "btn", onclick: async () => {
 		testBtn.classList.add("busy");
@@ -1111,6 +1176,7 @@ async function serviceForm(s, prefill = {}, onSaved) {
 		h("div", { class: "box" },
 			S.state.docker ? h("div", { class: "field" }, h("label", {}, t("form.container")), container) : null,
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.check")), h("span", { class: "switch" }, check, h("span"))),
+			checkBox,
 			h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("form.insecure"), h("div", { class: "help" }, t("form.insecureHelp"))), h("span", { class: "switch" }, insecure, h("span")))),
 		msg,
 		h("div", { class: "acts" },
@@ -1390,7 +1456,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { api: [2, 2], markets: [2, 2], holidays: [2, 2], countdown: [2, 1], camera: [2, 2], weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1456,6 +1522,11 @@ async function addTileSheet() {
 		content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4M8 14h3'/>", "#9dbcff"), t("ical.title"), t("add.icalSub"), addAndSetUp({ type: "ical", calendars: [] })));
 		content.push(row(glyphLogo("<path d='M5 5a14 14 0 0114 14M5 11a8 8 0 018 8'/><circle cx='6' cy='18' r='1.3'/>", "#ff9f5a"), t("rss.title"), t("add.rssSub"), addAndSetUp({ type: "rss", feeds: [] })));
 		content.push(row(glyphLogo("<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17M7 6.8h.01M9.5 6.8h.01'/>", "#9dbcff"), t("frame.title"), t("add.frameSub"), addAndSetUp({ type: "iframe" })));
+		content.push(row(glyphLogo("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", "#9dbcff"), t("api.title"), t("add.apiSub"), addAndSetUp({ type: "api", api: { url: "", method: "GET", headers: [], fields: [], ttl: 60 } })));
+		content.push(row(glyphLogo("<path d='M4 17l5-5 4 3 7-8'/><path d='M15 7h5v5'/>", "#5fd39a"), t("mk.title"), t("add.marketsSub"), addAndSetUp({ type: "markets", symbols: ["^SSMI"], fx: ["EUR", "USD"], crypto: [], base: "CHF" })));
+		content.push(row(glyphLogo("<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>", "#ff6066"), t("hol.title"), t("add.holidaysSub"), addAndSetUp({ type: "holidays", canton: "ZH" })));
+		content.push(row(glyphLogo("<circle cx='12' cy='13' r='7.5'/><path d='M12 9v4l2.5 2M9.5 2.5h5'/>", "#c792ea"), t("cd.title"), t("add.countdownSub"), addAndSetUp({ type: "countdown", items: [] })));
+		content.push(row(glyphLogo("<rect x='3' y='6' width='13' height='12' rx='2.5'/><path d='M16 10l5-3v10l-5-3'/>", "#9dbcff"), t("cam.title"), t("add.cameraSub"), addAndSetUp({ type: "camera", mode: "snapshot", refresh: 5 })));
 		content.push(row(glyphLogo("link", "#9dbcff"), t("add.links"), t("add.linksSub"), add({ type: "links", links: [] })));
 		content.push(row(glyphLogo("<rect x='5' y='4' width='14' height='16' rx='3'/><path d='M9 9h6M9 13h6M9 17h3'/>", "#f5b83d"), t("add.notes"), t("add.notesSub"), add({ type: "notes", notes: [] })));
 		const mine = services().map((s) => row(logo(s), s.name, s.url.replace(/^https?:\/\//, ""), add({ type: "service", service: s.id }), onBoard((x) => x.type === "service" && x.service === s.id) && t("add.onBoard")));
@@ -1522,7 +1593,7 @@ function linksSheet(tile) {
 
 // ---------- tile options ----------
 
-const OPTION_TILES = ["links", "weather", "clock", "ical", "rss", "iframe", "disks"];
+const OPTION_TILES = ["links", "weather", "clock", "ical", "rss", "iframe", "disks", "api", "markets", "holidays", "countdown", "camera"];
 
 // Changes a tile: while editing in the edited copy, else right on the board.
 function updateTile(id, patch) {
@@ -1545,6 +1616,7 @@ function updateTile(id, patch) {
 
 function tileOptions(tile) {
 	if (tile.type === "links") return linksSheet(tile);
+	if (MORE_OPTIONS[tile.type]) return MORE_OPTIONS[tile.type](tile);
 	const sheet = openSheet();
 	const title = h("input", { class: "input", value: tile.title || "", placeholder: t(`${tile.type === "iframe" ? "frame" : tile.type}.title`), maxlength: 40 });
 	const titleBox = h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title));
@@ -1575,27 +1647,29 @@ function tileOptions(tile) {
 	if (tile.type === "clock") {
 		sheet.head(h("div", { class: "tt" }, h("b", {}, t("clk.title"))));
 		const sec = h("input", { type: "checkbox", checked: !!tile.seconds });
+		const face = h("select", { class: "input" }, [["digital", t("clk.digital")], ["analog", t("clk.analog")]].map(([v, l]) => h("option", { value: v, selected: (tile.analog ? "analog" : "digital") === v }, l)));
 		const zones = (tile.zones || []).map((z) => ({ ...z }));
-		const all = (Intl.supportedValuesOf && Intl.supportedValuesOf("timeZone")) || [];
-		const dl = h("datalist", { id: "tz-list" }, all.map((z) => h("option", { value: z })));
-		const list = h("div");
+		const list = h("div", { class: "zone-list" });
+		const timeIn = (zone) => new Date().toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", timeZone: zone });
 		const draw = () =>
 			list.replaceChildren(
 				...zones.map((z, i) =>
-					h("div", { class: "link-edit" },
-						h("input", { class: "input", value: z.name, placeholder: t("clk.placeName"), oninput: (e) => (z.name = e.target.value) }),
-						h("input", { class: "input", value: z.zone, placeholder: "America/New_York", list: "tz-list", autocapitalize: "off", spellcheck: "false", oninput: (e) => (z.zone = e.target.value.trim()) }),
+					h("div", { class: "zone-row" },
+						h("div", { class: "zone-time num" }, timeIn(z.zone)),
+						h("input", { class: "input", value: z.name, placeholder: cityOf(z.zone), oninput: (e) => (z.name = e.target.value) }),
+						h("span", { class: "faint sm zone-id" }, z.zone.replace(/_/g, " ")),
 						h("button", { class: "x row-x", onclick: () => (zones.splice(i, 1), draw()), html: UI.x }))
 				),
-				zones.length < 4 ? h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (zones.push({ name: "", zone: "" }), draw()) }, html(UI.plus), t("clk.addZone"))) : null
+				zones.length < 4 ? zonePicker((z) => (zones.push(z), draw())) : null
 			);
 		draw();
 		sheet.body.append(
-			dl,
-			h("div", { class: "box" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("clk.seconds")), h("span", { class: "switch" }, sec, h("span")))),
+			h("div", { class: "box" },
+				h("div", { class: "field" }, h("label", {}, t("clk.face")), face),
+				h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("clk.seconds")), h("span", { class: "switch" }, sec, h("span")))),
 			h("div", { class: "sec" }, t("clk.zones")),
 			h("div", { class: "box" }, list),
-			saveBtn(() => ({ seconds: sec.checked, zones: zones.filter((z) => z.zone && (!all.length || all.includes(z.zone))) }))
+			saveBtn(() => ({ seconds: sec.checked, analog: face.value === "analog", zones: zones.filter((z) => z.zone) }))
 		);
 		return;
 	}
@@ -1647,6 +1721,34 @@ function tileOptions(tile) {
 	sheet.body.append(titleBox, saveBtn(() => ({})));
 }
 
+// Time zones by city: "Tok" finds Tokio, "New Y" New York – with the time there right now.
+const CITY_DE = { "Asia/Tokyo": "Tokio", "Asia/Shanghai": "Peking", "Europe/Moscow": "Moskau", "Europe/Rome": "Rom", "Africa/Cairo": "Kairo", "Europe/Lisbon": "Lissabon", "Europe/Prague": "Prag", "Europe/Warsaw": "Warschau", "Europe/Vienna": "Wien", "Europe/Brussels": "Brüssel", "Europe/Copenhagen": "Kopenhagen", "Europe/Athens": "Athen", "Asia/Singapore": "Singapur", "Asia/Kolkata": "Indien", "America/Mexico_City": "Mexiko-Stadt", "Asia/Hong_Kong": "Hongkong", "Asia/Taipei": "Taipeh", "Europe/Kyiv": "Kiew", "Europe/Kiev": "Kiew" };
+const cityOf = (zone) => (LANG === "de" && CITY_DE[zone]) || String(zone || "").split("/").pop().replace(/_/g, " ");
+function zonePicker(onPick) {
+	const all = (Intl.supportedValuesOf && Intl.supportedValuesOf("timeZone")) || [];
+	const input = h("input", { class: "input", placeholder: t("clk.searchPh"), autocomplete: "off", spellcheck: "false" });
+	const hits = h("div", { class: "place-hits zone-hits" });
+	const norm = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[_\s-]+/g, " ");
+	// matches at the start of the city name first
+	const rank = (x, q) => norm(x.city).indexOf(q) + 1 || 99;
+	const find = () => {
+		const q = norm(input.value.trim());
+		if (q.length < 2) return hits.replaceChildren();
+		const found = all
+			.map((z) => ({ z, city: cityOf(z), en: z.split("/").pop().replace(/_/g, " ") }))
+			.filter((x) => norm(x.city).includes(q) || norm(x.en).includes(q) || norm(x.z).includes(q))
+			.sort((a, b) => rank(a, q) - rank(b, q))
+			.slice(0, 8);
+		hits.replaceChildren(
+			...(found.length
+				? found.map((x) => h("button", { class: "place-hit", onclick: () => ((input.value = ""), hits.replaceChildren(), onPick({ name: x.city, zone: x.z })) }, h("b", {}, x.city), h("span", { class: "faint" }, x.z.split("/")[0].replace(/_/g, " ")), h("span", { class: "num zone-now" }, new Date().toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", timeZone: x.z }))))
+				: [h("div", { class: "help" }, t("wx.noHits"))])
+		);
+	};
+	input.addEventListener("input", find);
+	return h("div", { class: "zone-add" }, input, hits);
+}
+
 // Search a place by name (Open-Meteo), pick one of the hits.
 function placePicker(onPick) {
 	const input = h("input", { class: "input", placeholder: t("wx.searchPh"), onkeydown: (e) => e.key === "Enter" && (e.preventDefault(), find()) });
@@ -1674,6 +1776,18 @@ function placePicker(onPick) {
 // Clocks tick every second; only their text changes, the tile isn't redrawn.
 function tickClocks() {
 	const now = new Date();
+	for (const el of document.querySelectorAll("[data-analog]")) {
+		const hh = now.getHours() % 12;
+		const mm = now.getMinutes();
+		const ss = now.getSeconds();
+		const set = (sel, deg) => {
+			const hand = el.querySelector(sel);
+			if (hand) hand.setAttribute("transform", `rotate(${deg} 50 50)`);
+		};
+		set(".ah", hh * 30 + mm / 2);
+		set(".am", mm * 6 + ss / 10);
+		set(".as", ss * 6);
+	}
 	for (const el of document.querySelectorAll("[data-clock]")) {
 		const sec = el.hasAttribute("data-sec");
 		const time = now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", ...(sec ? { second: "2-digit" } : {}) });
@@ -1921,10 +2035,15 @@ function settingsSheet() {
 				}
 			}), h("div", { class: "help" }, t("settings.placeHelp")))),
 		h("div", { class: "sec" }),
+		h("div", { class: "box rows settings-more" },
+			h("button", { onclick: () => (sheet.close(), alertsSheet()) }, html(`<span class="logo" style="--c:#f5b83d">${svg("<path d='M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("al.title")), h("div", { class: "sub" }, S.state.notify ? t("settings.notifyOn") : t("al.none"))), h("span", { class: "plus" }, "›")),
+			h("button", { onclick: () => (sheet.close(), configSheet()) }, html(`<span class="logo" style="--c:#9dbcff">${svg("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("cfg.title")), h("div", { class: "sub" }, t("cfg.sub"))), h("span", { class: "plus" }, "›")),
+			h("button", { onclick: () => (sheet.close(), kioskSheet()) }, html(`<span class="logo" style="--c:#5fd39a">${svg("<rect x='3' y='4' width='18' height='13' rx='2.5'/><path d='M8 21h8M12 17v4'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("ki.title")), h("div", { class: "sub" }, t("ki.sub"))), h("span", { class: "plus" }, "›"))),
+		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
 			h("div", {}, h("span", {}, t("settings.docker")), h("span", {}, S.state.docker ? t("settings.dockerOn") : t("settings.dockerOff"))),
 			h("div", {}, h("span", {}, t("settings.checks")), h("span", {}, t("settings.checksEvery", { n: S.state.checkSeconds }))),
-			h("div", {}, h("span", {}, t("settings.notify")), h("span", {}, S.state.notify ? t("settings.notifyOn") : t("settings.notifyOff"))),
+
 			h("div", {}, h("span", {}, t("settings.version")), h("span", {}, S.state.version))),
 		S.state.auth ? h("div", { class: "acts" }, h("button", { class: "btn", onclick: async () => (await fetch("/api/logout", { method: "POST" }), location.reload()) }, t("settings.logout"))) : null
 	);
