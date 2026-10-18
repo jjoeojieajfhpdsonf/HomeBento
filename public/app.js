@@ -1394,6 +1394,10 @@ function cleanNotes(body) {
 		// "[a3f68](…/commit/…)", "(a3f68)" after a point
 		.replace(/\s*\[?\(?\b[0-9a-f]{5,12}\b\)?\]?\(https:\/\/github\.com\/[^)]+\/commit\/[0-9a-f]+\)/gi, "")
 		.replace(/\s*\(\b[0-9a-f]{5,12}\b\)\s*$/gim, "")
+		// list points that start with a full commit hash (LinuxServer, release-drafter)
+		.replace(/^(\s*[-*]\s+)[0-9a-f]{7,40}\s+/gim, "$1")
+		// "compare/v1...v2" links: short
+		.replace(/(?<!\()https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/compare\/\S+/g, (u) => `[${t("rel.compare")}](${u})`)
 		// links to issues and pull requests: #123
 		.replace(/(?<!\()https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:issues|pull)\/(\d+)(?:#[\w-]+)?/g, (u, n) => `[#${n}](${u})`)
 		.replace(/[ \t]+-[ \t]+by /g, " – by ")

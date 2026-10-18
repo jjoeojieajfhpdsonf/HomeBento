@@ -246,12 +246,40 @@ function moreLines(s, st, d) {
 const notesText = (tile) => (typeof tile.text === "string" ? tile.text : (tile.notes || []).map((n) => `- [${n.done ? "x" : " "}] ${n.text}`).join("\n"));
 
 // A small, safe Markdown: headings, lists, tasks (- [ ] / - [x]), **bold**, *italic*, `code`, links.
+// *italic*, **bold**, ***both*** – also nested ("**bold *and italic***"). A star opens when text
+// follows it and closes when text comes before it; anything that doesn't add up stays as typed.
+function emphasis(s) {
+	const parts = s.split(/(\*{1,3})/);
+	const open = [];
+	let out = "";
+	for (let i = 0; i < parts.length; i++) {
+		const p = parts[i];
+		if (!/^\*+$/.test(p)) {
+			out += p;
+			continue;
+		}
+		const before = out.slice(-1);
+		const after = (parts[i + 1] || "").charAt(0);
+		const canClose = before && !/\s/.test(before);
+		const canOpen = after && !/\s/.test(after);
+		const tags = p.length === 3 ? ["b", "i"] : p.length === 2 ? ["b"] : ["i"];
+		if (canClose && tags.every((tg) => open.includes(tg))) {
+			// close the innermost first
+			for (const tg of [...open].reverse().filter((x) => tags.includes(x))) {
+				out += `</${tg}>`;
+				open.splice(open.lastIndexOf(tg), 1);
+			}
+		} else if (canOpen && !tags.some((tg) => open.includes(tg))) {
+			for (const tg of tags) (out += `<${tg}>`), open.push(tg);
+		} else out += p;
+	}
+	// something left open: show the text as it was typed
+	return open.length ? s : out;
+}
+
 function markdown(src) {
 	const inline = (s) =>
-		esc(s)
-			.replace(/`([^`]+)`/g, "<code>$1</code>")
-			.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
-			.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>")
+		emphasis(esc(s).replace(/`([^`]+)`/g, "<code>$1</code>"))
 			.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
 			.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
 	const out = [];
