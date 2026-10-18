@@ -357,13 +357,21 @@ const TILES = {
 	},
 
 	uptime(tile, x) {
-		const list = x.services().filter((s) => s.check !== false && s.url);
-		const n = Math.max(1, tile.h * 4 - 1);
+		// problems first, then by name; one compact row each with the 24 h share on the right
+		const score = (s) => {
+			const u = (x.live.status[s.id] || {}).uptime;
+			return u === null || u === undefined ? 101 : u;
+		};
+		const list = x.services().filter((s) => s.check !== false && s.url).sort((a, b) => score(a) - score(b) || a.name.localeCompare(b.name));
+		const n = Math.max(1, tile.h * 6 - 2);
 		const rows = list.slice(0, n).map((s) => {
+			const u = (x.live.status[s.id] || {}).uptime;
 			const cells = (x.live.hours[s.id] || []).map((b) => `<i class="${b.ok === null ? "" : b.ok >= 0.999 ? "ok" : b.ok > 0 ? "part" : "bad"}"></i>`).join("");
-			return `<span class="nm">${esc(s.name)}</span><div class="cells">${cells}</div>`;
+			return `<span class="nm">${esc(s.name)}</span><div class="cells">${cells}</div><span class="pc${u !== null && u !== undefined && u < 99 ? " warn" : ""}">${u === null || u === undefined ? "–" : `${nf(u, u === 100 ? 0 : 1)} %`}</span>`;
 		});
-		return { c: "#5fd39a", html: `<div class="th"><span class="n">${t("uptime.title")}</span><span class="meta">${t("uptime.hours")}</span></div>${rows.length ? `<div class="heat">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("uptime.none")}</div>`}` };
+		const more = list.length > n ? `<div class="sm faint">${t("uptime.more", { n: list.length - n })}</div>` : "";
+		const legend = `<div class="heat-legend"><i class="ok"></i>${t("uptime.ok")}<i class="part"></i>${t("uptime.part")}<i class="bad"></i>${t("uptime.bad")}<i></i>${t("uptime.noData")}</div>`;
+		return { c: "#5fd39a", html: `<div class="th"><span class="n">${t("uptime.title")}</span><span class="meta">${t("uptime.hours")}</span></div>${rows.length ? `<div class="heat">${rows.join("")}</div>${more}<div class="bottom">${legend}</div>` : `<div class="sm faint bottom">${t("uptime.none")}</div>`}` };
 	},
 
 	jellyfin(tile, x) {
