@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 – 2026-10-18
+
+- Six tile columns again on desktop (like the prototype): wide and tall tiles fit without gaps.
+
 ## 0.7.2 – 2026-10-18
 
 - Service list: filter by area (All · one chip per page) above the list on the first page.
