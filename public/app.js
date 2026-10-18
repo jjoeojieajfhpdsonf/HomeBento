@@ -1527,7 +1527,31 @@ async function addTileSheet() {
 	// also from the command palette: adding happens in edit mode
 	if (!S.editing) toggleEdit();
 	const sheet = openSheet();
-	sheet.head(h("div", { class: "tt" }, h("b", {}, t("add.title"))));
+	// a search over everything below: suggestions, services, tiles
+	const search = h("input", { class: "input add-search", type: "search", placeholder: t("add.searchPh"), autocomplete: "off", spellcheck: "false", oninput: () => applySearch() });
+	sheet.head(h("div", { class: "tt add-head" }, h("b", {}, t("add.title")), search));
+	setTimeout(() => search.focus(), 250);
+	const applySearch = () => {
+		const q = search.value.trim().toLowerCase();
+		const words = q.split(/\s+/).filter(Boolean);
+		let any = false;
+		for (const box of sheet.body.querySelectorAll(".box.rows")) {
+			let shown = 0;
+			for (const r of box.children) {
+				const hit = !words.length || words.every((w) => r.textContent.toLowerCase().includes(w));
+				r.style.display = hit ? "" : "none";
+				if (hit) shown++;
+			}
+			box.style.display = shown ? "" : "none";
+			const sec = box.previousElementSibling;
+			if (sec && sec.classList.contains("sec")) sec.style.display = shown ? "" : "none";
+			if (shown) any = true;
+		}
+		let none = sheet.body.querySelector(".add-none");
+		if (!any && words.length) {
+			if (!none) sheet.body.append((none = h("div", { class: "note add-none" }, t("add.nothing"))));
+		} else if (none) none.remove();
+	};
 	const onBoard = (pred) => S.tiles.some(pred);
 	const row = (logoHtml, title, sub, onclick, done) =>
 		h("button", { disabled: !!done, onclick }, html(logoHtml), h("div", { class: "grow" }, h("div", { class: "title" }, title), sub ? h("div", { class: "sub" }, sub) : null), done ? h("span", { class: "done" }, done) : h("span", { class: "plus" }, "+"));
@@ -1590,6 +1614,7 @@ async function addTileSheet() {
 			h("div", { class: "sec" }, t("add.content")),
 			h("div", { class: "box rows" }, content)
 		);
+		applySearch();
 	};
 	const loadDocker = async () => {
 		if (!S.state.docker) return dockerBox.replaceChildren(h("div", { class: "row" }, h("span", { class: "sub" }, t("add.dockerOff"))));
@@ -1609,6 +1634,7 @@ async function addTileSheet() {
 				)
 			)
 		);
+		applySearch();
 	};
 	draw();
 	loadDocker();

@@ -899,3 +899,9 @@ body.wide .wrap { max-width: none; }
 .upd-ver .arrow { color: var(--faint); font-size: 16px; }
 .upd-ver .new { color: var(--accent); }
 .upd-builds { margin-top: 4px; font-size: 11.5px; color: var(--faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+
+/* adding: the title with a search beside it */
+.add-head { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+.add-head b { flex: none; }
+.add-search { flex: 1; min-width: 0; max-width: 340px; padding: 8px 12px; }
+.add-none { margin-top: 12px; }
