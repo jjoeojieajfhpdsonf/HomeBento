@@ -263,7 +263,10 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	if (types.has("network")) extra.net = host.history.slice(-180).map((p) => [p[0], p[4], p[5]]);
 	if (types.has("ical")) {
 		extra.ical = {};
-		await Promise.all(board.tiles.filter((x) => x.type === "ical" && (x.calendars || []).length).map(async (t) => (extra.ical[t.id] = await widgets.calendars(t.calendars))));
+		await Promise.all(board.tiles.filter((x) => x.type === "ical" && (x.calendars || []).length).map(async (t) => (extra.ical[t.id] = await widgets.calendars(t.calendars.map((c) => {
+			const sec = store.secretsOf(`tile:${t.id}`);
+			return { ...c, user: sec[`${c.id}:user`], password: sec[`${c.id}:password`] };
+		})))));
 	}
 	if (types.has("rss")) {
 		extra.rss = {};
@@ -636,6 +639,7 @@ route("POST", "/api/settings", (body) => {
 	if (body.location !== undefined) store.setLocation(body.location);
 	if (body.title !== undefined) store.setTitle(body.title);
 	if (body.layout !== undefined) store.setLayout(body.layout);
+	if (body.width !== undefined) store.setWidth(body.width);
 });
 
 // ---------- server ----------

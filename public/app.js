@@ -108,6 +108,7 @@ function render() {
 			h("div", { id: "svc-list" }))
 	);
 	document.title = S.state.config.title || t("app.title");
+	document.body.classList.toggle("wide", S.state.config.width === "wide");
 	renderGrid();
 }
 
@@ -1614,7 +1615,7 @@ function updateTile(id, patch) {
 	renderGrid();
 }
 
-function tileOptions(tile) {
+async function tileOptions(tile) {
 	if (tile.type === "links") return linksSheet(tile);
 	if (MORE_OPTIONS[tile.type]) return MORE_OPTIONS[tile.type](tile);
 	const sheet = openSheet();
@@ -1679,7 +1680,12 @@ function tileOptions(tile) {
 		sheet.head(h("div", { class: "tt" }, h("b", {}, t(ical ? "ical.title" : "rss.title"))));
 		const COLORS = ["#9dbcff", "#5fd39a", "#f5b83d", "#ff8a65", "#c792ea", "#4dd0e1"];
 		const items = ((ical ? tile.calendars : tile.feeds) || []).map((c) => ({ ...c }));
+		// private calendars: a login per calendar (stays on the server)
+		const logins = {};
+		const hasLogin = ical && tile.id ? ((await api("GET", `/api/tiles/${tile.id}/secrets`).catch(() => ({ secrets: {} }))).secrets || {}) : {};
 		const list = h("div");
+
+
 		const draw = () =>
 			list.replaceChildren(
 				...items.map((c, i) =>
@@ -1687,7 +1693,8 @@ function tileOptions(tile) {
 						ical ? h("input", { type: "color", class: "color-in", value: c.color || COLORS[i % COLORS.length], oninput: (e) => (c.color = e.target.value) }) : null,
 						h("input", { class: "input", value: c.name || "", placeholder: t("links.name"), oninput: (e) => (c.name = e.target.value) }),
 						h("input", { class: "input", value: c.url || "", placeholder: ical ? "https://… .ics · webcal://…" : "https://…/rss", inputmode: "url", autocapitalize: "off", spellcheck: "false", oninput: (e) => (c.url = e.target.value.trim()) }),
-						h("button", { class: "x row-x", onclick: () => (items.splice(i, 1), draw()), html: UI.x }))
+						h("button", { class: "x row-x", onclick: () => (items.splice(i, 1), draw()), html: UI.x }),
+						ical ? calLogin(c) : null)
 				),
 				h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (items.push({ name: "", url: "", color: COLORS[items.length % COLORS.length] }), draw()) }, html(UI.plus), t(ical ? "ical.add" : "rss.add")))
 			);
@@ -1701,7 +1708,19 @@ function tileOptions(tile) {
 			h("div", { class: "box" }, list),
 			chips,
 			h("div", { class: "help", style: "margin:8px 2px 0" }, t(ical ? "ical.help" : "rss.help")),
-			saveBtn(() => (ical ? { calendars: items.filter((c) => c.url) } : { feeds: items.filter((c) => c.url) }))
+			ical
+				? h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: async () => {
+						for (const c of items) c.id = c.id || hex10();
+						updateTile(tile.id, { title: title.value.trim() || undefined, calendars: items.filter((c) => c.url) });
+						const secrets = Object.fromEntries(Object.entries(logins).flatMap(([cid, l]) => [[`${cid}:user`, l.user], [`${cid}:password`, l.password]]).filter(([, v]) => v !== undefined));
+						if (Object.keys(secrets).length) {
+							if (!(await savePageNow())) return;
+							await guard(() => api("POST", `/api/tiles/${tile.id}/secrets`, { secrets }));
+						}
+						sheet.close();
+						loadLive();
+					} }, t("form.save")))
+				: saveBtn(() => ({ feeds: items.filter((c) => c.url) }))
 		);
 		return;
 	}
@@ -2026,6 +2045,14 @@ function settingsSheet() {
 					}
 				} }, [["tiles", t("settings.layoutTiles")], ["combined", t("settings.layoutCombined")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.layout || "tiles") === v }, l))),
 				h("div", { class: "help" }, t("settings.layoutHelp"))),
+			h("div", { class: "field" }, h("label", {}, t("settings.width")),
+				h("select", { class: "input", onchange: async (e) => {
+					if (await guard(() => api("POST", "/api/settings", { width: e.target.value }))) {
+						await loadState();
+						render();
+					}
+				} }, [["normal", t("settings.widthNormal")], ["wide", t("settings.widthWide")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.width || "normal") === v }, l))),
+				h("div", { class: "help" }, t("settings.widthHelp"))),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
 				if (await guard(() => api("POST", "/api/settings", { location: p }))) {

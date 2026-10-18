@@ -844,3 +844,11 @@ body.ki-idle .ki-exit { opacity: 0; }
 .svc-col-items { column-gap: 6px; }
 .svc-col-items .svc-mini { break-inside: avoid; }
 @media (max-width: 1050px) { .svc-cols { grid-template-columns: 1fr 1fr !important; } .svc-col { grid-column: span 1 !important; } .svc-col-items { column-count: 1 !important; } }
+
+.link-edit .cal-login { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.link-edit .cal-login .input { flex: 1; min-width: 140px; }
+
+/* the whole screen: no max width; more columns on big screens instead of wider tiles */
+body.wide .wrap { max-width: none; padding-left: 36px; padding-right: 36px; }
+@media (min-width: 1900px) { body.wide .bento { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (min-width: 2600px) { body.wide .bento { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
