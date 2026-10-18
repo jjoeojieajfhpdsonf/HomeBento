@@ -511,17 +511,37 @@ const TILES = {
 		return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 	},
 
-	// myStrom plugs: power now and a switch per device
+	// myStrom plugs: the power now, then one small card per device with its switch
 	mystrom(tile, x) {
 		const s = x.service(tile.service) || x.ofKind("mystrom")[0];
 		if (!s) return { html: `<div class="th"><span class="n">myStrom</span></div>` };
 		const d = x.live.data[s.id];
-		const head = (meta) => `<div class="th">${logo(s)}<span class="n">${esc(s.name)}</span><span class="meta">${meta}</span></div>`;
-		if (!d || !d.data) return { c: colorOf(s), html: head("") + setupHint(s, d) };
+		const on = d && d.data ? d.data.devices.filter((dev) => dev.online && dev.on).length : 0;
+		const head = `<div class="th">${logo(s)}<span class="n">${esc(s.name)}</span><span class="meta">${d && d.data ? t("ms.onOf", { a: on, b: d.data.devices.length }) : ""}</span></div>`;
+		if (!d || !d.data) return { c: colorOf(s), html: head + setupHint(s, d) };
 		const v = d.data;
-		const rows = v.devices.slice(0, tile.h * 3).map((dev) => `<div class="ms-row${dev.online ? "" : " off"}"><span class="ms-name">${esc(dev.name)}</span><span class="ms-w num">${dev.online ? (dev.w !== null ? `${nf(dev.w, dev.w < 10 ? 1 : 0)} W` : "") : t("ms.offline")}</span>${dev.switchable && dev.online ? `<label class="switch small" data-ms-mac="${esc(dev.mac)}"><input type="checkbox" ${dev.on ? "checked" : ""}><span></span></label>` : ""}</div>`);
-		const cost = v.todayWh !== null && v.price ? ` · ${nf((v.todayWh / 1000) * v.price, 2)} CHF` : "";
-		return { c: colorOf(s), cls: "ms-tile", html: `${head(`${nf(v.watts, 0)} W`)}<div class="ms-list">${rows.join("")}</div><div class="sm faint bottom">${v.todayWh !== null ? t("ms.today", { v: fmtWh(v.todayWh) }) + cost : ""}</div>` };
+		const sw = (dev) => (dev.switchable && dev.online ? `<label class="switch small" data-ms-mac="${esc(dev.mac)}"><input type="checkbox" ${dev.on ? "checked" : ""}><span></span></label>` : "");
+		const watt = (w) => (w === null || w === undefined ? "–" : nf(w, w < 10 ? 1 : 0));
+		const cost = v.todayWh !== null && v.price ? `${nf((v.todayWh / 1000) * v.price, 2)} CHF` : "";
+		const hero = `<div class="ms-hero"><div class="big num">${nf(v.watts, 0)}<small> W</small></div><div class="ms-today">${v.todayWh !== null ? `<div class="num">${fmtWh(v.todayWh)}</div><div class="faint">${t("ms.todayShort")}${cost ? ` · ${cost}` : ""}</div>` : ""}</div></div>`;
+		// small tile: a plain list
+		if (tile.w === 1 || tile.h === 1) {
+			const rows = v.devices.slice(0, tile.h * 3).map((dev) => `<div class="ms-row${dev.online ? "" : " off"}"><span class="ms-name">${esc(dev.name)}</span><span class="ms-w num">${dev.online ? `${watt(dev.w)} W` : t("ms.offline")}</span>${sw(dev)}</div>`);
+			return { c: colorOf(s), cls: "ms-tile", html: `${head}<div class="ms-list">${rows.join("")}</div>` };
+		}
+		// who draws how much: one bar, a colour per device (the same dot on its card)
+		const HUES = ["#f5b83d", "#9dbcff", "#5fd39a", "#ff8a65", "#c792ea", "#4dd0e1", "#ffd54f", "#f48fb1"];
+		const hue = (i) => HUES[i % HUES.length];
+		const total = v.devices.reduce((a, dev) => a + (dev.online && dev.w > 0 ? dev.w : 0), 0);
+		const share = total > 0 ? `<div class="ms-share">${v.devices.map((dev, i) => (dev.online && dev.w > 0 ? `<i style="width:${((dev.w / total) * 100).toFixed(1)}%;background:${hue(i)}" title="${esc(dev.name)} · ${watt(dev.w)} W"></i>` : "")).join("")}</div>` : "";
+		const cols = Math.min(tile.w === 2 ? 2 : 3, Math.max(1, v.devices.length));
+		const max = cols * Math.max(1, tile.h * 2 - (tile.h > 1 ? 2 : 1));
+		const cards = v.devices.slice(0, max).map((dev) => {
+			const state = !dev.online ? "off" : dev.on ? "on" : "idle";
+			const sub = [dev.room, dev.online && dev.on && dev.onSince ? t("status.since", { t: fmtDuration(Date.now() - dev.onSince) }) : ""].filter(Boolean).join(" · ");
+			return `<div class="ms-card ${state}"><div class="ms-top"><span class="ms-dot" style="background:${hue(v.devices.indexOf(dev))}"></span><span class="ms-name" title="${esc(dev.name)}">${esc(dev.name)}</span>${sw(dev)}</div><div class="ms-sub">${esc(sub || " ")}</div><div class="ms-bottom"><span class="ms-w num">${dev.online ? `${watt(dev.w)}<small> W</small>` : `<small>${t("ms.offline")}</small>`}</span>${dev.todayWh !== null ? `<span class="ms-kwh num">${fmtWh(dev.todayWh)}</span>` : ""}</div></div>`;
+		});
+		return { c: colorOf(s), cls: "ms-tile", html: `${head}${hero}${share}<div class="ms-cards" style="--mc:${cols}">${cards.join("")}</div>` };
 	},
 
 	// the solar day as a balance: produced, used, own share, grid, battery

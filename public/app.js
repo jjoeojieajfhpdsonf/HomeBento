@@ -94,7 +94,8 @@ async function loadLive() {
 
 // ---------- layout ----------
 
-const combined = () => S.state.config.layout === "combined" && !S.editing;
+// the combined layout stays while editing: what you edit looks like what you see
+const combined = () => S.state.config.layout === "combined";
 
 function render() {
 	const app = $("#app");
@@ -281,10 +282,12 @@ function renderServiceList() {
 		const hours = (live.hours && live.hours[s.id]) || [];
 		const up = st.uptime !== null && st.uptime !== undefined ? `${nf(st.uptime, st.uptime === 100 ? 0 : 1)} %` : "–";
 		const hasDips = hours.some((b) => b.ok !== null && b.ok < 0.999);
-		const acts = `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
+		const acts = S.editing
+			? `<div class="svc-acts on">${first ? "" : `<button class="ib" data-svc-act="unpin" title="${t("list.unpin")}">${svg("<path d='M6 6l12 12M18 6L6 18'/>", 2.2)}</button>`}</div>`
+			: `<div class="svc-acts">${s.container ? `<button class="ib" data-svc-act="${st.status === "down" ? "start" : "restart"}" title="${t(st.status === "down" ? "sheet.start" : "sheet.restart")}">${svg("<path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/>", 2)}</button><button class="ib" data-svc-act="logs" title="${t("sheet.logs")}">${svg("<path d='M5 6h14M5 12h14M5 18h9'/>", 2)}</button>` : ""}<button class="ib" data-svc-act="details" title="${t("sheet.details")}">${svg("<circle cx='12' cy='12' r='8.5'/><path d='M12 11v5M12 8h.01'/>", 2)}</button></div>`;
 		return `${logo(s)}<div class="svc-name"><div class="n">${esc(s.name)} ${tag}</div><div class="s">${esc(sub)}</div></div><div class="svc-info${st.status === "down" ? " bad" : d && d.error ? " warn" : ""}" title="${esc(info)}">${esc(info)}</div><div class="svc-spark${hasDips ? " dips" : ""}">${spark(hours.map((b) => b.ms))}</div><div class="svc-ms num">${fmtMs(st.ms)}</div><div class="svc-up num">${up}</div>${acts}`;
 	};
-	const key = `${S.listFilter || ""}|${groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|")}`;
+	const key = `${S.editing ? "e" : ""}${S.listFilter || ""}|${groups.map((g) => `${g.name}:${g.items.map((s) => s.id).join(",")}`).join("|")}`;
 	if (el.dataset.key !== key) {
 		el.dataset.key = key;
 		const chips = first && all.length > 1
@@ -319,6 +322,15 @@ document.addEventListener("click", (e) => {
 	const s = serviceById(row.dataset.sid);
 	if (!s) return;
 	const b = e.target.closest("[data-svc-act]");
+	if (S.editing) {
+		// editing: the list only takes services off this page
+		if (b && b.dataset.svcAct === "unpin") {
+			S.tiles = S.tiles.filter((x) => x.service !== s.id || x.type !== "service");
+			saveTiles();
+			renderGrid();
+		}
+		return;
+	}
 	if (b) {
 		const a = b.dataset.svcAct;
 		if (a === "logs") return logsSheet(s);

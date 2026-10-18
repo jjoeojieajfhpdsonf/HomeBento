@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.2 – 2026-10-18
+
+- Edit mode keeps the combined layout: the same tiles as in the view, the service list stays (on other pages with "take off this page").
+- myStrom tile: total power and today's energy on top, a bar of who draws how much, and a card per device (room, power, energy today, switch).
+
 ## 0.11.1 – 2026-10-18
 
 - Services open without a referrer: qBittorrent (and others with CSRF protection) answered "Unauthorized" when opened from HomeBento.
