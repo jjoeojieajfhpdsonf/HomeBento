@@ -1,0 +1,18 @@
+services:
+  service-dashboard:
+    build: .
+    container_name: service-dashboard
+    restart: unless-stopped
+    # host network: the dashboard reaches every service the way you do, and sees the host's name
+    network_mode: host
+    environment:
+      - PORT=8095
+      - TZ=Europe/Zurich
+      - HOST_ROOT=/host            # disk usage of the host instead of the container
+      # - PASSWORD=change-me       # optional login
+      # - NOTIFY_URL=https://ntfy.sh/your-topic   # optional push when a service goes down
+      # - CHECK_SECONDS=60
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock   # list, start, stop, restart containers, logs
+      - /:/host:ro

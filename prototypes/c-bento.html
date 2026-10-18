@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Bento</title>
+<style>
+:root {
+	--bg: #101012; --tile: #1a1a1d; --tile-2: #222226; --line: rgba(255,255,255,.06);
+	--text: #f2f2f3; --muted: #9a9aa2; --faint: #63636b;
+	--ok: #5fd39a; --warn: #f5b83d; --bad: #ff6066; --accent: #9dbcff;
+}
+* { box-sizing: border-box; margin: 0; }
+html { color-scheme: dark; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 22px 22px 60px; }
+
+.bar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.bar h1 { font-size: 20px; font-weight: 650; }
+.tabs { display: flex; gap: 4px; background: var(--tile); padding: 4px; border-radius: 12px; margin-left: 18px; }
+.tabs button { padding: 6px 12px; border-radius: 9px; color: var(--muted); font-weight: 550; font-size: 13px; }
+.tabs button.on { background: var(--tile-2); color: var(--text); }
+.bar .sp { flex: 1; }
+.btn { padding: 7px 14px; border-radius: 10px; background: var(--tile); font-weight: 550; font-size: 13px; }
+.btn.on { background: var(--accent); color: #0b1530; }
+
+/* bento grid */
+.bento { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 118px; grid-auto-flow: dense; gap: 12px; }
+.t { background: var(--tile); border-radius: 22px; padding: 14px 16px; position: relative; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform .18s, box-shadow .18s; }
+.t:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+.t.s1 { grid-column: span 1; } .t.s2 { grid-column: span 2; } .t.s3 { grid-column: span 3; }
+.t.h2 { grid-row: span 2; } .t.h3 { grid-row: span 3; }
+/* a hint of the service colour, top-left */
+.t::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c, transparent) 14%, transparent), transparent 60%); pointer-events: none; }
+.th { display: flex; align-items: center; gap: 9px; position: relative; }
+.th .n { font-weight: 600; font-size: 13.5px; }
+.th .meta { margin-left: auto; color: var(--faint); font-size: 12px; }
+.logo { width: 26px; height: 26px; border-radius: 8px; background: var(--tile-2); display: grid; place-items: center; overflow: hidden; flex: none; font-weight: 700; font-size: 13px; color: var(--c); }
+.logo img { width: 17px; height: 17px; }
+.logo.glyph svg { width: 16px; height: 16px; color: var(--c); }
+.big { font-size: 30px; font-weight: 620; letter-spacing: -.02em; line-height: 1.1; }
+.big small { font-size: 15px; color: var(--muted); font-weight: 500; }
+.muted { color: var(--muted); } .faint { color: var(--faint); }
+.sm { font-size: 12.5px; }
+.bottom { margin-top: auto; position: relative; }
+.tag { font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 99px; }
+.tag.bad { background: rgba(255,96,102,.14); color: var(--bad); }
+.tag.warn { background: rgba(245,184,61,.14); color: var(--warn); }
+.tag.upd { background: rgba(157,188,255,.12); color: var(--accent); }
+
+/* small app tiles */
+.mini { align-items: flex-start; justify-content: space-between; }
+.mini .logo { width: 34px; height: 34px; border-radius: 10px; }
+.mini .logo img { width: 22px; height: 22px; }
+.mini .n { font-weight: 600; font-size: 13.5px; }
+.mini .s { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.mini.down .logo { filter: grayscale(1); opacity: .5; }
+.mini.down .s { color: var(--bad); }
+.mini.warn .s { color: var(--warn); }
+.mini .corner { position: absolute; top: 12px; right: 12px; }
+
+/* jellyfin */
+.posters { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: auto; }
+.poster { aspect-ratio: 2/3; border-radius: 10px; position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 6px; font-size: 10.5px; font-weight: 600; line-height: 1.2; color: rgba(255,255,255,.85); }
+.nowp { display: flex; gap: 12px; align-items: center; margin: 12px 0; position: relative; }
+.nowp .art { width: 54px; height: 54px; border-radius: 12px; background: linear-gradient(160deg, hsl(190 40% 45%), hsl(220 40% 20%)); flex: none; }
+.prog { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 6px; }
+.prog i { display: block; height: 100%; border-radius: 4px; background: var(--text); transition: width .8s; }
+
+/* calendar */
+.cal { margin-top: 8px; position: relative; }
+.cal .e { display: flex; gap: 10px; padding: 6px 0; align-items: center; }
+.cal .e + .e { border-top: 1px solid var(--line); }
+.cal .w { width: 82px; color: var(--muted); font-size: 12px; flex: none; }
+.cal .tt { font-weight: 560; font-size: 13px; }
+.cal .ss { color: var(--faint); font-size: 12px; }
+.cal .src { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; }
+
+/* downloads */
+.dl { margin-top: 10px; position: relative; }
+.dl .r + .r { margin-top: 9px; }
+.dl .r .top { display: flex; justify-content: space-between; font-size: 12.5px; }
+.dl .r .top span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.dl .prog i { background: var(--accent); }
+
+/* uptime heatmap */
+.heat { display: grid; grid-template-columns: 96px 1fr; gap: 4px 10px; margin-top: 10px; align-items: center; position: relative; }
+.heat .nm { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.heat .cells { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+.heat .cells i { height: 10px; border-radius: 3px; background: rgba(95,211,154,.55); }
+.heat .cells i.w { background: rgba(245,184,61,.7); }
+.heat .cells i.d { background: rgba(255,96,102,.75); }
+
+/* server */
+.bars { display: grid; gap: 9px; margin-top: 10px; position: relative; }
+.bars .b .top { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.bars .b .track { height: 6px; border-radius: 6px; background: rgba(255,255,255,.07); margin-top: 4px; overflow: hidden; }
+.bars .b .fill { height: 100%; border-radius: 6px; background: var(--text); transition: width .8s; }
+svg.curve { width: 100%; height: 56px; display: block; }
+
+/* edit mode */
+.editing .t > :not(.remove):not(.sizer) { opacity: .75; }
+.editing .corner, .editing .th .meta { visibility: hidden; }
+.editing .t { cursor: grab; animation: wig .35s ease-in-out infinite alternate; }
+.editing .t:nth-child(2n) { animation-delay: .12s; }
+@keyframes wig { from { transform: rotate(-.35deg); } to { transform: rotate(.35deg); } }
+.editing .t.dragging { opacity: .35; }
+.sizer { position: absolute; right: 10px; bottom: 10px; display: none; gap: 4px; z-index: 2; }
+.editing .sizer { display: flex; }
+.sizer button { background: rgba(0,0,0,.6); border-radius: 8px; font-size: 11.5px; font-weight: 650; padding: 4px 8px; color: var(--text); backdrop-filter: blur(8px); }
+.sizer button.on { color: var(--text); background: rgba(157,188,255,.25); }
+.remove { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: #3a3a40; display: none; place-items: center; font-size: 13px; color: var(--muted); z-index: 2; }
+.editing .remove { display: grid; }
+.adder { display: none; border: 1.5px dashed rgba(255,255,255,.12); background: transparent; align-items: center; justify-content: center; color: var(--muted); font-weight: 550; }
+.editing .adder { display: flex; animation: none; }
+
+/* sheet */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: .2s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 50%; top: 50%; width: 640px; max-width: calc(100% - 24px); max-height: calc(100% - 40px); overflow: auto; transform: translate(-50%, -46%) scale(.97); opacity: 0; pointer-events: none; transition: .22s cubic-bezier(.2,.8,.2,1); background: var(--tile); border-radius: 26px; padding: 22px; }
+.sheet.on { opacity: 1; transform: translate(-50%, -50%); pointer-events: auto; }
+.sheet .hd { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.sheet .hd .logo { width: 44px; height: 44px; border-radius: 12px; }
+.sheet .hd .logo img { width: 28px; height: 28px; }
+.sheet .hd b { font-size: 19px; display: block; }
+.sheet .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.sheet .acts .btn { background: var(--tile-2); padding: 9px 14px; }
+.sheet .acts .btn.primary { background: var(--accent); color: #0b1530; }
+.kv { background: var(--tile-2); border-radius: 14px; margin-top: 12px; }
+.kv div { display: flex; justify-content: space-between; padding: 9px 12px; font-size: 13px; }
+.kv div + div { border-top: 1px solid var(--line); }
+.kv span:first-child { color: var(--muted); }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: #2a2a2f; padding: 10px 16px; border-radius: 12px; font-weight: 550; }
+.toast.on { opacity: 1; transform: translateX(-50%); }
+
+@media (max-width: 1000px) { .bento { grid-template-columns: repeat(4, 1fr); } .t.s3 { grid-column: span 4; } }
+@media (max-width: 640px) {
+	.bento { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 104px; gap: 10px; }
+	.t.s2, .t.s3 { grid-column: span 2; }
+	.tabs { display: none; }
+	.posters { grid-template-columns: repeat(4, 1fr); } .posters .poster:nth-child(n+5) { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="bar">
+		<h1>Zuhause</h1>
+		<div class="tabs"><button class="on">Übersicht</button><button>Medien</button><button>System</button></div>
+		<div class="sp"></div>
+		<button class="btn" id="editBtn" onclick="toggleEdit()">Bearbeiten</button>
+	</div>
+	<div class="bento" id="bento"></div>
+</div>
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+
+// layout: which tiles, in which size (columns s1–s3, rows h1–h3)
+let layout = [
+	{ id: "attention", w: 2, h: 1 },
+	{ id: "solar", w: 2, h: 2 },
+	{ id: "server", w: 2, h: 2 },
+	{ id: "app:sonarr", w: 1, h: 1 },
+	{ id: "app:radarr", w: 1, h: 1 },
+	{ id: "jellyfin", w: 3, h: 3 },
+	{ id: "calendar", w: 3, h: 2 },
+	{ id: "downloads", w: 3, h: 1 },
+	{ id: "uptime", w: 3, h: 3 },
+	{ id: "app:prowlarr", w: 1, h: 1 },
+	{ id: "app:flaresolverr", w: 1, h: 1 },
+	{ id: "app:mystrom", w: 1, h: 1 },
+	{ id: "app:magicmirror", w: 1, h: 1 },
+	{ id: "app:portainer", w: 1, h: 1 },
+	{ id: "app:grafana", w: 1, h: 1 }
+];
+
+const TILES = {
+	attention() {
+		const p = UTIL.problems(), u = UTIL.updates();
+		return { c: p.length ? "#ff6066" : "#5fd39a", html: `<div class="th"><span class="n">Status</span></div>
+			<div class="big" style="margin-top:8px;font-size:22px">${p.length ? `${p.length} Probleme` : "Alles läuft"}</div>
+			<div class="sm muted bottom">${p.map((s) => s.name).join(", ")}${u.length ? ` · ${u.length} Updates` : ""}</div>`, open: "attention" };
+	},
+	solar() {
+		const s = DATA.solar, sv = UTIL.byId("solar");
+		return { c: sv.color, html: `<div class="th">${UTIL.logo(sv)}<span class="n">Solar</span><span class="meta">jetzt</span></div>
+			<div class="big num" style="margin-top:10px">${s.now.toFixed(1)}<small> kW</small></div>
+			<div class="sm muted">heute ${s.today} kWh · Haus braucht ${s.use} kW</div>
+			<div class="bottom">${curve(s.curve, sv.color)}</div>`, open: "solar" };
+	},
+	server() {
+		const h = DATA.hosts[0], pi = DATA.hosts[1];
+		const bar = (k, v, t) => `<div class="b"><div class="top"><span>${k}</span><span class="num">${t}</span></div><div class="track"><div class="fill" style="width:${v}%;${v > 80 ? "background:var(--warn)" : ""}"></div></div></div>`;
+		return { c: "#9dbcff", html: `<div class="th"><span class="n">${h.name}</span><span class="meta">${h.temp}° · ${h.uptime}</span></div>
+			<div class="bars">${bar("CPU", h.cpu, h.cpu + " %")}${bar("Speicher", h.ram, h.ram + " %")}${bar("Platte", h.disk, h.diskText)}</div>
+			<div class="sm faint bottom">${pi.name}: CPU ${pi.cpu} % · ${pi.temp}°</div>`, open: "server" };
+	},
+	jellyfin() {
+		const j = DATA.jellyfin, s = UTIL.byId("jellyfin");
+		return { c: s.color, html: `<div class="th">${UTIL.logo(s)}<span class="n">Jellyfin</span><span class="meta">${s.stat}</span></div>
+			<div class="nowp"><div class="art"></div><div style="flex:1;min-width:0"><div style="font-weight:600">${j.now.title}</div><div class="sm muted">${j.now.sub} · ${j.now.user} auf ${j.now.device}</div><div class="prog"><i style="width:${(j.now.progress * 100).toFixed(1)}%"></i></div></div></div>
+			<div class="sm muted" style="position:relative">Neu hinzugefügt</div>
+			<div class="posters" style="margin-top:8px">${j.recent.map((r) => `<div class="poster" style="background:linear-gradient(170deg,hsl(${r.hue} 45% 42%),hsl(${r.hue + 30} 40% 16%))">${r.title}</div>`).join("")}</div>`, open: "jellyfin" };
+	},
+	calendar(l) {
+		return { c: "#35c5f4", html: `<div class="th"><span class="n">Demnächst</span><span class="meta">Sonarr · Radarr</span></div>
+			<div class="cal">${DATA.upcoming.slice(0, l.h * 2).map((e) => `<div class="e"><span class="w">${e.when}</span><div><div class="tt">${e.title}</div><div class="ss">${e.sub}</div></div><span class="src" style="background:${UTIL.byId(e.src).color}"></span></div>`).join("")}</div>`, open: "calendar" };
+	},
+	downloads() {
+		const q = UTIL.byId("qbittorrent");
+		const act = DATA.torrents.filter((t) => t.progress < 1);
+		return { c: q.color, html: `<div class="th">${UTIL.logo(q)}<span class="n">Downloads</span><span class="meta num">${q.stat}</span></div>
+			<div class="dl">${act.map((t) => `<div class="r"><div class="top"><span>${t.name}</span><span class="muted num">${Math.round(t.progress * 100)} %</span></div><div class="prog"><i style="width:${(t.progress * 100).toFixed(1)}%"></i></div></div>`).join("")}</div>`, open: "qbittorrent" };
+	},
+	uptime() {
+		const rows = DATA.services.slice(0, 11).map((s) => `<span class="nm">${s.name}</span><div class="cells">${s.history.map((v) => `<i class="${v === null ? "d" : v > 1000 ? "w" : ""}"></i>`).join("")}</div>`).join("");
+		return { c: "#5fd39a", html: `<div class="th"><span class="n">Verfügbarkeit</span><span class="meta">letzte 24 h</span></div><div class="heat">${rows}</div>`, open: "uptime" };
+	},
+	app(s) {
+		const tag = s.status === "down" ? `<span class="tag bad corner">aus</span>` : s.status === "warn" ? `<span class="tag warn corner">langsam</span>` : s.container && s.container.update ? `<span class="tag upd corner">Update</span>` : "";
+		return { c: s.color, cls: `mini ${s.status}`, html: `${UTIL.logo(s)}${tag}<div style="position:relative;min-width:0;max-width:100%"><div class="n">${s.name}</div><div class="s">${s.status === "down" ? "läuft nicht" : s.stat}</div></div>`, open: s.id };
+	}
+};
+
+function curve(values, color) {
+	const w = 300, h = 56, max = Math.max(...values, 4.5);
+	const pts = values.map((v, i) => [(i / 18) * w, h - (v / max) * (h - 4)]);
+	const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+	const last = pts[pts.length - 1];
+	return `<svg class="curve" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="gs" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${d}L${last[0]},${h}L0,${h}Z" fill="url(#gs)"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function tileOf(l) {
+	if (l.id.startsWith("app:")) return TILES.app(UTIL.byId(l.id.slice(4)));
+	return TILES[l.id](l);
+}
+
+let editing = false;
+function render() {
+	const b = $("#bento");
+	b.innerHTML = layout.map((l, i) => {
+		const t = tileOf(l);
+		const sizes = `<button onclick="event.stopPropagation();nextSize(${i})" title="Grösse ändern">⤢ ${l.w}×${l.h}</button>`;
+		return `<div class="t s${l.w} h${l.h} ${t.cls || ""}" style="--c:${t.c}" draggable="${editing}" data-i="${i}" onclick="tap(${i})">
+			<button class="remove" onclick="event.stopPropagation();removeTile(${i})">×</button>${t.html}<div class="sizer">${sizes}</div></div>`;
+	}).join("") + `<button class="t s2 h1 adder" onclick="toast('Kachel hinzufügen: Service, Kalender, Downloads, Notiz, Webseite …')">+ Kachel hinzufügen</button>`;
+	b.classList.toggle("editing", editing);
+	if (editing) dnd();
+}
+
+function tap(i) {
+	if (editing) return;
+	openSheet(tileOf(layout[i]).open);
+}
+
+function toggleEdit() {
+	editing = !editing;
+	$("#editBtn").classList.toggle("on", editing);
+	$("#editBtn").textContent = editing ? "Fertig" : "Bearbeiten";
+	render();
+}
+const SIZES = [[1, 1], [2, 1], [2, 2], [3, 2], [3, 3]];
+function nextSize(i) {
+	const l = layout[i];
+	const k = SIZES.findIndex(([w, h]) => w === l.w && h === l.h);
+	[l.w, l.h] = SIZES[(k + 1) % SIZES.length];
+	render();
+}
+function removeTile(i) { layout.splice(i, 1); render(); }
+
+// drag & drop to reorder
+function dnd() {
+	let from = null;
+	document.querySelectorAll(".t[draggable=true]").forEach((el) => {
+		el.addEventListener("dragstart", () => { from = +el.dataset.i; el.classList.add("dragging"); });
+		el.addEventListener("dragend", () => el.classList.remove("dragging"));
+		el.addEventListener("dragover", (e) => e.preventDefault());
+		el.addEventListener("drop", (e) => {
+			e.preventDefault();
+			const to = +el.dataset.i;
+			if (from === null || from === to) return;
+			const [m] = layout.splice(from, 1);
+			layout.splice(to, 0, m);
+			render();
+		});
+	});
+}
+
+// detail sheet
+function openSheet(key) {
+	let s = UTIL.byId(key);
+	if (key === "attention") return openAttention();
+	if (key === "server") s = null;
+	if (key === "calendar") s = UTIL.byId("sonarr");
+	if (key === "uptime") s = UTIL.byId("uptimekuma");
+	let html;
+	if (!s) {
+		const h = DATA.hosts[0];
+		html = `<div class="hd"><div><b>${h.name}</b><span class="muted sm">${h.ip} · ${h.kind}</span></div></div>
+			<div class="kv"><div><span>CPU</span><span class="num">${h.cpu} %</span></div><div><span>Speicher</span><span class="num">${h.ram} %</span></div><div><span>Platte</span><span>${h.diskText}</span></div><div><span>Temperatur</span><span>${h.temp}°</span></div><div><span>Läuft seit</span><span>${h.uptime}</span></div></div>
+			<div class="acts"><button class="btn" onclick="toast('Container-Liste (wie Portainer, nur einfacher)')">Container</button><button class="btn" onclick="toast('Im echten Tool mit Rückfrage')">Neu starten …</button></div>`;
+	} else {
+		const c = s.container;
+		html = `<div class="hd">${UTIL.logo(s)}<div><b>${s.name}</b><span class="muted sm">${UTIL.hostPort(s.url)}</span></div></div>
+			${s.note ? `<div class="kv" style="margin-top:0"><div><span style="color:${s.status === "down" ? "var(--bad)" : "var(--warn)"}">${s.note}</span></div></div>` : ""}
+			<div class="kv"><div><span>Antwortzeit</span><span class="num">${UTIL.fmtMs(s.ms)}</span></div><div><span>Verfügbar (30 Tage)</span><span class="num">${s.uptime} %</span></div>${c ? `<div><span>Image</span><span>${c.image}</span></div><div><span>CPU · Speicher</span><span class="num">${c.cpu} % · ${c.ram} MB</span></div>` : `<div><span>Läuft als</span><span>${s.process}</span></div>`}</div>
+			<div class="acts"><a class="btn primary" style="text-decoration:none" href="${s.url}" target="_blank">Öffnen</a><button class="btn" onclick="restart('${s.id}')">${s.status === "down" ? "Starten" : "Neu starten"}</button>${c && c.update ? `<button class="btn" onclick="update('${s.id}')">Aktualisieren</button>` : ""}<button class="btn" onclick="toast('Logs (live, durchsuchbar)')">Logs</button></div>`;
+	}
+	$("#sheet").innerHTML = html;
+	$("#sheet").classList.add("on");
+	$("#scrim").classList.add("on");
+}
+function openAttention() {
+	const p = UTIL.problems(), u = UTIL.updates();
+	$("#sheet").innerHTML = `<div class="hd"><div><b>Status</b></div></div>
+		<div class="kv">${p.map((s) => `<div><span>${s.name}: ${s.note}</span><button class="btn" style="background:var(--tile)" onclick="restart('${s.id}')">${s.status === "down" ? "Starten" : "Neu starten"}</button></div>`).join("") || "<div><span>Alles läuft</span></div>"}</div>
+		${u.length ? `<div class="kv"><div><span>Updates: ${u.map((s) => s.name).join(", ")}</span><button class="btn" style="background:var(--tile)" onclick="updateAll()">Alle</button></div></div>` : ""}`;
+	$("#sheet").classList.add("on");
+	$("#scrim").classList.add("on");
+}
+function closeSheet() { $("#sheet").classList.remove("on"); $("#scrim").classList.remove("on"); }
+document.addEventListener("keydown", (e) => e.key === "Escape" && closeSheet());
+
+async function restart(id) {
+	const s = UTIL.byId(id);
+	closeSheet();
+	toast(`${s.name} wird ${s.status === "down" ? "gestartet" : "neu gestartet"} …`);
+	await UTIL.act();
+	if (s.status === "down") { s.status = "up"; s.ms = 140; s.stat = "läuft wieder"; s.history[23] = 140; s.container.cpu = 2; s.container.ram = 380; }
+	toast(`${s.name} läuft`);
+	render();
+}
+async function update(id) {
+	const s = UTIL.byId(id);
+	closeSheet();
+	toast(`${s.name} wird aktualisiert …`);
+	await UTIL.act(null, 1800);
+	s.container.update = false;
+	toast(`${s.name} ist aktuell`);
+	render();
+}
+async function updateAll() {
+	closeSheet();
+	toast("Container werden aktualisiert …");
+	for (const s of UTIL.updates()) { await UTIL.act(null, 500); s.container.update = false; }
+	toast("Alle aktuell");
+	render();
+}
+function toast(t) {
+	const el = $("#toast");
+	el.textContent = t;
+	el.classList.add("on");
+	clearTimeout(toast.t);
+	toast.t = setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+render();
+UTIL.live(() => { if (!editing) render(); });
+</script>
+</body>
+</html>

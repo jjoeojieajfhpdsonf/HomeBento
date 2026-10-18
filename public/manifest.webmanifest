@@ -1,0 +1,9 @@
+{
+	"name": "Service Dashboard",
+	"short_name": "Dashboard",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#101012",
+	"theme_color": "#101012",
+	"icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Startbildschirm</title>
+<style>
+:root {
+	--text: #f1f3f7; --muted: rgba(235,240,250,.62); --faint: rgba(235,240,250,.38);
+	--glass: rgba(255,255,255,.07); --glass-2: rgba(255,255,255,.11); --line: rgba(255,255,255,.08);
+	--ok: #5fd39a; --warn: #f5b83d; --bad: #ff5f63; --accent: #9dbcff;
+}
+* { box-sizing: border-box; margin: 0; }
+html { color-scheme: dark; }
+body {
+	min-height: 100vh; color: var(--text);
+	font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+	background: #0a0c12;
+}
+/* quiet wallpaper: two soft glows, no hard shapes */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1;
+	background: radial-gradient(60% 50% at 20% 10%, rgba(80,110,190,.22), transparent 70%), radial-gradient(50% 45% at 85% 90%, rgba(150,90,170,.16), transparent 70%), #0a0c12; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 7vh 22px 60px; }
+
+.clock { text-align: center; }
+.clock .time { font-size: 64px; font-weight: 300; letter-spacing: -.02em; line-height: 1; }
+.clock .date { color: var(--muted); margin-top: 8px; font-size: 15px; }
+.clock .health { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 6px 12px 6px 10px; border-radius: 99px; background: var(--glass); font-size: 13px; color: var(--muted); cursor: pointer; }
+.clock .health i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+
+/* spotlight */
+.spot { position: relative; margin: 30px auto 38px; max-width: 620px; }
+.spot input { width: 100%; padding: 16px 20px 16px 50px; border-radius: 18px; border: 0; outline: none; background: var(--glass); color: var(--text); font: inherit; font-size: 17px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .15s, background .15s; }
+.spot input:focus { background: var(--glass-2); box-shadow: inset 0 0 0 1px rgba(157,188,255,.35); }
+.spot input::placeholder { color: var(--faint); }
+.spot svg.mag { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--faint); }
+.results { position: absolute; left: 0; right: 0; top: calc(100% + 8px); background: rgba(24,27,36,.92); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-radius: 18px; padding: 6px; box-shadow: 0 30px 70px rgba(0,0,0,.5); z-index: 5; display: none; }
+.results.on { display: block; }
+.results .cap { color: var(--faint); font-size: 11.5px; padding: 8px 12px 4px; }
+.results .it { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 12px; cursor: pointer; }
+.results .it.sel { background: rgba(255,255,255,.07); }
+.results .it .k { margin-left: auto; color: var(--faint); font-size: 12px; }
+.results .it .logo { width: 30px; height: 30px; border-radius: 9px; }
+.results .it .logo img { width: 20px; height: 20px; }
+
+/* app grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); min-width: 0; gap: 26px 10px; }
+.app { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; color: inherit; position: relative; border-radius: 18px; padding: 4px 0; -webkit-tap-highlight-color: transparent; }
+.app .logo { width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.05)); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.25); display: grid; place-items: center; transition: transform .18s; font-weight: 700; font-size: 24px; color: var(--c); }
+.app .logo img { width: 38px; height: 38px; }
+.app .logo.glyph svg { width: 32px; height: 32px; color: var(--c); }
+.app:hover .logo { transform: translateY(-3px) scale(1.04); }
+.app:active .logo { transform: scale(.94); }
+.app .name { font-size: 13px; font-weight: 550; }
+.app .stat { font-size: 11.5px; color: var(--faint); margin-top: -6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .badge { position: absolute; top: 0; left: calc(50% + 22px); min-width: 20px; height: 20px; border-radius: 10px; padding: 0 6px; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 3px #0e1118; }
+.app .badge.bad { background: var(--bad); color: #fff; }
+.app .badge.warn { background: var(--warn); color: #1d1500; }
+.app .badge.upd { background: var(--accent); color: #0a1430; }
+.app.down .logo { filter: grayscale(1); opacity: .45; }
+.app.down .stat { color: var(--bad); }
+.app.warn .stat { color: var(--warn); }
+.group { color: var(--faint); font-size: 12px; font-weight: 600; letter-spacing: .02em; margin: 30px 6px 14px; }
+.group:first-of-type { margin-top: 0; }
+
+/* widgets */
+.widgets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 44px; }
+.w { background: var(--glass); border-radius: 22px; padding: 16px 18px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px var(--line); min-height: 150px; display: flex; flex-direction: column; }
+.w .h { color: var(--muted); font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.w .big { font-size: 34px; font-weight: 600; letter-spacing: -.02em; margin-top: 6px; }
+.w .big small { font-size: 16px; color: var(--muted); font-weight: 500; }
+.w .sm { color: var(--muted); font-size: 12.5px; }
+.w .foot { margin-top: auto; }
+.w svg.curve { width: 100%; height: 44px; margin-top: auto; }
+.rings { display: flex; gap: 14px; margin-top: 12px; }
+.ring { text-align: center; font-size: 11.5px; color: var(--muted); }
+.ring svg { width: 48px; height: 48px; display: block; margin-bottom: 4px; }
+.now { display: flex; gap: 12px; margin-top: 10px; }
+.poster { width: 44px; height: 62px; border-radius: 8px; flex: none; }
+.prog { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 8px; }
+.prog i { display: block; height: 100%; background: var(--text); border-radius: 4px; }
+
+/* context menu */
+.menu { position: fixed; min-width: 210px; background: rgba(30,33,43,.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-radius: 14px; padding: 6px; box-shadow: 0 20px 50px rgba(0,0,0,.5); display: none; z-index: 10; }
+.menu.on { display: block; }
+.menu .mi { display: flex; justify-content: space-between; width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; font-size: 13.5px; }
+.menu .mi:hover { background: rgba(255,255,255,.07); }
+.menu .mi.danger { color: var(--bad); }
+.menu .sep { height: 1px; background: var(--line); margin: 5px 6px; }
+.menu .head { padding: 8px 10px 6px; font-size: 12px; color: var(--faint); }
+
+.toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: rgba(36,40,52,.95); padding: 10px 16px; border-radius: 14px; font-weight: 550; backdrop-filter: blur(20px); }
+.toast.on { opacity: 1; transform: translateX(-50%); }
+.hint { text-align: center; color: var(--faint); font-size: 12px; margin-top: 40px; }
+
+@media (max-width: 820px) {
+	.widgets { grid-template-columns: 1fr 1fr; }
+	.clock .time { font-size: 52px; }
+	.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 4px; }
+	.app .name { font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.app .logo { width: 58px; height: 58px; border-radius: 16px; }
+	.app .badge { left: calc(50% + 18px); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="clock">
+		<div class="time num" id="time">12:00</div>
+		<div class="date" id="date"></div>
+		<button class="health" id="health" onclick="focusProblems()"><i></i><span></span></button>
+	</div>
+
+	<div class="spot">
+		<svg class="mag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+		<input id="q" autofocus placeholder="Suchen: Service, Aktion, Lesezeichen …" autocomplete="off" spellcheck="false">
+		<div class="results" id="results"></div>
+	</div>
+
+	<div id="apps"></div>
+
+	<div class="widgets" id="widgets"></div>
+	<div class="hint">Rechtsklick oder lange drücken auf ein Symbol zeigt Aktionen · Einfach lostippen, die Suche ist immer bereit</div>
+</div>
+<div class="menu" id="menu"></div>
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+
+function clock() {
+	const d = new Date();
+	$("#time").textContent = d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+	$("#date").textContent = d.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" }) + ` · ${DATA.weather.temp}° ${DATA.weather.text}`;
+	const p = UTIL.problems();
+	$("#health").hidden = !p.length;
+	$("#health span").textContent = p.length === 1 ? `${p[0].name} braucht Aufmerksamkeit` : `${p.length} Services brauchen Aufmerksamkeit`;
+}
+
+function apps() {
+	const groups = [...new Set(DATA.services.map((s) => s.group))];
+	$("#apps").innerHTML = groups.map((g) => `<div class="group">${g.toUpperCase()}</div><div class="grid">${DATA.services.filter((s) => s.group === g).map(app).join("")}</div>`).join("");
+}
+function app(s) {
+	const badge = s.status === "down" ? `<span class="badge bad">!</span>` : s.status === "warn" ? `<span class="badge warn">!</span>` : s.container && s.container.update ? `<span class="badge upd">↑</span>` : "";
+	return `<a class="app ${s.status}" data-id="${s.id}" href="${s.url}" target="_blank" oncontextmenu="menu(event,'${s.id}')">${badge}${UTIL.logo(s)}<span class="name">${s.name}</span><span class="stat">${s.status === "down" ? "läuft nicht" : s.stat}</span></a>`;
+}
+
+function curve(values, color) {
+	const w = 200, h = 44, max = Math.max(...values, 4.5);
+	const pts = values.map((v, i) => [(i / 18) * w, h - (v / max) * (h - 4)]);
+	const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+	const last = pts[pts.length - 1];
+	return `<svg class="curve" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${d}L${last[0]},${h}L0,${h}Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function ring(v, label) {
+	const r = 20, c = 2 * Math.PI * r;
+	return `<div class="ring"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="${v > 80 ? "#f5b83d" : "#f1f3f7"}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${(v / 100) * c} ${c}" transform="rotate(-90 24 24)"/><text x="24" y="28" text-anchor="middle" fill="#f1f3f7" font-size="12" font-weight="600">${v}</text></svg>${label}</div>`;
+}
+
+function widgets() {
+	const s = DATA.solar, h = DATA.hosts[0], j = DATA.jellyfin.now, q = UTIL.byId("qbittorrent");
+	$("#widgets").innerHTML = `
+	<div class="w"><div class="h">☀︎ Solar</div><div class="big num">${s.now.toFixed(1)}<small> kW</small></div><div class="sm">heute ${s.today} kWh · Haus ${s.use} kW</div>${curve(s.curve, "#f5b83d")}</div>
+	<div class="w"><div class="h">Homeserver</div><div class="rings">${ring(h.cpu, "CPU")}${ring(h.ram, "RAM")}${ring(h.disk, "Disk")}</div><div class="sm foot">${h.diskText} belegt</div></div>
+	<div class="w"><div class="h">Läuft gerade</div><div class="now"><div class="poster" style="background:linear-gradient(160deg,hsl(190 40% 45%),hsl(220 40% 20%))"></div><div><div style="font-weight:600">${j.title}</div><div class="sm">${j.sub}</div><div class="sm">${j.user} · ${j.device}</div></div></div><div class="prog foot"><i style="width:${(j.progress * 100).toFixed(1)}%"></i></div></div>
+	<div class="w"><div class="h">Downloads</div><div class="big num">${q.stat.replace("↓ ", "").replace(" MB/s", "")}<small> MB/s</small></div><div class="sm">${DATA.torrents.filter((t) => t.progress < 1).length} aktiv · nächster fertig in ${DATA.torrents[0].eta}</div>${DATA.torrents.filter((t) => t.progress < 1).map((t) => `<div class="prog"><i style="width:${(t.progress * 100).toFixed(1)}%;background:#9dbcff"></i></div>`).join("")}</div>`;
+}
+
+// context menu with actions
+function menu(e, id) {
+	e.preventDefault();
+	const s = UTIL.byId(id), m = $("#menu");
+	const items = [`<div class="head">${s.name} · ${UTIL.hostPort(s.url)}</div>`, `<button class="mi" onclick="window.open('${s.url}')">Öffnen <span>↗</span></button>`];
+	if (s.status === "down") items.push(`<button class="mi" onclick="restart('${id}')">Starten</button>`);
+	else items.push(`<button class="mi" onclick="restart('${id}')">Neu starten</button>`);
+	if (s.container && s.container.update) items.push(`<button class="mi" onclick="update('${id}')">Aktualisieren</button>`);
+	items.push(`<button class="mi" onclick="toast('Logs öffnen (im echten Tool: Logfenster)')">Logs</button>`, `<div class="sep"></div>`, `<button class="mi" onclick="toast('Bearbeiten (Name, Adresse, Gruppe, Symbol)')">Bearbeiten …</button>`);
+	if (s.note) items.splice(1, 0, `<div class="head" style="color:${s.status === "down" ? "var(--bad)" : "var(--warn)"}">${s.note}</div>`);
+	m.innerHTML = items.join("");
+	m.classList.add("on");
+	const x = Math.min(e.clientX, innerWidth - 230), y = Math.min(e.clientY, innerHeight - m.offsetHeight - 10);
+	m.style.left = x + "px";
+	m.style.top = y + "px";
+}
+document.addEventListener("click", (e) => { $("#menu").classList.remove("on"); if (!e.target.closest(".spot")) $("#results").classList.remove("on"); });
+// long press on touch
+let lp;
+document.addEventListener("touchstart", (e) => { const a = e.target.closest(".app"); if (!a) return; lp = setTimeout(() => menu({ preventDefault() {}, clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }, a.dataset.id), 500); }, { passive: true });
+document.addEventListener("touchend", () => clearTimeout(lp));
+
+async function restart(id) {
+	const s = UTIL.byId(id);
+	toast(`${s.name} wird ${s.status === "down" ? "gestartet" : "neu gestartet"} …`);
+	await UTIL.act();
+	if (s.status === "down") { s.status = "up"; s.ms = 140; s.stat = "läuft wieder"; }
+	toast(`${s.name} läuft`);
+	render();
+}
+async function update(id) {
+	const s = UTIL.byId(id);
+	toast(`${s.name} wird aktualisiert …`);
+	await UTIL.act(null, 1800);
+	s.container.update = false;
+	toast(`${s.name} ist aktuell`);
+	render();
+}
+function focusProblems() {
+	const p = UTIL.problems()[0];
+	if (!p) return;
+	const el = document.querySelector(`.app[data-id="${p.id}"]`);
+	const r = el.getBoundingClientRect();
+	el.scrollIntoView({ block: "center", behavior: "smooth" });
+	setTimeout(() => { const r2 = el.getBoundingClientRect(); menu({ preventDefault() {}, clientX: r2.left + r2.width / 2, clientY: r2.bottom }, p.id); }, 350);
+}
+
+function toast(t) {
+	const el = $("#toast");
+	el.textContent = t;
+	el.classList.add("on");
+	clearTimeout(toast.t);
+	toast.t = setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+// spotlight: typing anywhere focuses the search
+let sel = 0, results = [];
+function search() {
+	const q = $("#q").value.trim().toLowerCase();
+	const box = $("#results");
+	if (!q) { box.classList.remove("on"); return; }
+	const words = q.split(/\s+/);
+	const wantsRestart = /neu|start|restart/.test(q);
+	const wantsUpdate = /upd|aktual/.test(q);
+	const m = (name) => words.some((w) => w.length > 1 && name.toLowerCase().includes(w));
+	results = [];
+	for (const s of DATA.services) if (m(s.name) || m(s.group)) results.push({ cap: "Öffnen", html: `${UTIL.logo(s)}<span>${s.name}</span><span class="k">${s.stat}</span>`, run: () => window.open(s.url) });
+	// one action per service: "starten" if it's down, else "neu starten"; «neu starten» alone offers the problem services
+	const named = DATA.services.filter((s) => m(s.name));
+	const targets = named.length ? named : wantsRestart ? UTIL.problems() : [];
+	if (wantsRestart || q.length > 2) for (const s of targets) results.push({ cap: "Aktionen", html: `<span class="logo" style="color:var(--muted)">↻</span><span>${s.name} ${s.status === "down" ? "starten" : "neu starten"}</span>`, run: () => restart(s.id) });
+	if (wantsUpdate) for (const s of UTIL.updates()) results.push({ cap: "Aktionen", html: `<span class="logo" style="color:var(--muted)">↑</span><span>${s.name} aktualisieren</span>`, run: () => update(s.id) });
+	for (const b of DATA.bookmarks) if (m(b.name)) results.push({ cap: "Lesezeichen", html: `<span class="logo" style="color:var(--muted)">↗</span><span>${b.name}</span><span class="k">${b.url.replace(/^https?:\/\//, "")}</span>`, run: () => window.open(b.url) });
+	results.push({ cap: "Web", html: `<span class="logo" style="color:var(--muted)">⌕</span><span>«${$("#q").value.trim()}» im Web suchen</span>`, run: () => window.open("https://duckduckgo.com/?q=" + encodeURIComponent(q)) });
+	results = results.filter((r, i, a) => a.findIndex((x) => x.html === r.html) === i).slice(0, 9);
+	sel = 0;
+	let last = null;
+	box.innerHTML = results.map((r, i) => { const cap = r.cap !== last ? `<div class="cap">${r.cap}</div>` : ""; last = r.cap; return `${cap}<div class="it ${i === sel ? "sel" : ""}" onclick="run(${i})" onmousemove="mark(${i})">${r.html}</div>`; }).join("");
+	box.classList.add("on");
+}
+function mark(i) { sel = i; document.querySelectorAll(".results .it").forEach((e, k) => e.classList.toggle("sel", k === i)); }
+function run(i) { const r = results[i]; $("#q").value = ""; search(); $("#q").blur(); r && r.run(); }
+$("#q").addEventListener("input", search);
+$("#q").addEventListener("blur", () => setTimeout(() => $("#results").classList.remove("on"), 150));
+$("#q").addEventListener("focus", search);
+document.addEventListener("keydown", (e) => {
+	const q = $("#q");
+	if (e.key === "Escape") { q.value = ""; search(); q.blur(); $("#menu").classList.remove("on"); return; }
+	if (document.activeElement !== q && e.key.length === 1 && !e.metaKey && !e.ctrlKey) q.focus();
+	if (document.activeElement === q && $("#results").classList.contains("on")) {
+		if (e.key === "ArrowDown") { mark(Math.min(results.length - 1, sel + 1)); e.preventDefault(); }
+		if (e.key === "ArrowUp") { mark(Math.max(0, sel - 1)); e.preventDefault(); }
+		if (e.key === "Enter") run(sel);
+	}
+});
+
+function render() { clock(); apps(); widgets(); }
+render();
+setInterval(clock, 10000);
+UTIL.live(() => {
+	widgets();
+	for (const s of DATA.services) { const el = document.querySelector(`.app[data-id="${s.id}"] .stat`); if (el && s.status !== "down") el.textContent = s.stat; }
+});
+</script>
+</body>
+</html>

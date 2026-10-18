@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · Leitstand</title>
+<style>
+:root {
+	--bg: #0d0f12; --panel: #15181d; --panel-2: #1b1f25; --line: rgba(255,255,255,.06);
+	--text: #e9ecf1; --muted: #8d95a1; --faint: #5b626d;
+	--ok: #4cc38a; --warn: #f5b83d; --bad: #f2555a; --accent: #8fb4ff;
+	--r: 16px;
+}
+* { box-sizing: border-box; margin: 0; }
+html { color-scheme: dark; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* top */
+.top { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+.top h1 { font-size: 22px; font-weight: 650; letter-spacing: -.01em; }
+.top .sub { color: var(--muted); font-size: 13px; }
+.search { margin-left: auto; display: flex; align-items: center; gap: 10px; background: var(--panel); border-radius: 12px; padding: 9px 12px; width: 340px; color: var(--faint); cursor: text; }
+.search kbd { margin-left: auto; font: 11px ui-monospace, monospace; background: var(--panel-2); color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+.search svg { width: 16px; height: 16px; }
+
+/* summary */
+.summary { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; align-items: start; }
+.hosts { display: grid; gap: 14px; }
+.card { background: var(--panel); border-radius: var(--r); }
+.attention { padding: 6px 0; }
+.attention h2, .card h2 { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 12px 18px 6px; display: flex; justify-content: space-between; }
+.issue { display: flex; align-items: center; gap: 12px; padding: 10px 18px; }
+.issue + .issue { border-top: 1px solid var(--line); }
+.issue .t { font-weight: 560; }
+.issue .d { color: var(--muted); font-size: 12.5px; }
+.issue .grow { flex: 1; min-width: 0; }
+.bar-l { width: 3px; align-self: stretch; border-radius: 3px; }
+.btn { padding: 6px 12px; border-radius: 9px; background: var(--panel-2); font-size: 13px; font-weight: 550; white-space: nowrap; }
+.btn:hover { background: #242932; }
+.btn.primary { background: rgba(143,180,255,.14); color: var(--accent); }
+.btn.busy { opacity: .6; pointer-events: none; }
+.allgood { padding: 18px; color: var(--muted); }
+
+.host { padding: 14px 18px 16px; }
+.host .name { display: flex; justify-content: space-between; align-items: baseline; }
+.host .name b { font-weight: 620; }
+.host .name span { color: var(--faint); font-size: 12px; }
+.host .kind { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+.meters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.meter .k { color: var(--faint); font-size: 11.5px; }
+.meter .v { font-size: 17px; font-weight: 600; }
+.meter .track { height: 4px; border-radius: 4px; background: var(--panel-2); margin-top: 6px; overflow: hidden; }
+.meter .fill { height: 100%; border-radius: 4px; background: var(--muted); transition: width .6s; }
+
+/* list */
+.list { margin-top: 26px; }
+.group-title { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 22px 4px 8px; display: flex; gap: 8px; }
+.group-title .count { color: var(--faint); font-weight: 500; }
+.rows { background: var(--panel); border-radius: var(--r); overflow: hidden; }
+.row { display: grid; grid-template-columns: 36px minmax(140px, 1.4fr) 1fr 140px 80px 70px auto; align-items: center; gap: 14px; padding: 9px 14px; cursor: pointer; }
+.row + .row { border-top: 1px solid var(--line); }
+.row:hover { background: rgba(255,255,255,.02); }
+.row .n { font-weight: 560; display: flex; align-items: center; gap: 8px; }
+.row .u { color: var(--faint); font-size: 12px; }
+.row .stat { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .ms, .row .up { text-align: right; color: var(--muted); font-size: 13px; }
+.row .spark { width: 140px; height: 26px; color: rgba(143,180,255,.55); display: block; }
+.row.warn .spark { color: var(--warn); }
+.row.down { }
+.row.down .n, .row.down .stat { color: var(--muted); }
+.pill { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; }
+.pill.down { background: rgba(242,85,90,.14); color: var(--bad); }
+.pill.warn { background: rgba(245,184,61,.14); color: var(--warn); }
+.pill.upd { background: rgba(143,180,255,.12); color: var(--accent); }
+.acts { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.row:hover .acts { opacity: 1; }
+.ib { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+.ib:hover { background: var(--panel-2); color: var(--text); }
+.ib svg { width: 16px; height: 16px; }
+
+.logo { width: 32px; height: 32px; border-radius: 9px; background: var(--panel-2); display: grid; place-items: center; overflow: hidden; flex: none; font-weight: 700; color: var(--c); }
+.logo img { width: 20px; height: 20px; }
+.logo.glyph svg { width: 18px; height: 18px; color: var(--c); }
+
+/* drawer */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .2s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 10px; right: 10px; bottom: 10px; width: 420px; max-width: calc(100% - 20px); background: var(--panel); border-radius: 20px; transform: translateX(110%); transition: transform .28s cubic-bezier(.2,.8,.2,1); overflow-y: auto; padding: 20px; }
+.drawer.on { transform: none; }
+.dh { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+.dh .logo { width: 44px; height: 44px; border-radius: 12px; }
+.dh .logo img { width: 28px; height: 28px; }
+.dh b { font-size: 18px; font-weight: 650; display: block; }
+.dh a { color: var(--muted); font-size: 12.5px; text-decoration: none; }
+.dh .x { margin-left: auto; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.kpi { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
+.kpi .k { color: var(--faint); font-size: 11.5px; }
+.kpi .v { font-size: 17px; font-weight: 620; }
+.chart { background: var(--panel-2); border-radius: 12px; padding: 12px; margin-bottom: 16px; }
+.chart .spark { width: 100%; height: 70px; color: var(--accent); }
+.chart .k { color: var(--faint); font-size: 11.5px; display: flex; justify-content: space-between; margin-top: 4px; }
+.sec { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 16px 2px 8px; }
+.kv { background: var(--panel-2); border-radius: 12px; }
+.kv div { display: flex; justify-content: space-between; padding: 9px 12px; font-size: 13px; }
+.kv div + div { border-top: 1px solid var(--line); }
+.kv span:first-child { color: var(--muted); }
+.dacts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.dacts .btn { padding: 9px 14px; }
+.log { font: 11.5px/1.6 ui-monospace, Menlo, monospace; background: #0f1215; border-radius: 12px; padding: 10px 12px; color: #aab2bd; white-space: pre-wrap; max-height: 180px; overflow: auto; }
+
+/* palette */
+.pal { position: fixed; left: 50%; top: 14vh; width: 560px; max-width: calc(100% - 24px); transform: translate(-50%, -8px) scale(.98); opacity: 0; pointer-events: none; transition: .16s; background: #1a1d23; border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; }
+.pal.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.pal input { width: 100%; background: none; border: 0; outline: none; color: var(--text); font: inherit; font-size: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.pal .res { max-height: 360px; overflow: auto; padding: 6px; }
+.pal .it { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.pal .it.sel { background: rgba(255,255,255,.06); }
+.pal .it .logo { width: 28px; height: 28px; }
+.pal .it .k { margin-left: auto; color: var(--faint); font-size: 12px; }
+.pal .cap { color: var(--faint); font-size: 11.5px; padding: 8px 10px 4px; }
+
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s; background: #242932; padding: 10px 16px; border-radius: 12px; font-weight: 550; }
+.toast.on { opacity: 1; transform: translateX(-50%); }
+
+@media (max-width: 900px) {
+	.summary { grid-template-columns: 1fr; }
+	.search { width: 40px; height: 40px; padding: 0; justify-content: center; flex: none; }
+	.search .ph, .search kbd { display: none; }
+	.row { grid-template-columns: 36px 1fr auto; }
+	.row .u, .row .stat-col, .row .spark-col, .row .up { display: none; }
+	.acts { display: none; }
+	.wrap { padding: 18px 14px 40px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="top">
+		<div>
+			<h1 id="hello">Guten Morgen</h1>
+			<div class="sub" id="summaryline"></div>
+		</div>
+		<div class="search" onclick="openPal()">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+			<span class="ph">Service, Aktion oder Lesezeichen …</span>
+			<kbd>⌘K</kbd>
+		</div>
+	</div>
+
+	<div class="summary">
+		<div class="card attention" id="attention"></div>
+		<div class="hosts" id="hosts"></div>
+	</div>
+
+	<div class="list" id="list"></div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeAll()"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="pal" id="pal"><input id="palIn" placeholder="Suchen oder Befehl …" autocomplete="off"><div class="res" id="palRes"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const I = {
+	open: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5'/></svg>",
+	restart: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 11a8 8 0 10-2.3 5.7M20 5v6h-6'/></svg>",
+	logs: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><path d='M5 6h14M5 12h14M5 18h9'/></svg>",
+	x: "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M6 6l12 12M18 6L6 18'/></svg>"
+};
+
+function hello() {
+	const h = new Date().getHours();
+	$("#hello").textContent = h < 11 ? "Guten Morgen" : h < 18 ? "Guten Tag" : "Guten Abend";
+	const p = UTIL.problems().length, n = DATA.services.length;
+	$("#summaryline").textContent = p ? `${n - p} von ${n} Services laufen normal · ${p} brauchen Aufmerksamkeit` : `Alle ${n} Services laufen normal`;
+}
+
+function attention() {
+	const items = [];
+	for (const s of UTIL.problems()) {
+		items.push(`<div class="issue"><span class="bar-l" style="background:${s.status === "down" ? "var(--bad)" : "var(--warn)"}"></span>${UTIL.logo(s)}
+			<div class="grow"><div class="t">${s.name} ${s.status === "down" ? "läuft nicht" : "ist langsam"}</div><div class="d">${s.note}</div></div>
+			${s.status === "down" ? `<button class="btn primary" onclick="restart('${s.id}', this)">Starten</button>` : ""}
+			<button class="btn" onclick="openDrawer('${s.id}', true)">Logs</button></div>`);
+	}
+	const up = UTIL.updates();
+	if (up.length) items.push(`<div class="issue"><span class="bar-l" style="background:var(--accent)"></span><span class="logo" style="color:var(--accent)">${I.restart}</span>
+		<div class="grow"><div class="t">${up.length} Updates verfügbar</div><div class="d">${up.map((s) => s.name).join(", ")}</div></div>
+		<button class="btn primary" onclick="updateAll(this)">Alle aktualisieren</button></div>`);
+	$("#attention").innerHTML = `<h2>Braucht Aufmerksamkeit</h2>` + (items.join("") || `<div class="allgood">Nichts zu tun. Alles läuft.</div>`);
+}
+
+function hosts() {
+	$("#hosts").innerHTML = DATA.hosts.map((h) => `<div class="card host"><div class="name"><b>${h.name}</b><span>${h.ip}</span></div><div class="kind">${h.kind} · seit ${h.uptime}</div>
+		<div class="meters">${[["CPU", h.cpu, "%"], ["RAM", h.ram, "%"], ["Disk", h.disk, "%"], ["Temp", h.temp, "°"]].map(([k, v, u]) => `<div class="meter"><div class="k">${k}</div><div class="v num">${v}${u}</div><div class="track"><div class="fill" style="width:${Math.min(100, v)}%;${v > 80 ? "background:var(--warn)" : ""}"></div></div></div>`).join("")}</div></div>`).join("");
+}
+
+function list() {
+	const groups = [...new Set(DATA.services.map((s) => s.group))];
+	$("#list").innerHTML = groups.map((g) => {
+		const items = DATA.services.filter((s) => s.group === g);
+		return `<div class="group-title">${g} <span class="count">${items.length}</span></div><div class="rows">${items.map(row).join("")}</div>`;
+	}).join("");
+}
+
+function row(s) {
+	const pill = s.status === "down" ? `<span class="pill down">gestoppt</span>` : s.status === "warn" ? `<span class="pill warn">langsam</span>` : s.container && s.container.update ? `<span class="pill upd">Update</span>` : "";
+	return `<div class="row ${s.status}" data-id="${s.id}" onclick="openDrawer('${s.id}')">${UTIL.logo(s)}
+		<div><div class="n">${s.name} ${pill}</div><div class="u">${UTIL.hostPort(s.url)}</div></div>
+		<div class="stat stat-col">${s.stat}</div>
+		<div class="spark-col">${UTIL.spark(s.history)}</div>
+		<div class="ms num">${UTIL.fmtMs(s.ms)}</div>
+		<div class="up num">${s.uptime} %</div>
+		<div class="acts" onclick="event.stopPropagation()">
+			<a class="ib" title="Öffnen" href="${s.url}" target="_blank">${I.open}</a>
+			<button class="ib" title="Neu starten" onclick="restart('${s.id}', this)">${I.restart}</button>
+			<button class="ib" title="Logs" onclick="openDrawer('${s.id}', true)">${I.logs}</button>
+		</div></div>`;
+}
+
+let drawerId = null;
+function openDrawer(id, logs) {
+	drawerId = id;
+	const s = UTIL.byId(id), h = UTIL.host(s.host);
+	const c = s.container;
+	$("#drawer").innerHTML = `<div class="dh">${UTIL.logo(s)}<div><b>${s.name}</b><a href="${s.url}" target="_blank">${UTIL.hostPort(s.url)}</a></div><button class="ib x" onclick="closeAll()">${I.x}</button></div>
+		<div class="kpis"><div class="kpi"><div class="k">Antwort</div><div class="v num">${UTIL.fmtMs(s.ms)}</div></div><div class="kpi"><div class="k">Verfügbar 30 T</div><div class="v num">${s.uptime} %</div></div><div class="kpi"><div class="k">${c ? "CPU" : "Prozess"}</div><div class="v num">${c ? c.cpu + " %" : "pm2"}</div></div></div>
+		<div class="chart">${UTIL.spark(s.history, 360, 70)}<div class="k"><span>vor 24 h</span><span>jetzt</span></div></div>
+		<div class="sec">${c ? "Container" : "Prozess"}</div>
+		<div class="kv">${c ? `<div><span>Image</span><span>${c.image}</span></div><div><span>Speicher</span><span class="num">${c.ram} MB</span></div><div><span>Update</span><span>${c.update ? "verfügbar" : "aktuell"}</span></div>` : `<div><span>Läuft als</span><span>${s.process}</span></div>`}<div><span>Host</span><span>${h.name}</span></div></div>
+		<div class="dacts"><a class="btn primary" href="${s.url}" target="_blank" style="text-decoration:none">Öffnen</a><button class="btn" onclick="restart('${s.id}', this)">${s.status === "down" ? "Starten" : "Neu starten"}</button>${c && c.update ? `<button class="btn" onclick="updateOne('${s.id}', this)">Aktualisieren</button>` : ""}<button class="btn" onclick="this.remove();document.getElementById('lg').hidden=false">Logs</button></div>
+		<div id="lg" ${logs ? "" : "hidden"}><div class="sec">Letzte Logzeilen</div><div class="log">${fakeLog(s)}</div></div>`;
+	$("#drawer").classList.add("on");
+	$("#scrim").classList.add("on");
+}
+
+function fakeLog(s) {
+	if (s.status === "down") return "2026-10-18 09:41:02 INFO  Serving on http://0.0.0.0:8191\n2026-10-18 09:52:17 INFO  Launching Chromium …\n2026-10-18 09:52:19 WARN  Memory usage 1.9 GB\n2026-10-18 09:52:21 Killed (exit 137)";
+	return `2026-10-18 11:58:01 INFO  [${s.name}] Health check ok\n2026-10-18 11:58:31 INFO  [${s.name}] RSS sync complete\n2026-10-18 11:59:01 INFO  [${s.name}] Health check ok`;
+}
+
+function closeAll() {
+	$("#drawer").classList.remove("on");
+	$("#scrim").classList.remove("on");
+	$("#pal").classList.remove("on");
+	drawerId = null;
+}
+
+async function restart(id, btn) {
+	const s = UTIL.byId(id);
+	btn && btn.classList.add("busy");
+	toast(`${s.name} wird ${s.status === "down" ? "gestartet" : "neu gestartet"} …`);
+	await UTIL.act();
+	if (s.status === "down") { s.status = "up"; s.ms = 140; s.stat = "läuft wieder"; s.history[23] = 140; s.container.cpu = 2.1; s.container.ram = 380; }
+	toast(`${s.name} läuft`);
+	render();
+	if (drawerId) openDrawer(drawerId);
+}
+
+async function updateAll(btn) {
+	btn.classList.add("busy");
+	btn.textContent = "Aktualisiere …";
+	for (const s of UTIL.updates()) { await UTIL.act(null, 600); s.container.update = false; }
+	toast("Alle Container aktualisiert");
+	render();
+}
+async function updateOne(id, btn) {
+	btn.classList.add("busy");
+	await UTIL.act();
+	UTIL.byId(id).container.update = false;
+	toast("Aktualisiert");
+	render();
+	openDrawer(id);
+}
+
+function toast(t) {
+	const el = $("#toast");
+	el.textContent = t;
+	el.classList.add("on");
+	clearTimeout(toast.t);
+	toast.t = setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+// command palette: services, actions, bookmarks, web search
+let sel = 0, results = [];
+function openPal() {
+	$("#pal").classList.add("on");
+	$("#scrim").classList.add("on");
+	$("#palIn").value = "";
+	palRender();
+	$("#palIn").focus();
+}
+function palRender() {
+	const q = $("#palIn").value.trim().toLowerCase();
+	const m = (x) => !q || x.toLowerCase().includes(q);
+	results = [];
+	for (const s of DATA.services) if (m(s.name)) results.push({ cap: "Services", html: `${UTIL.logo(s)}<span>${s.name}</span><span class="k">${UTIL.hostPort(s.url)}</span>`, run: () => window.open(s.url) });
+	for (const s of DATA.services) if (q && m(s.name) && s.container) results.push({ cap: "Aktionen", html: `<span class="logo" style="color:var(--muted)">${I.restart}</span><span>${s.name} ${s.status === "down" ? "starten" : "neu starten"}</span>`, run: () => restart(s.id) });
+	for (const s of DATA.services) if (q && m(s.name)) results.push({ cap: "Aktionen", html: `<span class="logo" style="color:var(--muted)">${I.logs}</span><span>Logs von ${s.name}</span>`, run: () => openDrawer(s.id, true) });
+	for (const b of DATA.bookmarks) if (m(b.name)) results.push({ cap: "Lesezeichen", html: `<span class="logo" style="color:var(--muted)">${I.open}</span><span>${b.name}</span><span class="k">${b.url.replace(/^https?:\/\//, "")}</span>`, run: () => window.open(b.url) });
+	if (q) results.push({ cap: "Web", html: `<span class="logo" style="color:var(--muted)">↗</span><span>«${q}» im Web suchen</span>`, run: () => window.open("https://duckduckgo.com/?q=" + encodeURIComponent(q)) });
+	results = results.slice(0, 12);
+	sel = Math.min(sel, results.length - 1);
+	let last = null;
+	$("#palRes").innerHTML = results.map((r, i) => {
+		const cap = r.cap !== last ? `<div class="cap">${r.cap}</div>` : "";
+		last = r.cap;
+		return `${cap}<div class="it ${i === sel ? "sel" : ""}" onmousemove="sel=${i};palMark()" onclick="palRun(${i})">${r.html}</div>`;
+	}).join("");
+}
+function palMark() { document.querySelectorAll(".pal .it").forEach((e, i) => e.classList.toggle("sel", i === sel)); }
+function palRun(i) { const r = results[i]; closeAll(); r && r.run(); }
+$("#palIn").addEventListener("input", () => { sel = 0; palRender(); });
+document.addEventListener("keydown", (e) => {
+	if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); openPal(); }
+	if (e.key === "Escape") closeAll();
+	if ($("#pal").classList.contains("on")) {
+		if (e.key === "ArrowDown") { sel = Math.min(results.length - 1, sel + 1); palMark(); e.preventDefault(); }
+		if (e.key === "ArrowUp") { sel = Math.max(0, sel - 1); palMark(); e.preventDefault(); }
+		if (e.key === "Enter") palRun(sel);
+	}
+});
+
+function render() { hello(); attention(); hosts(); list(); }
+render();
+// live: only the numbers change, the rows stay (no flicker under the mouse)
+UTIL.live(() => {
+	hosts();
+	for (const s of DATA.services) {
+		const r = document.querySelector(`.row[data-id="${s.id}"]`);
+		if (!r) continue;
+		r.querySelector(".ms").textContent = UTIL.fmtMs(s.ms);
+		r.querySelector(".stat").textContent = s.stat;
+	}
+});
+</script>
+</body>
+</html>
