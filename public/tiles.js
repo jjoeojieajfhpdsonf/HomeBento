@@ -304,6 +304,60 @@ function srcLogo(x, i) {
 	return s ? logo(s, "logo src-logo").replace("<span ", `<span title="${esc(s.name)}" `) : "";
 }
 
+// ---------- weather ----------
+
+// WMO weather codes → icon and words
+const WX_ICONS = {
+	sun: ["<circle cx='12' cy='12' r='4.2'/><path d='M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6'/>", "#f5b83d"],
+	moon: ["<path d='M19.5 14.5A7.5 7.5 0 019.5 4.5a7.5 7.5 0 1010 10z'/>", "#c9d3ff"],
+	partly: ["<path d='M8 2.8v1.4M2.8 8h1.4M4.3 4.3l1 1M11.7 4.3l-1 1'/><circle cx='8' cy='8' r='2.6'/><path d='M9 19.5h8a3.6 3.6 0 00.4-7.2 5 5 0 00-9.3-.9A4 4 0 009 19.5z'/>", "#f5b83d"],
+	partlyNight: ["<path d='M11.5 8.5A4.5 4.5 0 015.6 3a4.5 4.5 0 105.9 5.5z'/><path d='M9 19.5h8a3.6 3.6 0 00.4-7.2 5 5 0 00-9.3-.9A4 4 0 009 19.5z'/>", "#c9d3ff"],
+	cloud: ["<path d='M7 18.5h10a4.2 4.2 0 00.5-8.4 6 6 0 00-11.2-1.2A4.8 4.8 0 007 18.5z'/>", "var(--muted)"],
+	fog: ["<path d='M4 8h16M6 12h12M4 16h16M8 20h8'/>", "var(--muted)"],
+	rain: ["<path d='M7 15h10a4.2 4.2 0 00.5-8.4 6 6 0 00-11.2-1.2A4.8 4.8 0 007 15z'/><path d='M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5'/>", "#6fb3ff"],
+	snow: ["<path d='M7 15h10a4.2 4.2 0 00.5-8.4 6 6 0 00-11.2-1.2A4.8 4.8 0 007 15z'/><path d='M8 18.5h.01M12 18.5h.01M16 18.5h.01M10 21h.01M14 21h.01'/>", "#dfe8ff"],
+	storm: ["<path d='M7 15h10a4.2 4.2 0 00.5-8.4 6 6 0 00-11.2-1.2A4.8 4.8 0 007 15z'/><path d='M12.5 15.5l-2 3h3l-2 3'/>", "#c792ea"]
+};
+function wxKind(code, day = true) {
+	if (code === 0 || code === 1) return day ? "sun" : "moon";
+	if (code === 2) return day ? "partly" : "partlyNight";
+	if (code === 3) return "cloud";
+	if (code === 45 || code === 48) return "fog";
+	if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+	if (code >= 95) return "storm";
+	if (code >= 51) return "rain";
+	return "cloud";
+}
+const wxIcon = (code, day, cls = "wx-i") => {
+	const [paths, color] = WX_ICONS[wxKind(code, day)];
+	return `<span class="${cls}" style="color:${color}">${svg(paths, 1.7)}</span>`;
+};
+const wxText = (code) => {
+	const groups = [[[0], "clear"], [[1], "mostlyClear"], [[2], "partly"], [[3], "cloudy"], [[45, 48], "fog"], [[51, 53, 55, 56, 57], "drizzle"], [[61, 63, 66], "rain"], [[65, 67], "heavyRain"], [[71, 73, 75, 77], "snow"], [[80, 81, 82], "showers"], [[85, 86], "snowShowers"], [[95, 96, 99], "storm"]];
+	const g = groups.find(([codes]) => codes.includes(code));
+	return t(`wx.${g ? g[1] : "cloudy"}`);
+};
+const deg = (v) => (v === null || v === undefined ? "–" : `${Math.round(v)}°`);
+
+// ---------- network chart ----------
+
+// [[t, rx, tx]] as two areas (download up, upload down), bytes per second
+function netChart(points, id) {
+	const pts = (points || []).filter((p) => p[1] !== null && p[2] !== null);
+	if (pts.length < 2) return "";
+	const w = 300, hh = 80, mid = hh * 0.62;
+	const maxRx = Math.max(...pts.map((p) => p[1]), 1) * 1.1;
+	const maxTx = Math.max(...pts.map((p) => p[2]), 1) * 1.1;
+	const t0 = pts[0][0], t1 = pts[pts.length - 1][0] || t0 + 1;
+	const x = (tt) => (((tt - t0) / (t1 - t0 || 1)) * w).toFixed(1);
+	const up = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0])},${(mid - (p[1] / maxRx) * (mid - 2)).toFixed(1)}`).join("");
+	const down = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0])},${(mid + (p[2] / maxTx) * (hh - mid - 2)).toFixed(1)}`).join("");
+	const close = (d) => `${d}L${x(t1)},${mid}L${x(t0)},${mid}Z`;
+	return `<svg class="net-chart" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none"><path d="${close(up)}" fill="#9dbcff" fill-opacity=".22"/><path d="${up}" fill="none" stroke="#9dbcff" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="${close(down)}" fill="#5fd39a" fill-opacity=".18"/><path d="${down}" fill="none" stroke="#5fd39a" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="M0,${mid}H${w}" stroke="rgba(255,255,255,.08)" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+const optsHint = (text) => `<div class="opts-hint"><span>${esc(text)}</span><button class="btn" data-tile-opts>${t("tile.setUp")}</button></div>`;
+
 // ---------- tiles ----------
 
 const TILES = {
@@ -391,20 +445,23 @@ const TILES = {
 		if (!d || !d.data) return { c: colorOf(s), html: head + setupHint(s, d) };
 		const data = d.data;
 		const img = (id) => `/api/img/${s.id}/${id}`;
+		// who watches what: one compact row each (several people at once fit too)
+		const nowRow = (p) => `<div class="nowp"><div class="art" data-media="${s.id}|${esc(p.image)}" style="background-image:url('${img(p.image)}')"></div><div class="nowp-txt"><div class="title">${esc(p.title)}</div><div class="sm muted nowp-sub">${esc([p.episode ? `S${p.episode.season} · E${p.episode.number} · ${p.episode.name}` : p.year || "", `${p.user} · ${p.device}`, p.paused ? t("jf.paused") : ""].filter(Boolean).join(" · "))}</div>${p.progress !== null ? `<div class="prog"><i style="width:${(p.progress * 100).toFixed(1)}%"></i></div>` : ""}</div></div>`;
 		let now = "";
-		if (tile.h > 1 || !data.recent.length) {
-			const p = data.now[0];
-			now = p
-				? `<div class="nowp"><div class="art" data-media="${s.id}|${esc(p.image)}" style="background-image:url('${img(p.image)}')"></div><div style="flex:1;min-width:0"><div class="title">${esc(p.title)}</div><div class="sm muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.episode ? `S${p.episode.season} · E${p.episode.number} · ${esc(p.episode.name)}` : esc(p.year || "")}</div><div class="sm faint">${esc(p.user)} · ${esc(p.device)}${p.paused ? ` · ${t("jf.paused")}` : ""}</div>${p.progress !== null ? `<div class="prog"><i style="width:${(p.progress * 100).toFixed(1)}%"></i></div>` : ""}</div></div>`
-				: `<div class="sm faint" style="margin:10px 0">${t("jf.nothing")}</div>`;
+		const maxNow = tile.h === 1 ? 1 : tile.h === 2 ? 2 : 3;
+		if (tile.h > 1 || !data.recent.length || data.now.length) {
+			now = data.now.length
+				? `<div class="nowps">${data.now.slice(0, maxNow).map(nowRow).join("")}${data.now.length > maxNow ? `<div class="sm faint">${t("jf.more", { n: data.now.length - maxNow })}</div>` : ""}</div>`
+				: `<div class="sm faint" style="margin:8px 0 4px">${t("jf.nothing")}</div>`;
 		}
 		const count = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
-		const rows = tile.h >= 3 ? 2 : 1;
+		const rows = tile.h >= 3 && data.now.length < 2 ? 2 : 1;
 		// a separate "recently added" tile on the same page: don't show the posters twice
 		const separate = x.tiles.some((o) => o.type === "recent" && (o.service || (x.ofKind("jellyfin")[0] || {}).id) === s.id);
-		const recent = !separate && (tile.h > 1 || !now) ? data.recent.slice(0, count * rows) : [];
-		const posters = recent.length ? `<div class="sm muted" style="margin-top:auto">${t("jf.recent")}</div><div class="posters" style="--pc:${count}">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
-		return { c: colorOf(s), html: head + now + posters };
+		const room = tile.h - 1 - (data.now.length >= 2 ? 1 : 0);
+		const recent = !separate && room >= 1 ? data.recent.slice(0, 14) : [];
+		const posters = recent.length ? `<div class="sm muted jf-rec">${t("jf.recent")}</div><div class="jf-posters">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
+		return { c: colorOf(s), cls: "jf-tile", html: head + now + posters };
 	},
 
 	calendar(tile, x) {
@@ -540,13 +597,17 @@ const TILES = {
 		const total = v.devices.reduce((a, dev) => a + (dev.online && dev.w > 0 ? dev.w : 0), 0);
 		const share = total > 0 ? `<div class="ms-share">${v.devices.map((dev, i) => (dev.online && dev.w > 0 ? `<i style="width:${((dev.w / total) * 100).toFixed(1)}%;background:${hue(i)}" title="${esc(dev.name)} · ${watt(dev.w)} W"></i>` : "")).join("")}</div>` : "";
 		const cols = Math.min(tile.w === 2 ? 2 : 3, Math.max(1, v.devices.length));
-		const max = cols * Math.max(1, tile.h * 2 - (tile.h > 1 ? 2 : 1));
+		// full cards while they fit, else one line per device
+		const fullRows = tile.h === 2 ? 1 : 2;
+		const compact = v.devices.length > cols * fullRows;
+		const max = cols * (compact ? (tile.h === 2 ? 2 : 5) : fullRows);
 		const cards = v.devices.slice(0, max).map((dev) => {
 			const state = !dev.online ? "off" : dev.on ? "on" : "idle";
 			const sub = [dev.room, dev.online && dev.on && dev.onSince ? t("status.since", { t: fmtDuration(Date.now() - dev.onSince) }) : ""].filter(Boolean).join(" · ");
+			if (compact) return `<div class="ms-card compact ${state}"><span class="ms-dot" style="background:${hue(v.devices.indexOf(dev))}"></span><span class="ms-name" title="${esc(dev.name)}">${esc(dev.name)}</span><span class="ms-w num">${dev.online ? `${watt(dev.w)}<small> W</small>` : `<small>${t("ms.offline")}</small>`}</span>${sw(dev)}</div>`;
 			return `<div class="ms-card ${state}"><div class="ms-top"><span class="ms-dot" style="background:${hue(v.devices.indexOf(dev))}"></span><span class="ms-name" title="${esc(dev.name)}">${esc(dev.name)}</span>${sw(dev)}</div><div class="ms-sub">${esc(sub || " ")}</div><div class="ms-bottom"><span class="ms-w num">${dev.online ? `${watt(dev.w)}<small> W</small>` : `<small>${t("ms.offline")}</small>`}</span>${dev.todayWh !== null ? `<span class="ms-kwh num">${fmtWh(dev.todayWh)}</span>` : ""}</div></div>`;
 		});
-		return { c: colorOf(s), cls: "ms-tile", html: `${head}${hero}${share}<div class="ms-cards" style="--mc:${cols}">${cards.join("")}</div>` };
+		return { c: colorOf(s), cls: "ms-tile", html: `${head}${hero}${share}<div class="ms-cards${compact ? " compact" : ""}" style="--mc:${cols}">${cards.join("")}</div>${v.devices.length > max ? `<div class="sm faint" style="margin-top:6px">${t("jf.more", { n: v.devices.length - max })}</div>` : ""}` };
 	},
 
 	// the solar day as a balance: produced, used, own share, grid, battery
@@ -579,6 +640,111 @@ const TILES = {
 		const facts = [st.status === "down" ? `<span class="ev-bad">${t("status.down")}</span>` : `<span class="ev-ok">${t("mm.online")}</span>`, v.started ? t("status.since", { t: fmtDuration(Date.now() - v.started) }) : "", md && md.restarts !== null ? t("mm.restarts", { n: md.restarts }) : ""].filter(Boolean).join(" · ");
 		const chips = v.active.filter((m) => m.position).slice(0, tile.h * 5).map((m) => `<span class="mm-chip" title="${esc((m.position || "").replace(/_/g, " "))}">${esc(m.name.replace(/^MMM-/, ""))}</span>`).join("");
 		return { c: colorOf(s), html: `${head}<div class="sm muted" style="margin:6px 0 8px">${facts}</div><div class="mm-chips">${chips}</div><div class="md-btns">${mgr ? `<button class="md-clear" data-mm-restart="${esc(mgr.id)}">${t("mm.restart")}</button>` : ""}<span class="sm faint">${t("mm.count", { a: v.modules, b: v.total })}</span></div>` };
+	},
+
+	// weather at the place of the settings or the tile's own
+	weather(tile, x) {
+		const w = x.live.weather && x.live.weather[tile.id];
+		const head = (place, meta) => `<div class="th"><span class="n">${esc(place || t("wx.title"))}</span><span class="meta">${esc(meta || "")}</span></div>`;
+		if (!w) return { c: "#6fb3ff", html: head() };
+		if (w.error === "no-place") return { c: "#6fb3ff", html: head() + optsHint(t("wx.noPlace")) };
+		if (w.error || !w.now) return { c: "#6fb3ff", html: `${head(w.place && w.place.name)}<div class="sm faint bottom">${esc(w.error || "")}</div>` };
+		const n = w.now;
+		const today = w.days[0] || {};
+		const name = w.place.name;
+		if (tile.w === 1 && tile.h === 1) return { c: "#6fb3ff", cls: "wx-tile", html: `${head(name)}<div class="wx-now small">${wxIcon(n.code, n.day, "wx-i big")}<div class="big num">${deg(n.temp)}</div></div><div class="sm muted">${deg(today.max)} / ${deg(today.min)}</div>` };
+		const facts = [t("wx.feels", { v: deg(n.feels) }), `${n.humidity} %`, `${Math.round(n.wind)} km/h`].join(" · ");
+		const now = `<div class="wx-now">${wxIcon(n.code, n.day, "wx-i big")}<div class="big num">${deg(n.temp)}</div><div class="wx-facts"><div>${esc(wxText(n.code))}</div><div class="faint">${tile.w > 1 ? esc(facts) : `${deg(today.max)} / ${deg(today.min)}`}</div></div>${tile.w > 1 ? `<div class="wx-hl num"><div>${deg(today.max)}</div><div class="faint">${deg(today.min)}</div></div>` : ""}</div>`;
+		const hourCount = tile.w === 1 ? 4 : tile.w === 2 ? 7 : 11;
+		const hours = tile.w > 1 || tile.h > 1 ? `<div class="wx-hours" style="--hc:${hourCount}">${w.hours.slice(0, hourCount).map((hr, i) => `<div><div class="faint">${i === 0 ? t("wx.now") : new Date(hr.t).getHours()}</div>${wxIcon(hr.code, hr.day)}<div class="num">${deg(hr.temp)}</div>${hr.rain >= 20 ? `<div class="wx-rain">${hr.rain} %</div>` : `<div class="wx-rain"></div>`}</div>`).join("")}</div>` : "";
+		// days: a bar from the week's lowest to highest temperature
+		let days = "";
+		const dayRows = tile.h === 1 ? 0 : tile.h === 2 ? (tile.w === 1 ? 3 : 2) : 6;
+		if (dayRows) {
+			const list = w.days.slice(0, dayRows + 1).slice(1);
+			const lo = Math.min(...w.days.map((d) => d.min));
+			const hi = Math.max(...w.days.map((d) => d.max));
+			const pos = (v) => (((v - lo) / (hi - lo || 1)) * 100).toFixed(1);
+			days = `<div class="wx-days">${list.map((d) => `<div><span class="wx-day">${esc(new Date(d.date + "T12:00").toLocaleDateString(LOCALE, { weekday: "short" }))}</span>${wxIcon(d.code, true)}<span class="wx-rain">${d.rain >= 20 ? `${d.rain} %` : ""}</span><span class="num faint">${deg(d.min)}</span><span class="wx-bar"><i style="left:${pos(d.min)}%;right:${100 - pos(d.max)}%"></i></span><span class="num">${deg(d.max)}</span></div>`).join("")}</div>`;
+		}
+		const sun = today.sunrise && tile.h > 1 && tile.w > 1 ? `${t("wx.sun", { a: today.sunrise.slice(11, 16), b: today.sunset.slice(11, 16) })}` : "";
+		return { c: "#6fb3ff", cls: "wx-tile", html: `${head(name, sun)}${now}${tile.h > 1 || tile.w > 1 ? hours : ""}${days}` };
+	},
+
+	// the time, big; more places below
+	clock(tile) {
+		const zones = (tile.zones || []).slice(0, tile.h === 1 ? (tile.w > 1 ? 2 : 0) : 4);
+		const more = zones.length ? `<div class="clk-zones">${zones.map((z) => `<div><span class="faint">${esc(z.name || z.zone.split("/").pop().replace(/_/g, " "))}</span><span class="num" data-clock-zone="${esc(z.zone)}"></span></div>`).join("")}</div>` : "";
+		return { c: "#9dbcff", cls: "clk-tile", html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
+	},
+
+	// all file systems of the host
+	disks(tile, x) {
+		const list = x.live.disks || [];
+		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("disks.title")}</span><span class="meta">${list.length ? t("disks.free", { v: fmtBytes(list.reduce((a, d) => a + d.total - d.used, 0)) }) : ""}</span></div>`;
+		if (!list.length) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("disks.none")}</div>` };
+		const rows = list.slice(0, tile.h * 3).map((d) => {
+			const pct = d.total ? Math.round((d.used / d.total) * 100) : 0;
+			return `<div class="b"><div class="top"><span title="${esc(d.device)}">${esc(d.mount)}</span><span class="num">${tile.w > 1 ? `${fmtBytes(d.used)} / ${fmtBytes(d.total)} · ` : ""}${pct} %</span></div><div class="track"><div class="fill${pct > 85 ? " hot" : ""}" style="width:${pct}%"></div></div></div>`;
+		});
+		return { c: "#9dbcff", html: `${head}<div class="bars">${rows.join("")}</div>` };
+	},
+
+	// network traffic of the host over the last hours
+	network(tile, x) {
+		const pts = x.live.net || [];
+		const last = pts[pts.length - 1];
+		const valid = pts.filter((p) => p[1] !== null);
+		const peak = valid.length ? Math.max(...valid.map((p) => p[1])) : null;
+		const head = `<div class="th"><span class="n">${t("net.title")}</span><span class="meta">${valid.length > 1 ? t("net.span", { t: fmtDuration(valid[valid.length - 1][0] - valid[0][0]) }) : ""}</span></div>`;
+		if (!last || last[1] === null) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("net.wait")}</div>` };
+		const now = `<div class="net-now"><div><span class="net-k" style="color:#9dbcff">↓</span><span class="num">${fmtBytes(last[1])}/s</span></div><div><span class="net-k" style="color:#5fd39a">↑</span><span class="num">${fmtBytes(last[2])}/s</span></div>${tile.w > 1 && peak !== null ? `<div class="faint">${t("net.peak", { v: `${fmtBytes(peak)}/s` })}</div>` : ""}</div>`;
+		return { c: "#9dbcff", html: `${head}${now}${tile.h > 1 || tile.w > 1 ? `<div class="net-box">${netChart(pts, tile.id)}</div>` : ""}` };
+	},
+
+	// calendars by link (iCal): the next appointments, by day
+	ical(tile, x) {
+		const cals = tile.calendars || [];
+		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("ical.title")}</span><span class="meta">${cals.length > 1 ? cals.map((c) => `<i class="cal-dot" style="background:${esc(c.color)}" title="${esc(c.name)}"></i>`).join("") : esc((cals[0] && cals[0].name) || "")}</span></div>`;
+		if (!cals.length) return { c: "#9dbcff", html: head + optsHint(t("ical.empty")) };
+		const d = x.live.ical && x.live.ical[tile.id];
+		if (!d) return { c: "#9dbcff", html: head };
+		const err = d.errors.length ? `<div class="sm warn-text" title="${esc(d.errors.join("\n"))}">⚠ ${esc(d.errors[0])}</div>` : "";
+		if (!d.events.length) return { c: "#9dbcff", html: `${head}${err}<div class="sm faint bottom">${t("ical.none")}</div>` };
+		const max = tile.h * 3 + (tile.h > 1 ? 1 : 0);
+		const out = [];
+		let lastDay = null;
+		for (const e of d.events.filter((e) => e.end > Date.now() || e.allDay)) {
+			if (out.length >= max) break;
+			const day = new Date(e.t).toDateString();
+			const label = fmtWhen(e.t, false);
+			if (day !== lastDay) {
+				out.push(`<div class="ic-day${label === t("cal.today") ? " today" : ""}">${esc(label === t("cal.today") || label === t("cal.tomorrow") ? label : new Date(e.t).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "numeric" }))}</div>`);
+				lastDay = day;
+			}
+			const c = cals[e.cal] || {};
+			const time = e.allDay ? t("ical.allDay") : new Date(e.t).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+			out.push(`<div class="ic-ev" style="--cc:${esc(c.color || "#9dbcff")}"><span class="ic-time num">${esc(time)}</span><div class="mid"><div class="tt">${esc(e.title)}</div>${e.where && tile.w > 1 ? `<div class="ss">${esc(e.where)}</div>` : ""}</div></div>`);
+		}
+		return { c: "#9dbcff", cls: "ic-tile", html: `${head}${err}<div class="ic-list">${out.join("")}</div>` };
+	},
+
+	// news from RSS / Atom feeds, newest first
+	rss(tile, x) {
+		const feeds = tile.feeds || [];
+		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("rss.title")}</span><span class="meta">${esc(feeds.length === 1 ? feeds[0].name || "" : feeds.length ? t("rss.sources", { n: feeds.length }) : "")}</span></div>`;
+		if (!feeds.length) return { c: "#ff9f5a", html: head + optsHint(t("rss.empty")) };
+		const d = x.live.rss && x.live.rss[tile.id];
+		if (!d) return { c: "#ff9f5a", html: head };
+		const err = d.errors.length && !d.items.length ? `<div class="sm warn-text">⚠ ${esc(d.errors[0])}</div>` : "";
+		const rows = d.items.slice(0, tile.h * 3 - (tile.h > 1 ? 0 : 1)).map((i) => `<a class="rss-it" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer"><div class="tt">${esc(i.title)}</div><div class="ss">${esc([feeds.length > 1 ? i.source : "", i.date ? fmtAgo(i.date) : ""].filter(Boolean).join(" · "))}</div></a>`);
+		return { c: "#ff9f5a", cls: "rss-tile", html: `${head}${err}<div class="rss-list">${rows.join("")}</div>` };
+	},
+
+	// any web page in a frame
+	iframe(tile) {
+		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("frame.title")}</span></div>${optsHint(t("frame.empty"))}` };
+		return { c: "#9dbcff", cls: "frame-tile", html: `${tile.title ? `<div class="th"><span class="n">${esc(tile.title)}</span><a class="meta" href="${esc(tile.url)}" target="_blank" rel="noopener noreferrer">↗</a></div>` : ""}<iframe src="${esc(tile.url)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>` };
 	},
 
 	links(tile) {

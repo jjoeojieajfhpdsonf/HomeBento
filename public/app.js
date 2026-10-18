@@ -204,6 +204,7 @@ function renderGrid() {
 		if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
 	});
 	while (grid.children.length > els.length) grid.lastChild.remove();
+	tickClocks();
 }
 
 // ---------- combined layout: problem strip and service list ----------
@@ -242,20 +243,26 @@ function renderAttention() {
 		if (st.status === "down") items.push({ s, c: "var(--bad)", title: t("att.down", { n: s.name }), sub: st.error || "", act: s.container ? ["start", t("sheet.start")] : null });
 		else if (st.status === "slow") items.push({ s, c: "var(--warn)", title: t("att.slow", { n: s.name }), sub: fmtMs(st.ms) });
 		else if (d && d.error) items.push({ s, c: "var(--warn)", title: s.name, sub: d.error, setup: true });
-		else if (d && d.data && d.data.warnings && d.data.warnings.length) items.push({ s, c: "var(--warn)", title: t("att.warnings", { n: s.name, c: d.data.warnings.length }), sub: d.data.warnings[0] });
+		else if (d && d.data && d.data.warnings && d.data.warnings.length) items.push({ s, c: "var(--warn)", title: d.data.warnings.length === 1 ? s.name : t("att.warnings", { n: s.name, c: d.data.warnings.length }), sub: d.data.warnings[0], soft: true });
 	}
-	const key = JSON.stringify(items.map((i) => [i.s.id, i.title, i.sub]));
+	// what's down first; more than four: the rest behind "+ n more"
+	items.sort((a, b) => !!a.soft - !!b.soft);
+	const MAX = 4;
+	const hidden = S.attAll ? 0 : Math.max(0, items.length - MAX + (items.length > MAX ? 1 : 0));
+	const key = JSON.stringify([S.attAll, items.map((i) => [i.s.id, i.title, i.sub])]);
 	if (el.dataset.key === key) return;
 	el.dataset.key = key;
 	if (!items.length) return el.replaceChildren(h("div", { class: "allok" }, h("i"), t("att.ok", { n: pageServices().length })));
 	el.replaceChildren(
 		h("div", { class: "attention" },
-			items.map((i) =>
+			items.slice(0, items.length - hidden).map((i) =>
 				h("div", { class: "issue", style: `--c:${i.c}` },
 					html(logo(i.s)),
 					h("div", { class: "grow" }, h("div", { class: "it" }, i.title), h("div", { class: "d", title: i.sub }, i.sub)),
 					i.act ? h("button", { class: "btn primary", onclick: (e) => act(e.currentTarget, i.s, i.act[0]) }, i.act[1]) : null,
-					h("button", { class: "btn", onclick: () => (i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details"))))
+					h("button", { class: "btn", onclick: () => (i.setup ? serviceForm(i.s) : serviceSheet(i.s.id)) }, i.setup ? t("setup.needed") : t("sheet.details")))),
+			hidden ? h("button", { class: "issue more", onclick: () => ((S.attAll = true), renderAttention()) }, h("div", { class: "grow" }, h("div", { class: "it" }, t("att.more", { n: hidden })), h("div", { class: "d" }, items.slice(items.length - hidden).map((i) => i.s.name).join(" · ")))) : null,
+			S.attAll && items.length > MAX ? h("button", { class: "issue more", onclick: () => ((S.attAll = false), renderAttention()) }, h("div", { class: "grow" }, h("div", { class: "it" }, t("att.less")))) : null
 		)
 	);
 }
@@ -349,7 +356,7 @@ document.addEventListener("contextmenu", (e) => {
 });
 
 function controls(tile) {
-	const opts = tile.type === "links" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
+	const opts = OPTION_TILES.includes(tile.type) ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
 	return `<button class="ctl rm" data-act="rm" aria-label="${t("tile.remove")}">×</button><div class="ctl sz">${opts}<button data-act="size" title="${t("tile.size")}">⤢ ${tile.w}×${tile.h}</button></div>`;
 }
 
@@ -456,6 +463,12 @@ document.addEventListener("click", (e) => {
 		const [sid, ref] = media.dataset.media.split("|");
 		return mediaSheet(sid, ref);
 	}
+	const tileOpts = e.target.closest("[data-tile-opts]");
+	if (tileOpts) {
+		e.stopPropagation();
+		const tl = tiles().find((x) => x.id === tileOpts.closest(".t[data-id]").dataset.id);
+		return tl && tileOptions(tl);
+	}
 	const setup = e.target.closest("[data-setup]");
 	if (setup) {
 		e.stopPropagation();
@@ -478,7 +491,7 @@ document.addEventListener("click", (e) => {
 			const k = sizes.findIndex(([w, hh]) => w === tile.w && hh === tile.h);
 			[tile.w, tile.h] = sizes[(k + 1) % sizes.length];
 			saveTiles();
-		} else if (act.dataset.act === "opts") linksSheet(tile);
+		} else if (act.dataset.act === "opts") tileOptions(tile);
 		renderGrid();
 		return;
 	}
@@ -558,7 +571,9 @@ function openTileDetails(tile) {
 	if (tile.service) return serviceSheet(tile.service);
 	if (tile.type === "status" || tile.type === "uptime") return statusSheet();
 	if (tile.type === "host") return hostSheet();
-	if (tile.type === "notes" || tile.type === "links") return;
+	if (["notes", "links", "clock", "ical", "rss", "iframe"].includes(tile.type)) return;
+	if (tile.type === "disks" || tile.type === "network") return hostSheet();
+	if (tile.type === "weather") return tileOptions(tile);
 	if (tile.type === "tailscale") return tailscaleSheet();
 	const s = { jellyfin: x.ofKind("jellyfin")[0], recent: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0], calendar: x.ofKind("sonarr")[0] || x.ofKind("radarr")[0] }[tile.type];
 	if (s) serviceSheet(s.id);
@@ -1355,7 +1370,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1365,9 +1380,11 @@ function addTile(tile) {
 		render();
 	}
 	const id = [...crypto.getRandomValues(new Uint8Array(5))].map((b) => b.toString(16).padStart(2, "0")).join("");
-	S.tiles.push({ id, w, h: hh, ...tile });
+	const added = { id, w, h: hh, ...tile };
+	S.tiles.push(added);
 	saveTiles();
 	renderGrid();
+	return added;
 }
 
 async function addTileSheet() {
@@ -1407,6 +1424,18 @@ async function addTileSheet() {
 			if (k.tile === "jellyfin") content.push(row(logo(s), `${s.name}: ${t("add.recent")}`, null, add({ type: "recent", service: s.id }), onBoard((x) => x.type === "recent" && x.service === s.id) && t("add.onBoard")));
 		}
 		if (services().some((s) => s.kind === "sonarr" || s.kind === "radarr")) content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4'/>", "#35c5f4"), t("add.calendar"), t("add.calendarSub"), add({ type: "calendar" }), onBoard((x) => x.type === "calendar") && t("add.onBoard")));
+		const addAndSetUp = (tile) => () => {
+			const added = addTile(tile);
+			draw();
+			tileOptions(added);
+		};
+		content.push(row(glyphLogo("<path d='M7 17.5h10a4 4 0 00.5-8 5.8 5.8 0 00-10.9-1.2A4.6 4.6 0 007 17.5z'/>", "#6fb3ff"), t("wx.title"), t("add.weatherSub"), S.state.config.location ? add({ type: "weather" }) : addAndSetUp({ type: "weather" })));
+		content.push(row(glyphLogo("<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5V12l3 2'/>", "#9dbcff"), t("clk.title"), t("add.clockSub"), add({ type: "clock" }), onBoard((x) => x.type === "clock") && t("add.onBoard")));
+		content.push(row(glyphLogo("<ellipse cx='12' cy='6' rx='7.5' ry='2.8'/><path d='M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8'/>", "#9dbcff"), t("disks.title"), t("add.disksSub"), add({ type: "disks" }), onBoard((x) => x.type === "disks") && t("add.onBoard")));
+		content.push(row(glyphLogo("<path d='M7 4v14M3.5 14.5L7 18l3.5-3.5M17 20V6M13.5 9.5L17 6l3.5 3.5'/>", "#5fd39a"), t("net.title"), t("add.netSub"), add({ type: "network" }), onBoard((x) => x.type === "network") && t("add.onBoard")));
+		content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4M8 14h3'/>", "#9dbcff"), t("ical.title"), t("add.icalSub"), addAndSetUp({ type: "ical", calendars: [] })));
+		content.push(row(glyphLogo("<path d='M5 5a14 14 0 0114 14M5 11a8 8 0 018 8'/><circle cx='6' cy='18' r='1.3'/>", "#ff9f5a"), t("rss.title"), t("add.rssSub"), addAndSetUp({ type: "rss", feeds: [] })));
+		content.push(row(glyphLogo("<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17M7 6.8h.01M9.5 6.8h.01'/>", "#9dbcff"), t("frame.title"), t("add.frameSub"), addAndSetUp({ type: "iframe" })));
 		content.push(row(glyphLogo("link", "#9dbcff"), t("add.links"), t("add.linksSub"), add({ type: "links", links: [] })));
 		content.push(row(glyphLogo("<rect x='5' y='4' width='14' height='16' rx='3'/><path d='M9 9h6M9 13h6M9 17h3'/>", "#f5b83d"), t("add.notes"), t("add.notesSub"), add({ type: "notes", notes: [] })));
 		const mine = services().map((s) => row(logo(s), s.name, s.url.replace(/^https?:\/\//, ""), add({ type: "service", service: s.id }), onBoard((x) => x.type === "service" && x.service === s.id) && t("add.onBoard")));
@@ -1465,17 +1494,186 @@ function linksSheet(tile) {
 		h("div", { class: "sec" }, t("links.title")),
 		list,
 		h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: () => {
-			const tl = S.tiles.find((x) => x.id === tile.id);
-			if (tl) {
-				tl.links = links.filter((l) => /^https?:\/\//.test(l.url));
-				tl.title = title.value.trim() || undefined;
-				saveTiles();
-				renderGrid();
-			}
+			updateTile(tile.id, { links: links.filter((l) => /^https?:\/\//.test(l.url)), title: title.value.trim() || undefined });
 			sheet.close();
 		} }, t("form.save")))
 	);
 }
+
+// ---------- tile options ----------
+
+const OPTION_TILES = ["links", "weather", "clock", "ical", "rss", "iframe", "disks"];
+
+// Changes a tile: while editing in the edited copy, else right on the board.
+function updateTile(id, patch) {
+	if (S.editing) {
+		const tl = S.tiles.find((x) => x.id === id);
+		if (tl) Object.assign(tl, patch);
+		saveTiles();
+	} else {
+		const b = board();
+		const tl = b.tiles.find((x) => x.id === id);
+		if (!tl) return;
+		Object.assign(tl, patch);
+		guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles })).then((r) => {
+			if (r) b.tiles = r.board.tiles;
+			loadLive();
+		});
+	}
+	renderGrid();
+}
+
+function tileOptions(tile) {
+	if (tile.type === "links") return linksSheet(tile);
+	const sheet = openSheet();
+	const title = h("input", { class: "input", value: tile.title || "", placeholder: t(`${tile.type === "iframe" ? "frame" : tile.type}.title`), maxlength: 40 });
+	const titleBox = h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title));
+	const save = (patch) => {
+		updateTile(tile.id, { title: title.value.trim() || undefined, ...patch });
+		sheet.close();
+	};
+	const saveBtn = (get) => h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: () => save(get()) }, t("form.save")));
+
+	if (tile.type === "weather") {
+		sheet.head(h("div", { class: "tt" }, h("b", {}, t("wx.title"))));
+		let place = tile.place || null;
+		const def = S.state.config.location;
+		const cur = h("div", { class: "place-now" });
+		const reset = h("button", { class: "btn", onclick: () => ((place = null), show()) }, t("wx.useDefault"));
+		const show = () => {
+			cur.replaceChildren(place ? t("wx.ownPlace", { n: place.name }) : def ? t("wx.defaultPlace", { n: def.name }) : h("span", { class: "faint" }, t("wx.noPlace")));
+			reset.style.display = place && def ? "" : "none";
+		};
+		show();
+		sheet.body.append(
+			h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("wx.place")), cur, placePicker((p) => ((place = p), show())), h("div", { class: "help" }, t("wx.placeHelp")), reset)),
+			saveBtn(() => ({ place: place || undefined }))
+		);
+		return;
+	}
+
+	if (tile.type === "clock") {
+		sheet.head(h("div", { class: "tt" }, h("b", {}, t("clk.title"))));
+		const sec = h("input", { type: "checkbox", checked: !!tile.seconds });
+		const zones = (tile.zones || []).map((z) => ({ ...z }));
+		const all = (Intl.supportedValuesOf && Intl.supportedValuesOf("timeZone")) || [];
+		const dl = h("datalist", { id: "tz-list" }, all.map((z) => h("option", { value: z })));
+		const list = h("div");
+		const draw = () =>
+			list.replaceChildren(
+				...zones.map((z, i) =>
+					h("div", { class: "link-edit" },
+						h("input", { class: "input", value: z.name, placeholder: t("clk.placeName"), oninput: (e) => (z.name = e.target.value) }),
+						h("input", { class: "input", value: z.zone, placeholder: "America/New_York", list: "tz-list", autocapitalize: "off", spellcheck: "false", oninput: (e) => (z.zone = e.target.value.trim()) }),
+						h("button", { class: "x row-x", onclick: () => (zones.splice(i, 1), draw()), html: UI.x }))
+				),
+				zones.length < 4 ? h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (zones.push({ name: "", zone: "" }), draw()) }, html(UI.plus), t("clk.addZone"))) : null
+			);
+		draw();
+		sheet.body.append(
+			dl,
+			h("div", { class: "box" }, h("label", { class: "switch-row" }, h("div", { class: "grow" }, t("clk.seconds")), h("span", { class: "switch" }, sec, h("span")))),
+			h("div", { class: "sec" }, t("clk.zones")),
+			h("div", { class: "box" }, list),
+			saveBtn(() => ({ seconds: sec.checked, zones: zones.filter((z) => z.zone && (!all.length || all.includes(z.zone))) }))
+		);
+		return;
+	}
+
+	if (tile.type === "ical" || tile.type === "rss") {
+		const ical = tile.type === "ical";
+		sheet.head(h("div", { class: "tt" }, h("b", {}, t(ical ? "ical.title" : "rss.title"))));
+		const COLORS = ["#9dbcff", "#5fd39a", "#f5b83d", "#ff8a65", "#c792ea", "#4dd0e1"];
+		const items = ((ical ? tile.calendars : tile.feeds) || []).map((c) => ({ ...c }));
+		const list = h("div");
+		const draw = () =>
+			list.replaceChildren(
+				...items.map((c, i) =>
+					h("div", { class: `link-edit${ical ? " with-color" : ""}` },
+						ical ? h("input", { type: "color", class: "color-in", value: c.color || COLORS[i % COLORS.length], oninput: (e) => (c.color = e.target.value) }) : null,
+						h("input", { class: "input", value: c.name || "", placeholder: t("links.name"), oninput: (e) => (c.name = e.target.value) }),
+						h("input", { class: "input", value: c.url || "", placeholder: ical ? "https://… .ics · webcal://…" : "https://…/rss", inputmode: "url", autocapitalize: "off", spellcheck: "false", oninput: (e) => (c.url = e.target.value.trim()) }),
+						h("button", { class: "x row-x", onclick: () => (items.splice(i, 1), draw()), html: UI.x }))
+				),
+				h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (items.push({ name: "", url: "", color: COLORS[items.length % COLORS.length] }), draw()) }, html(UI.plus), t(ical ? "ical.add" : "rss.add")))
+			);
+		draw();
+		// a few feeds to start with
+		const presets = ical ? [] : [["SRF News", "https://www.srf.ch/news/bnf/rss/1646"], ["NZZ", "https://www.nzz.ch/recent.rss"], ["heise online", "https://www.heise.de/rss/heise-atom.xml"], ["Hacker News", "https://hnrss.org/frontpage"], ["Tagesschau", "https://www.tagesschau.de/index~rss2.xml"]];
+		const chips = presets.length ? h("div", { class: "chips-row" }, presets.map(([n, u]) => h("button", { class: "chip", onclick: () => (items.some((x) => x.url === u) || items.push({ name: n, url: u }), draw()) }, `+ ${n}`))) : null;
+		sheet.body.append(
+			titleBox,
+			h("div", { class: "sec" }, t(ical ? "ical.calendars" : "rss.feeds")),
+			h("div", { class: "box" }, list),
+			chips,
+			h("div", { class: "help", style: "margin:8px 2px 0" }, t(ical ? "ical.help" : "rss.help")),
+			saveBtn(() => (ical ? { calendars: items.filter((c) => c.url) } : { feeds: items.filter((c) => c.url) }))
+		);
+		return;
+	}
+
+	if (tile.type === "iframe") {
+		sheet.head(h("div", { class: "tt" }, h("b", {}, t("frame.title"))));
+		const url = h("input", { class: "input", value: tile.url || "", placeholder: "https://", inputmode: "url", autocapitalize: "off", spellcheck: "false" });
+		sheet.body.append(
+			h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("frame.url")), url, h("div", { class: "help" }, t("frame.help"))), h("div", { class: "field" }, h("label", {}, t("settings.title")), title)),
+			saveBtn(() => ({ url: url.value.trim() }))
+		);
+		return;
+	}
+
+	// file systems: only a title
+	sheet.head(h("div", { class: "tt" }, h("b", {}, t(`${tile.type}.title`))));
+	sheet.body.append(titleBox, saveBtn(() => ({})));
+}
+
+// Search a place by name (Open-Meteo), pick one of the hits.
+function placePicker(onPick) {
+	const input = h("input", { class: "input", placeholder: t("wx.searchPh"), onkeydown: (e) => e.key === "Enter" && (e.preventDefault(), find()) });
+	const hits = h("div", { class: "place-hits" });
+	const find = async () => {
+		const q = input.value.trim();
+		if (!q) return;
+		hits.replaceChildren(h("div", { class: "help" }, "…"));
+		const r = await guard(() => api("GET", `/api/geocode?q=${encodeURIComponent(q)}&lang=${LANG}`));
+		if (!r) return hits.replaceChildren();
+		if (!r.items.length) return hits.replaceChildren(h("div", { class: "help" }, t("wx.noHits")));
+		hits.replaceChildren(
+			...r.items.map((p) =>
+				h("button", { class: "place-hit", onclick: () => {
+					hits.replaceChildren();
+					input.value = "";
+					onPick({ name: p.name, lat: p.lat, lon: p.lon });
+				} }, h("b", {}, p.name), h("span", { class: "faint" }, p.region))
+			)
+		);
+	};
+	return h("div", {}, h("div", { class: "place-row" }, input, h("button", { class: "btn", onclick: find }, html(UI.search), t("wx.search"))), hits);
+}
+
+// Clocks tick every second; only their text changes, the tile isn't redrawn.
+function tickClocks() {
+	const now = new Date();
+	for (const el of document.querySelectorAll("[data-clock]")) {
+		const sec = el.hasAttribute("data-sec");
+		const time = now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", ...(sec ? { second: "2-digit" } : {}) });
+		const date = now.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
+		const tt = el.querySelector(".clk-t");
+		const dd = el.querySelector(".clk-d");
+		if (tt && tt.textContent !== time) tt.textContent = time;
+		if (dd && dd.textContent !== date) dd.textContent = date;
+	}
+	for (const el of document.querySelectorAll("[data-clock-zone]")) {
+		let text = "–";
+		try {
+			text = now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", timeZone: el.dataset.clockZone });
+		} catch {
+			// unknown zone
+		}
+		if (el.textContent !== text) el.textContent = text;
+	}
+}
+setInterval(tickClocks, 1000);
 
 // ---------- boards ----------
 
@@ -1675,6 +1873,9 @@ function settingsSheet() {
 		}
 		location.reload();
 	} }, [["", t("settings.langAuto")], ["de", "Deutsch"], ["en", "English"]].map(([v, l]) => h("option", { value: v, selected: v === cur }, l)));
+	const placeNow = h("div", { class: "place-now" });
+	const showPlace = () => placeNow.replaceChildren(S.state.config.location ? h("span", {}, S.state.config.location.name) : h("span", { class: "faint" }, t("settings.placeNone")));
+	showPlace();
 	sheet.body.append(
 		h("div", { class: "box" },
 			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
@@ -1686,7 +1887,14 @@ function settingsSheet() {
 					}
 				} }, [["tiles", t("settings.layoutTiles")], ["combined", t("settings.layoutCombined")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.layout || "tiles") === v }, l))),
 				h("div", { class: "help" }, t("settings.layoutHelp"))),
-			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang)),
+			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
+			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
+				if (await guard(() => api("POST", "/api/settings", { location: p }))) {
+					await loadState();
+					showPlace();
+					loadLive();
+				}
+			}), h("div", { class: "help" }, t("settings.placeHelp")))),
 		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
 			h("div", {}, h("span", {}, t("settings.docker")), h("span", {}, S.state.docker ? t("settings.dockerOn") : t("settings.dockerOff"))),

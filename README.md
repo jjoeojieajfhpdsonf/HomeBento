@@ -147,6 +147,14 @@ labels:
 
 `homepage.name`, `homepage.href` and `homepage.icon` work as well.
 
+## Demo
+
+```bash
+node demo/server.js
+```
+
+Starts HomeBento with made-up data on http://localhost:8122 – every tile and integration filled, values moving. Pages, tiles and settings can be changed; nothing talks to real services (only the weather comes from Open-Meteo).
+
 ## Development
 
 ```bash

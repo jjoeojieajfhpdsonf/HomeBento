@@ -482,24 +482,8 @@ route("POST", "/api/boards/order", (body) => store.orderBoards(body.ids));
 route("POST", "/api/boards/:id", (body, p) => store.renameBoard(p.id, body.name));
 route("POST", "/api/boards/:id/delete", (body, p) => store.removeBoard(p.id));
 route("POST", "/api/boards/:id/tiles", (body, p) => ({ board: store.setTiles(p.id, body.tiles) }));
-// The place for the weather: set in the settings, else taken from the solar dashboard once.
-async function location() {
-	if (store.config.location) return store.config.location;
-	const solar = store.config.services.find((s) => s.kind === "solar" && s.url);
-	if (!solar || location.tried) return null;
-	location.tried = true;
-	try {
-		const st = await require("./lib/util").json(`${solar.url.replace(/\/+$/, "")}/api/state`, { insecure: solar.insecure, timeout: 8000 });
-		const s = st.settings || {};
-		if (Number.isFinite(s.lat) && Number.isFinite(s.lon)) {
-			store.setLocation({ name: s.location || s.placeLabel || "", lat: s.lat, lon: s.lon });
-			return store.config.location;
-		}
-	} catch {
-		// no solar dashboard answer
-	}
-	return null;
-}
+// The place for the weather, set in the settings (a weather tile can have its own).
+const location = async () => store.config.location || null;
 
 route("GET", "/api/geocode", async (body, p, query) => ({ items: await widgets.geocode(String(query.get("q") || "").slice(0, 80), query.get("lang") === "en" ? "en" : "de") }));
 route("GET", "/api/disks", () => ({ items: host.disks() }));
