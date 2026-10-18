@@ -108,7 +108,7 @@ function render() {
 			h("div", { id: "svc-list" }))
 	);
 	document.title = S.state.config.title || t("app.title");
-	document.body.classList.toggle("wide", S.state.config.width === "wide");
+	applyWidth(S.state.config.width);
 	renderGrid();
 }
 
@@ -2045,14 +2045,7 @@ function settingsSheet() {
 					}
 				} }, [["tiles", t("settings.layoutTiles")], ["combined", t("settings.layoutCombined")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.layout || "tiles") === v }, l))),
 				h("div", { class: "help" }, t("settings.layoutHelp"))),
-			h("div", { class: "field" }, h("label", {}, t("settings.width")),
-				h("select", { class: "input", onchange: async (e) => {
-					if (await guard(() => api("POST", "/api/settings", { width: e.target.value }))) {
-						await loadState();
-						render();
-					}
-				} }, [["normal", t("settings.widthNormal")], ["wide", t("settings.widthWide")]].map(([v, l]) => h("option", { value: v, selected: (S.state.config.width || "normal") === v }, l))),
-				h("div", { class: "help" }, t("settings.widthHelp"))),
+			widthField(),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
 				if (await guard(() => api("POST", "/api/settings", { location: p }))) {
@@ -2063,9 +2056,9 @@ function settingsSheet() {
 			}), h("div", { class: "help" }, t("settings.placeHelp")))),
 		h("div", { class: "sec" }),
 		h("div", { class: "box rows settings-more" },
-			h("button", { onclick: () => (sheet.close(), alertsSheet()) }, html(`<span class="logo" style="--c:#f5b83d">${svg("<path d='M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("al.title")), h("div", { class: "sub" }, S.state.notify ? t("settings.notifyOn") : t("al.none"))), h("span", { class: "plus" }, "›")),
-			h("button", { onclick: () => (sheet.close(), configSheet()) }, html(`<span class="logo" style="--c:#9dbcff">${svg("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("cfg.title")), h("div", { class: "sub" }, t("cfg.sub"))), h("span", { class: "plus" }, "›")),
-			h("button", { onclick: () => (sheet.close(), kioskSheet()) }, html(`<span class="logo" style="--c:#5fd39a">${svg("<rect x='3' y='4' width='18' height='13' rx='2.5'/><path d='M8 21h8M12 17v4'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("ki.title")), h("div", { class: "sub" }, t("ki.sub"))), h("span", { class: "plus" }, "›"))),
+			h("button", { onclick: () => alertsSheet() }, html(`<span class="logo" style="--c:#f5b83d">${svg("<path d='M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("al.title")), h("div", { class: "sub" }, S.state.notify ? t("settings.notifyOn") : t("al.none"))), h("span", { class: "plus" }, "›")),
+			h("button", { onclick: () => configSheet() }, html(`<span class="logo" style="--c:#9dbcff">${svg("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("cfg.title")), h("div", { class: "sub" }, t("cfg.sub"))), h("span", { class: "plus" }, "›")),
+			h("button", { onclick: () => kioskSheet() }, html(`<span class="logo" style="--c:#5fd39a">${svg("<rect x='3' y='4' width='18' height='13' rx='2.5'/><path d='M8 21h8M12 17v4'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("ki.title")), h("div", { class: "sub" }, t("ki.sub"))), h("span", { class: "plus" }, "›"))),
 		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
 			h("div", {}, h("span", {}, t("settings.docker")), h("span", {}, S.state.docker ? t("settings.dockerOn") : t("settings.dockerOff"))),

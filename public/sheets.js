@@ -299,6 +299,8 @@ function kioskSheet() {
 let kiosk = null;
 function startKiosk(o, fullscreen) {
 	stopKiosk();
+	// no windows on the wall
+	while (topSheet()) topSheet().sheet.close();
 	if (S.editing) toggleEdit();
 	document.body.classList.add("kiosk");
 	const shade = h("div", { class: "ki-shade" });
@@ -581,4 +583,35 @@ function cameraView(tile) {
 	sheet.body.append(img);
 	// a stream stops when the window closes
 	sheet.onclose = () => img.removeAttribute("src");
+}
+
+// ---------- page width ----------
+
+// The width of the page: a slider, the page follows while dragging, saved when let go.
+// Far right is the whole screen. Columns follow the real width (6, 8 from 1800 px, 10 from 2500 px).
+const WIDTH_MIN = 1100;
+const WIDTH_FULL = 2620;
+function applyWidth(w) {
+	const full = w === "wide" || Number(w) >= WIDTH_FULL;
+	document.body.classList.toggle("wide", full);
+	document.documentElement.style.setProperty("--maxw", full ? "none" : `${Number(w) || 1480}px`);
+}
+function widthField() {
+	const cur = S.state.config.width;
+	const val = cur === "wide" ? WIDTH_FULL : Number(cur) || 1480;
+	const label = h("span", { class: "num width-val" });
+	const show = (v) => label.replaceChildren(v >= WIDTH_FULL ? t("settings.widthWide") : `${v} px`);
+	const range = h("input", { type: "range", class: "width-range", min: WIDTH_MIN, max: WIDTH_FULL, step: 20, value: val,
+		oninput: (e) => {
+			const v = Number(e.target.value);
+			show(v);
+			applyWidth(v);
+		},
+		onchange: async (e) => {
+			const v = Number(e.target.value);
+			const w = v >= WIDTH_FULL ? "wide" : v;
+			if (await guard(() => api("POST", "/api/settings", { width: w }))) S.state.config.width = w;
+		} });
+	show(val);
+	return h("div", { class: "field" }, h("label", { class: "width-label" }, t("settings.width"), label), range, h("div", { class: "help" }, t("settings.widthHelp")));
 }

@@ -849,6 +849,11 @@ body.ki-idle .ki-exit { opacity: 0; }
 .link-edit .cal-login .input { flex: 1; min-width: 140px; }
 
 /* the whole screen: no max width; more columns on big screens instead of wider tiles */
+.wrap { max-width: var(--maxw, 1480px); container-type: inline-size; }
 body.wide .wrap { max-width: none; padding-left: 36px; padding-right: 36px; }
-@media (min-width: 1900px) { body.wide .bento { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-@media (min-width: 2600px) { body.wide .bento { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+/* columns follow the real width of the page */
+@container (min-width: 1800px) { .bento { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@container (min-width: 2500px) { .bento { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+.width-label { display: flex; justify-content: space-between; }
+.width-val { font-weight: 600; color: var(--text); }
+.width-range { width: 100%; accent-color: var(--accent); margin: 6px 0 2px; }
