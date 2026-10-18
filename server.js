@@ -256,6 +256,12 @@ route("POST", "/api/test", async (body) => {
 	return integrations.test({ id: sid, url, kind: KINDS[body.kind] ? body.kind : null, insecure: !!body.insecure }, secrets);
 });
 
+route("GET", "/api/media/:id/:ref", async (body, p) => {
+	const s = store.service(p.id);
+	const jf = store.config.services.find((x) => x.kind === "jellyfin" && store.secretsOf(x.id).apiKey);
+	return integrations.media(s, p.ref, jf);
+});
+
 route("POST", "/api/services/:id/action", async (body, p) => {
 	const s = store.service(p.id);
 	const what = String(body.what || "");
@@ -370,7 +376,7 @@ const server = http.createServer(async (req, res) => {
 		return send(req, res, err instanceof UserError ? 400 : 500, { error: err.message });
 	}
 	// Jellyfin posters: binary
-	const img = /^\/api\/img\/([a-f0-9]{10})\/([a-f0-9]{32})$/i.exec(url.pathname);
+	const img = /^\/api\/img\/([a-f0-9]{10})\/([a-f0-9]{32}|(?:movie|series)-\d+)$/i.exec(url.pathname);
 	if (img && req.method === "GET") {
 		try {
 			const r = await integrations.image(store.service(img[1]), img[2]);

@@ -78,6 +78,16 @@ test("store: tile layouts are checked (types, sizes, unknown services, links)", 
 	assert.equal(st.config.boards[0].tiles.some((t) => t.service === s.id), false, "removing a service removes its tiles");
 });
 
+test("store: notes are Markdown; old entry lists become a checklist; the archive is kept", () => {
+	const st = new Store(tmp());
+	const b = st.config.boards[0];
+	let r = st.setTiles(b.id, [{ type: "notes", w: 2, h: 2, notes: [{ text: "Backup", done: true }, { text: "Serien", done: false }] }]);
+	assert.equal(r.tiles[0].text, "- [x] Backup\n- [ ] Serien");
+	r = st.setTiles(b.id, [{ ...r.tiles[0], text: "# Liste\n- [ ] neu", archive: [{ text: "Backup", at: 1 }, { text: "" }] }]);
+	assert.equal(r.tiles[0].text, "# Liste\n- [ ] neu");
+	assert.deepEqual(r.tiles[0].archive, [{ text: "Backup", at: 1 }]);
+});
+
 test("monitor: hourly buckets give uptime and the 24 h view", () => {
 	const st = new Store(tmp());
 	const s = st.saveService({ name: "A", url: "http://a" });

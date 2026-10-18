@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 – 2026-10-18
+
+- Notes are Markdown: headings, lists, tasks (`- [ ]`), bold, links. Click to write, click outside to save, tick tasks in the view. Done tasks go to an archive (restore or delete).
+- Info card for movies and shows: click a poster or an entry in "Coming up" / "Recently downloaded" for poster, year, rating, runtime, genres, overview and buttons to open it in Jellyfin, Radarr or Sonarr.
+- Radarr/Sonarr covers through HomeBento (the API key stays on the server).
+- Swiss date and number format when the browser is in Switzerland (time zone), also with English texts.
+- Tailscale: share a service right from the settings.
+- Wider layout on big screens (up to 1880 px, as many tile columns as fit).
+- Fixed: "null" shown in the command palette and the settings.
+
 ## 0.5.2 – 2026-10-18
 
 - Wide service tiles (2×1) show the key figures under the name, with room for all values.

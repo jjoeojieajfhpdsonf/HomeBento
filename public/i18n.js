@@ -12,7 +12,16 @@ const LANG = (() => {
 	return /^de\b/i.test(navigator.language || "") ? "de" : "en";
 })();
 document.documentElement.lang = LANG;
-const LOCALE = LANG === "de" ? "de-CH" : "en-GB";
+// dates and numbers: Swiss style in Switzerland (time zone or a "-CH" browser language), whatever the language
+const LOCALE = (() => {
+	let ch = (navigator.languages || []).some((l) => /-CH$/i.test(l));
+	try {
+		ch = ch || Intl.DateTimeFormat().resolvedOptions().timeZone === "Europe/Zurich";
+	} catch {
+		// no Intl time zone
+	}
+	return ch ? `${LANG}-CH` : LANG === "de" ? "de-DE" : "en-GB";
+})();
 
 const TEXT = {
 	de: {
@@ -83,6 +92,23 @@ const TEXT = {
 		"jf.plays": "{u} schaut {t}",
 		"host.net": "Netzwerk",
 		"notes.title": "Notizen",
+		"notes.archiveDone": "Erledigte archivieren",
+		"notes.archive": "Archiv ({n})",
+		"notes.archiveTitle": "Archiv",
+		"notes.archiveCount": "{n} Einträge",
+		"notes.archiveEmpty": "Das Archiv ist leer",
+		"notes.restore": "Zurückholen",
+		"notes.clearArchive": "Archiv leeren",
+		"notes.clearArchiveConfirm": "Alle {n} archivierten Einträge endgültig löschen?",
+		"notes.hint": "Klicken zum Schreiben · Markdown: # Titel, - Liste, - [ ] Aufgabe, **fett**, [Link](https://…)",
+		"media.open": "In {n} öffnen",
+		"media.min": "{n} min",
+		"media.seasons": "{n} Staffeln",
+		"media.episodes": "{a} von {b} Folgen",
+		"media.downloaded": "geladen",
+		"media.missing": "noch nicht geladen",
+		"ts.add": "Service freigeben",
+		"ts.addPick": "Service wählen …",
 		"notes.empty": "Noch keine Einträge",
 		"notes.edit": "Notizen bearbeiten",
 		"notes.add": "Eintrag hinzufügen",
@@ -328,6 +354,23 @@ const TEXT = {
 		"jf.plays": "{u} watches {t}",
 		"host.net": "Network",
 		"notes.title": "Notes",
+		"notes.archiveDone": "Archive done",
+		"notes.archive": "Archive ({n})",
+		"notes.archiveTitle": "Archive",
+		"notes.archiveCount": "{n} entries",
+		"notes.archiveEmpty": "The archive is empty",
+		"notes.restore": "Restore",
+		"notes.clearArchive": "Empty archive",
+		"notes.clearArchiveConfirm": "Delete all {n} archived entries for good?",
+		"notes.hint": "Click to write · Markdown: # title, - list, - [ ] task, **bold**, [link](https://…)",
+		"media.open": "Open in {n}",
+		"media.min": "{n} min",
+		"media.seasons": "{n} seasons",
+		"media.episodes": "{a} of {b} episodes",
+		"media.downloaded": "downloaded",
+		"media.missing": "not downloaded yet",
+		"ts.add": "Share a service",
+		"ts.addPick": "Choose a service …",
 		"notes.empty": "No entries yet",
 		"notes.edit": "Edit notes",
 		"notes.add": "Add entry",

@@ -62,6 +62,9 @@ test.before(async () => {
 			if (p === "/qb/api/v2/transfer/info") return json({ dl_info_speed: 12_400_000, up_info_speed: 300_000 });
 			if (p === "/qb/api/v2/torrents/info") return json([{ name: "Arcane", progress: 0.64, dlspeed: 8_000_000, eta: 360, state: "downloading" }]);
 		}
+		// Radarr movie details and cover
+		if (p === "/radarr/api/v3/movie/7") return json({ id: 7, title: "Dune", year: 2024, overview: "Paul …", genres: ["Sci-Fi"], ratings: { imdb: { value: 8.5 } }, runtime: 166, hasFile: true, sizeOnDisk: 9e9, titleSlug: "dune-2024" });
+		if (p === "/jf/Items" && url.searchParams.get("searchTerm") === "Dune") return json({ Items: [{ Id: "f".repeat(32), Name: "Dune", ProductionYear: 2024 }] });
 		// solar dashboard
 		if (p === "/solar/api/state") return json({ kwp: 19.2, live: { pv: 2206, cons: 457, bat: { soc: 7 } }, today: { yieldWh: 4234 } });
 		if (p === "/solar/api/day") return json({ points: [{ m: 0, pv: 0 }, { m: 5, pv: 0 }, { m: 15, pv: 10 }, { m: 30, pv: 200 }] });
@@ -135,6 +138,18 @@ test("MagicMirror Manager: logs in with the password on 401", async () => {
 	assert.equal(error, undefined);
 	assert.equal(data.process, "online");
 	assert.equal(data.version, "2.33.0");
+});
+
+test("media card: Radarr movie with a link to the same movie in Jellyfin", async () => {
+	const i = new Integrations({ secretsOf: (id) => ({ apiKey: KEY }) });
+	const m = await i.media({ id: "r", kind: "radarr", url: `${base}/radarr` }, "movie-7", { id: "j", url: `${base}/jf`, name: "Jellyfin" });
+	assert.equal(m.title, "Dune");
+	assert.equal(m.rating, 8.5);
+	assert.equal(m.runtime, 166);
+	assert.equal(m.downloaded, true);
+	assert.deepEqual(m.links.map((l) => l.kind), ["jellyfin", "radarr"]);
+	assert.match(m.links[1].url, /\/movie\/dune-2024$/);
+	await assert.rejects(i.media({ id: "r", kind: "radarr", url: `${base}/radarr` }, "series-7"), /Not found/);
 });
 
 test("results are cached: a second call within the TTL doesn't ask again", async () => {

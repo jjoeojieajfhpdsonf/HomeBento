@@ -221,6 +221,48 @@ function moreLines(s, st, d) {
 	return lines.slice(0, 3).join("");
 }
 
+// ---------- notes (Markdown) ----------
+
+// older tiles kept a list of entries; it reads as a checklist
+const notesText = (tile) => (typeof tile.text === "string" ? tile.text : (tile.notes || []).map((n) => `- [${n.done ? "x" : " "}] ${n.text}`).join("\n"));
+
+// A small, safe Markdown: headings, lists, tasks (- [ ] / - [x]), **bold**, *italic*, `code`, links.
+function markdown(src) {
+	const inline = (s) =>
+		esc(s)
+			.replace(/`([^`]+)`/g, "<code>$1</code>")
+			.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+			.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>")
+			.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+			.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+	const out = [];
+	let list = null;
+	const close = () => list && (out.push(`</${list}>`), (list = null));
+	src.split("\n").forEach((line, i) => {
+		let m;
+		if ((m = /^\s*[-*]\s+\[([ xX])\]\s*(.*)$/.exec(line))) {
+			if (list !== "ul") (close(), out.push('<ul class="tasks">'), (list = "ul"));
+			const done = m[1] !== " ";
+			out.push(`<li class="task${done ? " done" : ""}"><input type="checkbox" data-line="${i}"${done ? " checked" : ""}><span>${inline(m[2])}</span></li>`);
+		} else if ((m = /^\s*[-*]\s+(.*)$/.exec(line))) {
+			if (list !== "ul") (close(), out.push("<ul>"), (list = "ul"));
+			out.push(`<li>${inline(m[1])}</li>`);
+		} else if ((m = /^\s*\d+[.)]\s+(.*)$/.exec(line))) {
+			if (list !== "ol") (close(), out.push("<ol>"), (list = "ol"));
+			out.push(`<li>${inline(m[1])}</li>`);
+		} else if ((m = /^(#{1,3})\s+(.*)$/.exec(line))) {
+			close();
+			out.push(`<h${m[1].length + 3}>${inline(m[2])}</h${m[1].length + 3}>`);
+		} else if (!line.trim()) close();
+		else {
+			close();
+			out.push(`<p>${inline(line)}</p>`);
+		}
+	});
+	close();
+	return out.join("");
+}
+
 // ---------- tiles ----------
 
 const TILES = {
@@ -248,13 +290,15 @@ const TILES = {
 		const cols = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
 		const rows = Math.max(1, tile.h - (tile.w === 1 ? 0 : 1)) || 1;
 		const list = d.data.recent.slice(0, cols * rows);
-		return { c: colorOf(s), html: `${head}<div class="posters" style="--pc:${cols}">${list.map((r) => `<div class="poster img" style="background-image:url('/api/img/${s.id}/${r.id}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` };
+		return { c: colorOf(s), html: `${head}<div class="posters" style="--pc:${cols}">${list.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('/api/img/${s.id}/${r.id}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` };
 	},
 
 	notes(tile) {
-		const notes = tile.notes || [];
-		const rows = notes.map((n, i) => `<div class="note-row${n.done ? " done" : ""}"><input type="checkbox" data-note="${i}"${n.done ? " checked" : ""} aria-label="${esc(n.text)}"><span>${esc(n.text)}</span><button class="note-del" data-note-del="${i}" aria-label="${t("tile.remove")}">×</button></div>`);
-		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("notes.title")}</span></div><div class="notes">${rows.join("")}</div><input class="note-add" placeholder="${t("notes.addPh")}" maxlength="200" aria-label="${t("notes.add")}">` };
+		const text = notesText(tile);
+		const done = /^\s*[-*]\s+\[[xX]\]/m.test(text);
+		const archived = (tile.archive || []).length;
+		const buttons = done || archived ? `<div class="md-btns">${done ? `<button class="md-clear" data-md-clear>${t("notes.archiveDone")}</button>` : ""}${archived ? `<button class="md-clear" data-md-archive>${t("notes.archive", { n: archived })}</button>` : ""}</div>` : "";
+		return { c: "#f5b83d", cls: "notes-tile", html: `<div class="md" data-md title="${t("notes.hint")}">${text.trim() ? markdown(text) : `<p class="faint">${t("notes.hint")}</p>`}</div>${buttons}` };
 	},
 
 	status(tile, x) {
@@ -302,7 +346,7 @@ const TILES = {
 		if (tile.h > 1 || !data.recent.length) {
 			const p = data.now[0];
 			now = p
-				? `<div class="nowp"><div class="art" style="background-image:url('${img(p.image)}')"></div><div style="flex:1;min-width:0"><div class="title">${esc(p.title)}</div><div class="sm muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.episode ? `S${p.episode.season} · E${p.episode.number} · ${esc(p.episode.name)}` : esc(p.year || "")}</div><div class="sm faint">${esc(p.user)} · ${esc(p.device)}${p.paused ? ` · ${t("jf.paused")}` : ""}</div>${p.progress !== null ? `<div class="prog"><i style="width:${(p.progress * 100).toFixed(1)}%"></i></div>` : ""}</div></div>`
+				? `<div class="nowp"><div class="art" data-media="${s.id}|${esc(p.image)}" style="background-image:url('${img(p.image)}')"></div><div style="flex:1;min-width:0"><div class="title">${esc(p.title)}</div><div class="sm muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.episode ? `S${p.episode.season} · E${p.episode.number} · ${esc(p.episode.name)}` : esc(p.year || "")}</div><div class="sm faint">${esc(p.user)} · ${esc(p.device)}${p.paused ? ` · ${t("jf.paused")}` : ""}</div>${p.progress !== null ? `<div class="prog"><i style="width:${(p.progress * 100).toFixed(1)}%"></i></div>` : ""}</div></div>`
 				: `<div class="sm faint" style="margin:10px 0">${t("jf.nothing")}</div>`;
 		}
 		const count = tile.w === 1 ? 2 : tile.w === 2 ? 4 : 6;
@@ -310,7 +354,7 @@ const TILES = {
 		// a separate "recently added" tile on the same page: don't show the posters twice
 		const separate = x.tiles.some((o) => o.type === "recent" && (o.service || (x.ofKind("jellyfin")[0] || {}).id) === s.id);
 		const recent = !separate && (tile.h > 1 || !now) ? data.recent.slice(0, count * rows) : [];
-		const posters = recent.length ? `<div class="sm muted" style="margin-top:auto">${t("jf.recent")}</div><div class="posters" style="--pc:${count}">${recent.map((r) => `<div class="poster img" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
+		const posters = recent.length ? `<div class="sm muted" style="margin-top:auto">${t("jf.recent")}</div><div class="posters" style="--pc:${count}">${recent.map((r) => `<div class="poster img" data-media="${s.id}|${esc(r.id)}" style="background-image:url('${img(r.id)}')" title="${esc(r.title)}">${esc(r.title)}</div>`).join("")}</div>` : "";
 		return { c: colorOf(s), html: head + now + posters };
 	},
 
@@ -320,7 +364,7 @@ const TILES = {
 		const errors = [];
 		for (const s of srcs) {
 			const d = x.live.data[s.id];
-			if (d && d.data) for (const i of d.data.items) items.push({ ...i, color: colorOf(s) });
+			if (d && d.data) for (const i of d.data.items) items.push({ ...i, sid: s.id, color: colorOf(s) });
 			else if (d && d.error) errors.push(s);
 		}
 		const upcoming = items.filter((i) => i.at > Date.now() - 6 * 3600000).sort((a, b) => a.at - b.at).slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0));
@@ -332,17 +376,17 @@ const TILES = {
 			const recent = [];
 			for (const s of srcs) {
 				const d = x.live.data[s.id];
-				if (d && d.data && d.data.imported) for (const i of d.data.imported) recent.push({ ...i, src: s.kind, color: colorOf(s) });
+				if (d && d.data && d.data.imported) for (const i of d.data.imported) recent.push({ ...i, src: s.kind, sid: s.id, color: colorOf(s) });
 			}
 			recent.sort((a, b) => b.at - a.at);
-			const rows = recent.slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0)).map((i) => `<div class="e"><span class="w">${esc(fmtAgo(i.at))}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${i.src === "sonarr" && i.sub ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")}${i.sub && i.sub.year ? ` · ${i.sub.year}` : ""}`}</div></div><span class="dot" style="background:${i.color}"></span></div>`);
+			const rows = recent.slice(0, tile.h * 2 + (tile.h > 2 ? 1 : 0)).map((i) => `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w">${esc(fmtAgo(i.at))}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${i.src === "sonarr" && i.sub ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")}${i.sub && i.sub.year ? ` · ${i.sub.year}` : ""}`}</div></div><span class="dot" style="background:${i.color}"></span></div>`);
 			const head2 = `<div class="th"><span class="n">${t("cal.imported")}</span><span class="meta">${t("cal.noneShort")}</span></div>`;
 			return { c: "#35c5f4", html: rows.length ? `${head2}<div class="cal">${rows.join("")}</div>` : `${head}<div class="sm faint bottom">${t("cal.none")}</div>` };
 		}
 		const sub = (i) => (i.src === "sonarr" ? `S${i.sub.season} · E${i.sub.number}${i.sub.name ? ` · ${esc(i.sub.name)}` : ""}` : `${t("cal.film")} · ${t(`cal.${i.sub.release}`)}`);
 		const rows = upcoming.map((i) => {
 			const w = fmtWhen(i.at);
-			return `<div class="e"><span class="w${w.startsWith(t("cal.today")) ? " today" : ""}">${esc(w)}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${sub(i)}</div></div>${i.has ? `<span class="has">✓</span>` : ""}<span class="dot" style="background:${i.color}"></span></div>`;
+			return `<div class="e"${i.ref ? ` data-media="${esc(i.sid)}|${esc(i.ref)}"` : ""}><span class="w${w.startsWith(t("cal.today")) ? " today" : ""}">${esc(w)}</span><div class="mid"><div class="tt">${esc(i.title)}</div><div class="ss">${sub(i)}</div></div>${i.has ? `<span class="has">✓</span>` : ""}<span class="dot" style="background:${i.color}"></span></div>`;
 		});
 		return { c: "#35c5f4", html: `${head}<div class="cal">${rows.join("")}</div>` };
 	},

@@ -3,6 +3,14 @@
 // service details with actions, and forms for services and tiles. No framework.
 
 const S = { state: null, live: null, boardId: null, editing: false, tiles: null, drag: null };
+
+// append()/replaceChildren() with optional parts: a null child is left out, not written as "null"
+for (const fn of ["append", "replaceChildren"]) {
+	const orig = Element.prototype[fn];
+	Element.prototype[fn] = function (...nodes) {
+		return orig.apply(this, nodes.filter((n) => n !== null && n !== undefined && n !== false));
+	};
+}
 const $ = (sel, root = document) => root.querySelector(sel);
 
 function h(tag, attrs = {}, ...children) {
@@ -166,7 +174,7 @@ function renderGrid() {
 		if (el.className !== cls) el.className = cls;
 		if (r.c) el.style.setProperty("--c", r.c);
 		const content = r.html + (S.editing ? controls(tile) : tileService(tile) ? `<button class="info" data-info aria-label="${t("sheet.details")}" title="${t("sheet.details")}">i</button>` : "");
-		if (el.dataset.html !== content) {
+		if (el.dataset.html !== content && !el.contains(document.activeElement)) {
 			el.innerHTML = content;
 			el.dataset.html = content;
 		}
@@ -183,7 +191,7 @@ function renderGrid() {
 }
 
 function controls(tile) {
-	const opts = tile.type === "links" || tile.type === "notes" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
+	const opts = tile.type === "links" ? `<button data-act="opts" title="${t("tile.options")}">⋯</button>` : "";
 	return `<button class="ctl rm" data-act="rm" aria-label="${t("tile.remove")}">×</button><div class="ctl sz">${opts}<button data-act="size" title="${t("tile.size")}">⤢ ${tile.w}×${tile.h}</button></div>`;
 }
 
@@ -199,7 +207,10 @@ function emptyCard() {
 
 // ---------- tile clicks and edit mode ----------
 
-// Notes are used right on the board: tick, add with Enter, remove with ×.
+// Notes: click the text to write (Markdown), click outside to save; tick tasks right in the view.
+document.addEventListener("pointerdown", (e) => {
+	if (S.mdFinish && !e.target.closest(".md-edit")) S.mdFinish(true);
+}, true);
 function noteTile(el) {
 	const t0 = el && el.closest(".bento > .t[data-id]");
 	return t0 ? board().tiles.find((x) => x.id === t0.dataset.id) : null;
@@ -214,34 +225,79 @@ async function saveNotes(tile, focusAdd) {
 	await guard(() => api("POST", `/api/boards/${b.id}/tiles`, { tiles: b.tiles }));
 }
 document.addEventListener("change", (e) => {
-	const box = e.target.closest("input[data-note]");
+	const box = e.target.closest("input[data-line]");
 	if (!box || S.editing) return;
 	const tile = noteTile(box);
-	if (!tile || !tile.notes) return;
-	tile.notes[Number(box.dataset.note)].done = box.checked;
+	if (!tile) return;
+	const lines = notesText(tile).split("\n");
+	const i = Number(box.dataset.line);
+	lines[i] = lines[i].replace(/\[([ xX])\]/, box.checked ? "[x]" : "[ ]");
+	tile.text = lines.join("\n");
+	delete tile.notes;
 	saveNotes(tile);
-});
-document.addEventListener("keydown", (e) => {
-	const input = e.target.closest && e.target.closest(".note-add");
-	if (!input || e.key !== "Enter" || S.editing) return;
-	const text = input.value.trim();
-	const tile = noteTile(input);
-	if (!text || !tile) return;
-	tile.notes = [...(tile.notes || []), { text, done: false }];
-	input.value = "";
-	saveNotes(tile, true);
 });
 document.addEventListener("click", (e) => {
-	const del = e.target.closest("[data-note-del]");
-	if (!del || S.editing) return;
-	const tile = noteTile(del);
-	if (!tile || !tile.notes) return;
-	tile.notes.splice(Number(del.dataset.noteDel), 1);
-	saveNotes(tile);
-});
+	const clear = e.target.closest("[data-md-clear]");
+	if (clear && !S.editing) {
+		e.stopPropagation();
+		const tile = noteTile(clear);
+		if (!tile) return;
+		// done tasks move to the archive (with the date), the rest stays
+		const lines = notesText(tile).split("\n");
+		const doneRe = /^\s*[-*]\s+\[[xX]\]\s*/;
+		const now = Date.now();
+		tile.archive = [...(tile.archive || []), ...lines.filter((l) => doneRe.test(l)).map((l) => ({ text: l.replace(doneRe, ""), at: now }))];
+		tile.text = lines.filter((l) => !doneRe.test(l)).join("\n");
+		delete tile.notes;
+		return saveNotes(tile);
+	}
+	const arch = e.target.closest("[data-md-archive]");
+	if (arch && !S.editing) {
+		e.stopPropagation();
+		const tile = noteTile(arch);
+		if (tile) archiveSheet(tile);
+		return;
+	}
+	const md = e.target.closest("[data-md]");
+	if (!md || S.editing || e.target.closest("a, input")) return;
+	e.stopPropagation();
+	const tile = noteTile(md);
+	if (!tile) return;
+	const ta = h("textarea", { class: "md-edit", spellcheck: "true", value: notesText(tile) });
+	md.replaceWith(ta);
+	ta.focus();
+	ta.setSelectionRange(ta.value.length, ta.value.length);
+	let done = false;
+	const finish = (save) => {
+		if (done) return;
+		done = true;
+		S.mdFinish = null;
+		if (save && ta.value !== notesText(tile)) {
+			tile.text = ta.value;
+			delete tile.notes;
+		}
+		const el = ta.closest(".t");
+		if (el) el.dataset.html = "";
+		// leave the editor first, else the tile counts as "being typed in" and isn't redrawn
+		ta.remove();
+		saveNotes(tile);
+	};
+	ta.addEventListener("blur", () => finish(true));
+	S.mdFinish = finish;
+	ta.addEventListener("keydown", (ev) => {
+		if (ev.key === "Escape") (ev.stopPropagation(), finish(false));
+		if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) ta.blur();
+	});
+}, true);
 
 document.addEventListener("click", (e) => {
-	if (e.target.closest(".note-row, .note-add") && !S.editing) return;
+	if (e.target.closest(".md, .md-edit, .md-btns") && !S.editing) return;
+	const media = e.target.closest("[data-media]");
+	if (media && !S.editing) {
+		e.stopPropagation();
+		const [sid, ref] = media.dataset.media.split("|");
+		return mediaSheet(sid, ref);
+	}
 	const setup = e.target.closest("[data-setup]");
 	if (setup) {
 		e.stopPropagation();
@@ -264,7 +320,7 @@ document.addEventListener("click", (e) => {
 			const k = sizes.findIndex(([w, hh]) => w === tile.w && hh === tile.h);
 			[tile.w, tile.h] = sizes[(k + 1) % sizes.length];
 			saveTiles();
-		} else if (act.dataset.act === "opts") (tile.type === "notes" ? notesSheet : linksSheet)(tile);
+		} else if (act.dataset.act === "opts") linksSheet(tile);
 		renderGrid();
 		return;
 	}
@@ -726,6 +782,68 @@ function tailscalePart(s, msg) {
 
 // ---------- adding tiles ----------
 
+// Archived notes: newest first, back to the list or gone for good.
+function archiveSheet(tile) {
+	const sheet = openSheet();
+	const draw = () => {
+		const list = (tile.archive || []).map((a, i) => ({ ...a, i })).reverse();
+		sheet.head(h("div", { class: "tt" }, h("b", {}, t("notes.archiveTitle")), h("span", { class: "sub" }, t("notes.archiveCount", { n: list.length }))));
+		sheet.body.replaceChildren(
+			list.length
+				? h("div", { class: "box rows" }, list.map((a) =>
+						h("div", { class: "row" },
+							h("div", { class: "grow" }, h("div", { class: "title", style: "white-space:normal", html: markdown(a.text).replace(/^<p>|<\/p>$/g, "") }), h("div", { class: "sub" }, new Date(a.at).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "numeric", year: "numeric" }))),
+							h("button", { class: "btn", onclick: () => {
+								tile.archive.splice(a.i, 1);
+								tile.text = `${notesText(tile).replace(/\s*$/, "")}${notesText(tile).trim() ? "\n" : ""}- [ ] ${a.text}`;
+								delete tile.notes;
+								saveNotes(tile);
+								draw();
+							} }, t("notes.restore")),
+							h("button", { class: "btn danger", onclick: () => {
+								tile.archive.splice(a.i, 1);
+								saveNotes(tile);
+								draw();
+							} }, "×"))))
+				: h("div", { class: "note" }, t("notes.archiveEmpty")),
+			list.length ? h("div", { class: "acts" }, h("button", { class: "btn danger", onclick: async () => {
+				if (!(await confirmSheet(t("notes.clearArchiveConfirm", { n: list.length }), t("notes.clearArchive"), true))) return;
+				tile.archive = [];
+				saveNotes(tile);
+				draw();
+			} }, t("notes.clearArchive"))) : null
+		);
+	};
+	draw();
+}
+
+// Info card for a movie or show (Jellyfin, Radarr, Sonarr).
+async function mediaSheet(sid, ref) {
+	const s = serviceById(sid);
+	if (!s) return;
+	const m = await guard(() => api("GET", `/api/media/${sid}/${encodeURIComponent(ref)}`));
+	if (!m) return;
+	const sheet = openSheet({ wide: true });
+	sheet.head(h("div", { class: "tt" }, h("b", {}, m.title), h("span", { class: "sub" }, [m.year, m.certification, m.network].filter(Boolean).join(" · "))));
+	const facts = [
+		m.rating ? `★ ${nf(m.rating, 1)}` : null,
+		m.runtime ? t("media.min", { n: m.runtime }) : null,
+		m.seasons ? t("media.seasons", { n: m.seasons }) : null,
+		m.episodes && m.episodes.total ? t("media.episodes", { a: m.episodes.have ?? 0, b: m.episodes.total }) : null,
+		m.downloaded === true ? t("media.downloaded") : m.downloaded === false ? t("media.missing") : null,
+		m.size ? fmtBytes(m.size) : null
+	].filter(Boolean);
+	sheet.body.append(
+		h("div", { class: "media" },
+			h("div", { class: "media-poster", style: `background-image:url('/api/img/${sid}/${encodeURIComponent(ref)}')` }),
+			h("div", { class: "media-info" },
+				m.genres.length ? h("div", { class: "media-genres" }, m.genres.slice(0, 4).map((g) => h("span", { class: "chip" }, g))) : null,
+				facts.length ? h("div", { class: "media-facts" }, facts.join(" · ")) : null,
+				m.overview ? h("p", { class: "media-overview" }, m.overview) : null,
+				h("div", { class: "acts" }, m.links.map((l, i) => h("a", { class: `btn${i === 0 ? " primary" : ""}`, href: l.url, target: "_blank", rel: "noopener" }, html(UI.open), t("media.open", { n: l.name }))))))
+	);
+}
+
 const DEFAULT_SIZE = { service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
@@ -827,40 +945,6 @@ function linksSheet(tile) {
 			const tl = S.tiles.find((x) => x.id === tile.id);
 			if (tl) {
 				tl.links = links.filter((l) => /^https?:\/\//.test(l.url));
-				tl.title = title.value.trim() || undefined;
-				saveTiles();
-				renderGrid();
-			}
-			sheet.close();
-		} }, t("form.save")))
-	);
-}
-
-function notesSheet(tile) {
-	const sheet = openSheet();
-	sheet.head(h("div", { class: "tt" }, h("b", {}, t("notes.edit"))));
-	const notes = (tile.notes || []).map((n) => ({ ...n }));
-	const title = h("input", { class: "input", value: tile.title || "", placeholder: t("notes.title") });
-	const list = h("div", { class: "box" });
-	const draw = () =>
-		list.replaceChildren(
-			...notes.map((n, i) =>
-				h("div", { class: "link-edit", style: "grid-template-columns:auto 1fr auto" },
-					h("input", { type: "checkbox", checked: n.done, onchange: (e) => (n.done = e.target.checked) }),
-					h("input", { class: "input", value: n.text, oninput: (e) => (n.text = e.target.value), onkeydown: (e) => e.key === "Enter" && (notes.splice(i + 1, 0, { text: "", done: false }), draw(), list.querySelectorAll("input.input")[i + 1].focus()) }),
-					h("button", { class: "x", style: "width:30px;height:30px;border-radius:50%;background:var(--tile-3);display:grid;place-items:center", onclick: () => (notes.splice(i, 1), draw()), html: UI.x }))
-			),
-			h("div", { class: "field" }, h("button", { class: "btn", onclick: () => (notes.push({ text: "", done: false }), draw(), [...list.querySelectorAll("input.input")].pop().focus()) }, html(UI.plus), t("notes.add")))
-		);
-	draw();
-	sheet.body.append(
-		h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("settings.title")), title)),
-		h("div", { class: "sec" }),
-		list,
-		h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: () => {
-			const tl = S.tiles.find((x) => x.id === tile.id);
-			if (tl) {
-				tl.notes = notes.filter((n) => n.text.trim());
 				tl.title = title.value.trim() || undefined;
 				saveTiles();
 				renderGrid();
@@ -1102,6 +1186,19 @@ function tailscaleSettings() {
 					} }, t("tile.remove"))));
 			}
 			if (!(st.mappings || []).length) rows.push(h("div", {}, h("span", {}, t("ts.none"))));
+			// services on this server that aren't shared yet
+			const free = services().filter((s) => st.local && st.local[s.id] && !(st.links && st.links[s.id]));
+			if (free.length) {
+				const pick = h("select", { class: "input", style: "flex:1" }, h("option", { value: "" }, t("ts.addPick")), free.map((s) => h("option", { value: s.id }, `${s.name} · :${(s.url.match(/:(\d+)/) || [, s.url.startsWith("https") ? "443" : "80"])[1]}`)));
+				const go = h("button", { class: "btn primary", onclick: async () => {
+					if (!pick.value) return;
+					go.classList.add("busy");
+					const r = await guard(() => api("POST", `/api/services/${pick.value}/tailscale`, { enable: true }));
+					go.classList.remove("busy");
+					if (r) (S.state.tailscale = r), draw(), toast(t("ts.on"));
+				} }, t("ts.add"));
+				rows.push(h("div", { style: "gap:8px" }, pick, go));
+			}
 		}
 		box.replaceChildren(h("div", { class: "sec" }, "Tailscale"), h("div", { class: "box kv" }, rows));
 	};
