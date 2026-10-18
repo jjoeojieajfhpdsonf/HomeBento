@@ -526,7 +526,7 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .field { display: grid; gap: 6px; padding: 11px 12px; }
 .field + .field { border-top: 1px solid var(--line); }
 .field label { font-size: 12.5px; color: var(--muted); font-weight: 550; }
-.field .help { font-size: 12px; color: var(--faint); }
+.help, .field .help { font-size: 12px; color: var(--faint); line-height: 1.5; }
 .input { width: 100%; background: var(--tile-3); border: 1px solid transparent; border-radius: 10px; padding: 9px 11px; outline: none; min-width: 0; }
 .input:focus { border-color: rgba(157,188,255,.45); }
 select.input { appearance: none; -webkit-appearance: none; padding-right: 30px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9aa2' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 16px; }
@@ -676,8 +676,11 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 30px; 
 .place-hit { display: flex; align-items: baseline; gap: 8px; text-align: left; padding: 8px 10px; border-radius: 10px; font-size: 13.5px; }
 .place-hit:hover { background: var(--tile-3); }
 .place-now { font-size: 14px; font-weight: 550; margin-bottom: 8px; }
-.link-edit.with-color { grid-template-columns: 34px 1fr 2fr 30px; }
-.color-in { width: 30px; height: 30px; border: 0; padding: 0; background: none; border-radius: 8px; cursor: pointer; }
+.link-edit.with-color { grid-template-columns: 26px 1fr 2fr 30px; }
+.color-in { width: 22px; height: 22px; margin: 0 2px; border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.color-in::-webkit-color-swatch-wrapper { padding: 0; }
+.color-in::-webkit-color-swatch { border: none; border-radius: 50%; }
+.color-in::-moz-color-swatch { border: none; border-radius: 50%; }
 .row-x { width: 30px; height: 30px; border-radius: 50%; background: var(--tile-3); display: grid; place-items: center; }
 .chips-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 12px; }
 .chips-row .chip, .al-add .chip, .cal-login .chip { padding: 5px 11px; border-radius: 999px; background: var(--tile-3); color: var(--muted); font-size: 12.5px; font-weight: 560; }
@@ -851,8 +854,15 @@ body.ki-idle .ki-exit { opacity: 0; }
 .svc-col-items .svc-mini { break-inside: avoid; }
 @media (max-width: 1050px) { .svc-cols { grid-template-columns: 1fr 1fr !important; } .svc-col { grid-column: span 1 !important; } .svc-col-items { column-count: 1 !important; } }
 
-.link-edit .cal-login { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
-.link-edit .cal-login .input { flex: 1; min-width: 140px; }
+/* the login lines up under name and address */
+.link-edit .cal-login { grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 2fr; gap: 6px; align-items: center; }
+.link-edit .cal-login > .chip { justify-self: start; grid-column: 1 / -1; }
+.link-edit .cal-login > .input + .input + .chip { grid-column: 1 / -1; }
+.cal-help { display: grid; gap: 5px; margin: 10px 2px 0; }
+.cal-help-head { color: var(--muted); font-weight: 550; margin-bottom: 1px; }
+.cal-help-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; }
+.cal-help-row b { color: var(--muted); font-weight: 560; }
+@media (max-width: 640px) { .cal-help-row { grid-template-columns: 1fr; gap: 0; } }
 
 /* the whole screen: no max width; more columns on big screens instead of wider tiles */
 .wrap { max-width: var(--maxw, 1480px); container-type: inline-size; }

@@ -225,7 +225,10 @@ function fitPosters() {
 		const gap = 8;
 		const height = Math.min(row.clientHeight, 210);
 		const n = Math.max(1, Math.min(items.length, Math.floor((row.clientWidth + gap) / (height * (2 / 3) + gap))));
-		row.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+		// a poster stays upright: at most a little wider than 2:3, spare room goes between them
+		const w = Math.floor(Math.min((row.clientWidth - gap * (n - 1)) / n, height * (2 / 3) * 1.15));
+		row.style.gridTemplateColumns = `repeat(${n}, ${w}px)`;
+		row.style.justifyContent = n > 1 ? "space-between" : "start";
 		items.forEach((it, i) => (it.style.display = i < n ? "" : "none"));
 	}
 }
@@ -1592,7 +1595,11 @@ const ADD_KEYS = {
 	arr: "sonarr radarr prowlarr queue missing indexers warteschlange fehlt"
 };
 
-async function addTileSheet() {
+// the tiles the command palette can add: title and subtitle
+const ADD_TILES = { host: "add.host", uptime: "add.uptime", events: "ev.title", releases: "rel.title", calendar: "add.calendar", ical: "ical.title", weather: "wx.title", clock: "clk.title", disks: "disks.title", network: "net.title", rss: "rss.title", iframe: "frame.title", api: "api.title", markets: "mk.title", holidays: "hol.title", countdown: "cd.title", camera: "cam.title", links: "add.links", notes: "add.notes" };
+const ADD_SUBS = { host: "add.hostSub", uptime: "add.uptimeSub", events: "add.eventsSub", releases: "add.releasesSub", calendar: "add.calendarSub", ical: "add.icalSub", weather: "add.weatherSub", clock: "add.clockSub", disks: "add.disksSub", network: "add.netSub", rss: "add.rssSub", iframe: "add.frameSub", api: "add.apiSub", markets: "add.marketsSub", holidays: "add.holidaysSub", countdown: "add.countdownSub", camera: "add.cameraSub", links: "add.linksSub", notes: "add.notesSub" };
+
+async function addTileSheet(query) {
 	// also from the command palette: adding happens in edit mode
 	if (!S.editing) toggleEdit();
 	const sheet = openSheet();
@@ -1708,6 +1715,7 @@ async function addTileSheet() {
 		);
 		applySearch();
 	};
+	if (typeof query === "string") search.value = query;
 	draw();
 	loadDocker();
 }
@@ -1871,7 +1879,11 @@ async function tileOptions(tile) {
 			h("div", { class: "sec" }, t(ical ? "ical.calendars" : "rss.feeds")),
 			h("div", { class: "box" }, list),
 			chips,
-			h("div", { class: "help", style: "margin:8px 2px 0" }, t(ical ? "ical.help" : "rss.help")),
+			ical
+				? h("div", { class: "help cal-help" },
+						h("div", { class: "cal-help-head" }, t("ical.helpHead")),
+						[["Google", "ical.helpGoogle"], ["iCloud", "ical.helpIcloud"], ["Outlook", "ical.helpOutlook"], ["Nextcloud · Radicale · Baïkal", "ical.helpPrivate"]].map(([n, k]) => h("div", { class: "cal-help-row" }, h("b", {}, n), h("span", {}, t(k)))))
+				: h("div", { class: "help", style: "margin:8px 2px 0" }, t("rss.help")),
 			ical
 				? h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: async () => {
 						for (const c of items) c.id = c.id || hex10();
@@ -2144,7 +2156,13 @@ function paletteResults(q) {
 	const links = S.state.config.boards.flatMap((b) => b.tiles.filter((x) => x.type === "links").flatMap((x) => x.links || []));
 	for (const l of links.filter((l) => words.length && hit(`${l.name} ${l.url}`)).slice(0, 5)) out.push({ cap: t("pal.links"), icon: I.link, title: l.name || l.url, hint: l.url.replace(/^https?:\/\//, ""), run: () => window.open(l.url, "_blank", "noopener,noreferrer") });
 	if (words.length && hit(t("app.settings"))) out.push({ cap: t("app.settings"), icon: I.gear, title: t("app.settings"), run: settingsSheet });
-	if (words.length && hit(t("tile.add"))) out.push({ cap: t("app.settings"), icon: I.page, title: t("tile.add"), run: addTileSheet });
+	if (words.length && hit(t("tile.add"))) out.push({ cap: t("app.settings"), icon: I.page, title: t("tile.add"), run: () => addTileSheet() });
+	// tiles to add, also found by other words ("cal" → Calendar)
+	if (words.length) {
+		const sonarr = services().some((s) => s.kind === "sonarr" || s.kind === "radarr");
+		const tiles = Object.keys(ADD_TILES).filter((k) => (k !== "calendar" || sonarr) && hit(`${t(ADD_TILES[k])} ${ADD_KEYS[k] || ""} ${t("tile.add")}`));
+		for (const k of tiles.slice(0, 4)) out.push({ cap: t("tile.add"), icon: I.page, title: t(ADD_TILES[k]), hint: t(ADD_SUBS[k]), run: () => addTileSheet(t(ADD_TILES[k])) });
+	}
 	if (q) out.push({ cap: t("pal.web"), icon: I.web, title: t("pal.webSearch", { q }), run: () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer") });
 	return out;
 }
