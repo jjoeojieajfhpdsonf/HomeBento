@@ -283,8 +283,10 @@ function releaseItems(tile, data) {
 		.map((repo) => {
 			const d = data[repo];
 			const l = d && d.latest;
-			const isNew = !!(l && (seen[repo] ? seen[repo] !== l.tag : l.date && Date.now() - l.date < 14 * 86400000));
-			return { repo, d, isNew, date: (l && l.date) || 0 };
+			// with the running version known: "new" means an update for you; otherwise: not looked at yet
+			const update = d && d.current === false;
+			const isNew = d && (d.current === true || d.current === false) ? update && seen[repo] !== l.tag : !!(l && (seen[repo] ? seen[repo] !== l.tag : l.date && Date.now() - l.date < 14 * 86400000));
+			return { repo, d, isNew, update, date: (l && l.date) || 0 };
 		})
 		.sort((a, b) => b.isNew - a.isNew || b.date - a.date);
 }
@@ -495,13 +497,14 @@ const TILES = {
 		const data = x.live.releases || {};
 		const items = releaseItems(tile, data);
 		const fresh = items.filter((i) => i.isNew).length;
+		const updates = items.filter((i) => i.update).length;
 		const gh = `<span class="logo" style="--c:var(--text)">${svg("<path d='M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21'/>", 1.7)}</span>`;
-		const head = `<div class="th">${gh}<span class="n">${tile.title ? esc(tile.title) : t("rel.title")}</span><span class="meta">${items.length ? (fresh ? `<span class="rel-new-count">${t("rel.new", { n: fresh })}</span>` : t("rel.upToDate")) : ""}</span></div>`;
+		const head = `<div class="th">${gh}<span class="n">${tile.title ? esc(tile.title) : t("rel.title")}</span><span class="meta">${items.length ? (updates ? `<span class="rel-new-count">${t(updates === 1 ? "rel.update1" : "rel.updates", { n: updates })}</span>` : fresh ? `<span class="rel-new-count">${t("rel.new", { n: fresh })}</span>` : t("rel.upToDate")) : ""}</span></div>`;
 		if (!items.length) return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="sm faint" style="margin-top:8px">${t("rel.none")}</div><div class="md-btns"><button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 		const rows = items.slice(0, tile.h * 3 + (tile.h > 1 ? 0 : -1)).map((i) => {
 			const svc = (i.d && i.d.service && x.service(i.d.service)) || x.services().find((s) => s.name.toLowerCase().replace(/\s+/g, "") === i.repo.split("/")[1].toLowerCase().replace(/[-_]/g, ""));
 			const l = i.d && i.d.latest;
-			return `<div class="rel-row${i.isNew ? " new" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div><div class="rel-ver"><div class="v">${l ? esc(l.tag) : "–"}</div><div class="ss">${l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
+			return `<div class="rel-row${i.isNew ? " new" : ""}${i.update ? " upd" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div><div class="rel-ver"><div class="v">${l ? esc(l.tag) : "–"}</div><div class="ss">${i.d && i.d.current === true ? `<span class="rel-ok">✓ ${t("rel.current")}</span>` : i.update ? `<span class="rel-upd">${t("rel.runs", { v: esc(i.d.running) })}</span>` : l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
 		});
 		return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 	},

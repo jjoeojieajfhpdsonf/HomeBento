@@ -116,3 +116,17 @@ test("monitor: status changes become events, only on a real change", () => {
 	assert.equal(events[0].detail, "Connection refused");
 	assert.deepEqual(m.summary(s.id).recent, [20, 25, null, 30]);
 });
+
+test("releases: running version from image labels and comparing versions", () => {
+	const { runningVersion, sameVersion, parseRepo } = require("../lib/releases");
+	assert.equal(runningVersion({ labels: { "org.opencontainers.image.version": "4.0.20.3014-ls329" } }), "4.0.20.3014-ls329");
+	assert.equal(runningVersion({ labels: { build_version: "Linuxserver.io version:- 5.2.4-ls480 Build-date:- 2026" } }), "5.2.4-ls480");
+	assert.equal(runningVersion({ labels: { "org.opencontainers.image.version": "latest" } }), null);
+	assert.equal(sameVersion("4.0.20.3014-ls329", "4.0.20.3014-ls329"), true);
+	assert.equal(sameVersion("4.0.20.3014-ls328", "4.0.20.3014-ls329"), false);
+	assert.equal(sameVersion("12.2.0", "v12.2-202610051851"), true);
+	assert.equal(sameVersion("2.5.5", "2.5.6"), false);
+	assert.equal(parseRepo("https://github.com/Sonarr/Sonarr.git"), "Sonarr/Sonarr");
+	assert.equal(parseRepo("github.com/amir20/dozzle/releases"), "amir20/dozzle");
+	assert.equal(parseRepo("nonsense"), null);
+});

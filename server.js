@@ -13,7 +13,7 @@ const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
-const { Releases, parseRepo } = require("./lib/releases");
+const { Releases, parseRepo, runningVersion, sameVersion } = require("./lib/releases");
 const os = require("node:os");
 const { KINDS } = require("./lib/kinds");
 const { UserError } = require("./lib/errors");
@@ -210,7 +210,18 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	if (repos.length) {
 		rel = Object.fromEntries((await Promise.all(repos.map((r) => releases.get(r)))).map((r) => [r.repo, r]));
 		// which service a repository belongs to (name and icon in the tile)
-		for (const x of releases.suggest(cfg.services, monitor.containers)) if (rel[x.repo]) rel[x.repo].service = x.service;
+		for (const x of releases.suggest(cfg.services, monitor.containers)) {
+			if (!rel[x.repo]) continue;
+			rel[x.repo].service = x.service;
+			// compare with what the container runs
+			const s = cfg.services.find((y) => y.id === x.service);
+			const c = s && s.container && (monitor.containers || []).find((y) => y.name === s.container);
+			const running = runningVersion(c);
+			if (running) {
+				rel[x.repo].running = running;
+				rel[x.repo].current = sameVersion(running, rel[x.repo].latest && rel[x.repo].latest.tag);
+			}
+		}
 	}
 	return { at: Date.now(), status, data, hours, host: types.has("host") || types.has("status") ? host.stats() : null, containers, events, tailscale: ts, releases: rel };
 });
