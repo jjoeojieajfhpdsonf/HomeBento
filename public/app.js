@@ -1573,7 +1573,7 @@ async function mediaSheet(sid, ref) {
 	);
 }
 
-const DEFAULT_SIZE = { arr: [3, 2], api: [2, 2], markets: [2, 2], holidays: [2, 2], countdown: [2, 1], camera: [2, 2], weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
+const DEFAULT_SIZE = { storage: [2, 1], arr: [3, 2], api: [2, 2], markets: [2, 2], holidays: [2, 2], countdown: [2, 1], camera: [2, 2], weather: [2, 2], clock: [2, 1], disks: [2, 2], network: [2, 2], ical: [2, 2], rss: [2, 3], iframe: [3, 2], mystrom: [2, 2], energy: [2, 2], mirror: [2, 2], releases: [2, 3], tailscale: [2, 2], docker: [3, 2], events: [3, 3], service: [1, 1], status: [2, 1], host: [2, 2], uptime: [2, 2], jellyfin: [3, 3], recent: [3, 2], calendar: [3, 2], downloads: [3, 1], solar: [2, 2], links: [2, 2], notes: [2, 2] };
 
 function addTile(tile) {
 	const [w, hh] = DEFAULT_SIZE[tile.type];
@@ -1598,6 +1598,7 @@ const ADD_KEYS = {
 	events: "events log history ereignisse verlauf",
 	releases: "releases updates github versions versionen",
 	calendar: "calendar kalender upcoming episodes movies episoden filme",
+	storage: "storage speicher platz space disk movies shows filme serien grösse size",
 	ical: "calendar kalender ical ics caldav google icloud outlook nextcloud events termine appointments",
 	weather: "weather wetter forecast prognose",
 	clock: "clock uhr time zeit timezone zeitzone analog",
@@ -1617,8 +1618,8 @@ const ADD_KEYS = {
 };
 
 // the tiles the command palette can add: title and subtitle
-const ADD_TILES = { host: "add.host", uptime: "add.uptime", events: "ev.title", releases: "rel.title", calendar: "add.calendar", ical: "ical.title", weather: "wx.title", clock: "clk.title", disks: "disks.title", network: "net.title", rss: "rss.title", iframe: "frame.title", api: "api.title", markets: "mk.title", holidays: "hol.title", countdown: "cd.title", camera: "cam.title", links: "add.links", notes: "add.notes" };
-const ADD_SUBS = { host: "add.hostSub", uptime: "add.uptimeSub", events: "add.eventsSub", releases: "add.releasesSub", calendar: "add.calendarSub", ical: "add.icalSub", weather: "add.weatherSub", clock: "add.clockSub", disks: "add.disksSub", network: "add.netSub", rss: "add.rssSub", iframe: "add.frameSub", api: "add.apiSub", markets: "add.marketsSub", holidays: "add.holidaysSub", countdown: "add.countdownSub", camera: "add.cameraSub", links: "add.linksSub", notes: "add.notesSub" };
+const ADD_TILES = { storage: "sto.title", host: "add.host", uptime: "add.uptime", events: "ev.title", releases: "rel.title", calendar: "add.calendar", ical: "ical.title", weather: "wx.title", clock: "clk.title", disks: "disks.title", network: "net.title", rss: "rss.title", iframe: "frame.title", api: "api.title", markets: "mk.title", holidays: "hol.title", countdown: "cd.title", camera: "cam.title", links: "add.links", notes: "add.notes" };
+const ADD_SUBS = { storage: "add.storageSub", host: "add.hostSub", uptime: "add.uptimeSub", events: "add.eventsSub", releases: "add.releasesSub", calendar: "add.calendarSub", ical: "add.icalSub", weather: "add.weatherSub", clock: "add.clockSub", disks: "add.disksSub", network: "add.netSub", rss: "add.rssSub", iframe: "add.frameSub", api: "add.apiSub", markets: "add.marketsSub", holidays: "add.holidaysSub", countdown: "add.countdownSub", camera: "add.cameraSub", links: "add.linksSub", notes: "add.notesSub" };
 
 async function addTileSheet(query) {
 	// also from the command palette: adding happens in edit mode
@@ -1685,6 +1686,7 @@ async function addTileSheet(query) {
 			if (k.tile === "jellyfin") content.push(row(logo(s), `${s.name}: ${t("add.recent")}`, null, add({ type: "recent", service: s.id }), onBoard((x) => x.type === "recent" && x.service === s.id) && t("add.onBoard")));
 		}
 		if (services().some((s) => s.kind === "sonarr" || s.kind === "radarr")) content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4'/>", "#35c5f4"), t("add.calendar"), t("add.calendarSub"), add({ type: "calendar" }), onBoard((x) => x.type === "calendar") && t("add.onBoard")));
+		if (services().some((s) => s.kind === "sonarr" || s.kind === "radarr")) content.push(row(glyphLogo("<ellipse cx='12' cy='6' rx='7.5' ry='2.8'/><path d='M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8'/>", "#ffc230"), t("sto.title"), t("add.storageSub"), add({ type: "storage" }), onBoard((x) => x.type === "storage") && t("add.onBoard")));
 		const addAndSetUp = (tile) => Object.assign(() => {
 			const added = addTile(tile);
 			draw();
@@ -2181,7 +2183,7 @@ function paletteResults(q) {
 	// tiles to add, also found by other words ("cal" → Calendar)
 	if (words.length) {
 		const sonarr = services().some((s) => s.kind === "sonarr" || s.kind === "radarr");
-		const tiles = Object.keys(ADD_TILES).filter((k) => (k !== "calendar" || sonarr) && hit(`${t(ADD_TILES[k])} ${ADD_KEYS[k] || ""} ${t("tile.add")}`));
+		const tiles = Object.keys(ADD_TILES).filter((k) => (!["calendar", "storage"].includes(k) || sonarr) && hit(`${t(ADD_TILES[k])} ${ADD_KEYS[k] || ""} ${t("tile.add")}`));
 		for (const k of tiles.slice(0, 4)) out.push({ cap: t("tile.add"), icon: I.page, title: t(ADD_TILES[k]), hint: t(ADD_SUBS[k]), run: () => addTileSheet(t(ADD_TILES[k])) });
 	}
 	if (q) out.push({ cap: t("pal.web"), icon: I.web, title: t("pal.webSearch", { q }), run: () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer") });

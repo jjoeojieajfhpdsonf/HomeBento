@@ -720,6 +720,10 @@ const TEXT = {
 		"settings.cols": "Spalten",
 		"settings.colsN": "{n} Spalten",
 		"settings.colsHelp": "Fest auf jedem Bildschirm: ein kleineres Fenster macht die Kacheln schmaler, verschoben wird nichts. 8 oder 10 passen zu breiten Bildschirmen.",
+		"sto.title": "Medien-Speicher",
+		"sto.free": "Frei",
+		"sto.needs": "Füge Radarr oder Sonarr als Service hinzu",
+		"add.storageSub": "Frei, Filme und Serien – aus Radarr und Sonarr",
 		"common.close": "Schliessen"
 	},
 	en: {
@@ -1418,6 +1422,10 @@ const TEXT = {
 		"settings.cols": "Columns",
 		"settings.colsN": "{n} columns",
 		"settings.colsHelp": "The same on every screen: a smaller window makes the tiles narrower, nothing moves. 8 or 10 suit wide screens.",
+		"sto.title": "Media storage",
+		"sto.free": "Free",
+		"sto.needs": "Add Radarr or Sonarr as a service",
+		"add.storageSub": "Free, movies and shows – from Radarr and Sonarr",
 		"common.close": "Close"
 	}
 };

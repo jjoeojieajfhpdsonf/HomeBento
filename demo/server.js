@@ -128,7 +128,7 @@ const pages = [
 		{ type: "downloads", w: 2, h: 1 },
 		{ type: "api", w: 2, h: 1, title: "Jellyfin stats", api: { url: "http://192.168.1.10:3000/stats", fields: [{ label: "Plays (7 days)", path: "plays" }, { label: "Hours", path: "hours" }, { label: "Top", path: "top" }] } },
 		{ type: "countdown", w: 2, h: 1, title: "In cinemas", items: [{ name: "Avatar 4", date: dayStr(42) }, { name: "Dune: Messiah", date: dayStr(95) }] },
-		{ type: "api", w: 2, h: 1, title: "Media storage", api: { url: "http://192.168.1.10:61208/api/4/fs", fields: [{ label: "Free", path: "free" }, { label: "Movies", path: "movies" }, { label: "Shows", path: "shows" }] } },
+		{ type: "storage", w: 2, h: 1 },
 		...svcTiles(["Jellyfin", "Sonarr", "Radarr", "Prowlarr", "qBittorrent", "Jellyseerr", "Bazarr", "Lidarr", "Plex", "Tautulli", "SABnzbd"])
 	]],
 	["Home", [
@@ -224,6 +224,8 @@ function data(s) {
 			warnings: [],
 			queue: 2,
 			library: 86,
+			size: 2.4e12,
+			free: 2.3e12,
 			wanted: 14,
 			imported: [{ at: ago(5 * HOUR), title: "Arcane", sub: { season: 2, number: 9, name: "The Dirt Under Your Nails" }, ref: "series-5" }]
 		};
@@ -237,6 +239,8 @@ function data(s) {
 			warnings: ["Indexer Nyaa is unavailable due to failures for more than 6 hours"],
 			queue: 1,
 			library: 412,
+			size: 3.1e12,
+			free: 2.3e12,
 			wanted: 9,
 			imported: [{ at: ago(26 * HOUR), title: "Civil War", sub: { year: 2024 }, ref: "movie-4" }]
 		};
@@ -442,7 +446,6 @@ function apiDemo(t) {
 	if (t.title === "Speedtest") return { values: [v("↓ Mbit/s", "912"), v("↑ Mbit/s", "483"), v("Ping", "6 ms")], items: [], at: now() };
 	if (t.title === "Internet") return { values: [v("Public IP", "203.0.113.24"), v("City", "Zürich"), v("Provider", "Init7")], items: [], at: now() };
 	if (t.title === "Server power") return { values: [v("Now", `${Math.round(58 + wob("srv", 6, 20000))} W`), v("Today", "1.2 kWh"), v("Per month", "11.20 CHF")], items: [], at: now() };
-	if (t.title === "Media storage") return { values: [v("Free", "2.3 TB"), v("Movies", "3.1 TB"), v("Shows", "2.4 TB")], items: [], at: now() };
 	if (t.title === "Backup") return { values: [v("Last", "vor 6 h"), v("Size", "412 GB"), v("Took", "38 min")], items: [], at: now() };
 	return { values: [v("Plays (7 days)", "84"), v("Hours", "61"), v("Top", "Alex")], items: [], at: now() };
 }

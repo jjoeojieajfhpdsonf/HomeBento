@@ -837,6 +837,22 @@ const TILES = {
 		return { c: colorOf(s), cls: "arr-tile", html: `${head(v.warnings && v.warnings.length ? `<span class="warn-text">${t("arr.warnings", { n: v.warnings.length })}</span>` : "")}${nums}${room ? `<div class="sm muted arr-label">${esc(label)}</div><div class="arr-list">${list}</div>` : ""}` };
 	},
 
+	// Media storage: what's still free, and what movies and shows take (from Radarr and Sonarr)
+	storage(tile, x) {
+		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("sto.title")}</span></div>`;
+		const radarr = x.ofKind("radarr")[0];
+		const sonarr = x.ofKind("sonarr")[0];
+		if (!radarr && !sonarr) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("sto.needs")}</div>` };
+		const v = (s) => (s && x.live.data[s.id] && x.live.data[s.id].data) || null;
+		const r = v(radarr);
+		const so = v(sonarr);
+		const frees = [r, so].filter((d) => d && d.free !== null && d.free !== undefined).map((d) => d.free);
+		const list = [{ v: frees.length ? fmtBytes(Math.max(...frees)) : "–", l: t("sto.free") }];
+		if (radarr) list.push({ v: r && r.size !== null && r.size !== undefined ? fmtBytes(r.size) : "–", l: t("m.movies") });
+		if (sonarr) list.push({ v: so && so.size !== null && so.size !== undefined ? fmtBytes(so.size) : "–", l: t("m.series") });
+		return { c: "#9dbcff", html: `${head}${metricsHtml(list)}` };
+	},
+
 	// own API: chosen values as figures, an optional list below
 	api(tile, x) {
 		const d = x.live.api && x.live.api[tile.id];
