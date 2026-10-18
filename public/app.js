@@ -805,13 +805,16 @@ async function serviceSheet(sid) {
 				h("button", { class: "btn primary", onclick: () => updateService(s, rel) }, t("upd.go"))));
 		}
 		// what the service itself reports (Sonarr/Radarr/Prowlarr health checks)
-		const warnings = (integ && integ.data && integ.data.warnings) || [];
+		// an update the box above already offers isn't repeated as a warning
+		const UPDATE_RE = /update (is )?available|new version|neue version/i;
+		const offered = d.release && d.release.current === false && s.container;
+		const warnings = ((integ && integ.data && integ.data.warnings) || []).filter((w) => !(offered && UPDATE_RE.test(w)));
 		if (warnings.length) {
 			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${urlFor(s).replace(/\/+$/, "")}/system/status` : null;
 			parts.push(
 				h("div", { class: "sec" }, h("span", {}, t("sheet.warnings"), h("span", { class: "sec-n" }, String(warnings.length))), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", class: "sec-link" }, t("sheet.openIn", { n: s.name })) : null),
 				// the service itself says there's an update: update the container right from here
-				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", { class: "grow" }, w), s.container && /update (is )?available|new version|neue version/i.test(w) && !(d.release && d.release.current === false) ? h("button", { class: "btn warn-act", onclick: () => updateService(s, null) }, t("upd.go")) : null)))
+				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", { class: "grow" }, w), s.container && UPDATE_RE.test(w) ? h("button", { class: "btn warn-act", onclick: () => updateService(s, null) }, t("upd.go")) : null)))
 			);
 		}
 		// plugins: their list (monitors, guests, pools, clients …)

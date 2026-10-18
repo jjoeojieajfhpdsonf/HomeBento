@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.13.0 – 2026-10-18
+
+- **Tiles:** weather (Open-Meteo, place in the settings or per tile), clock (digital or analog, more time zones by city), file systems, network history, iCal calendars (also private CalDAV calendars with a login), news (RSS/Atom), web page (iFrame), own API (any JSON address: pick values and a list from the answer), markets (shares, indices, exchange rates, crypto), Swiss public holidays per canton, countdown, camera (still or MJPEG, through HomeBento).
+- **Checks:** HTTP with a text or allowed status codes, TCP port, ping, DNS answer; certificate expiry.
+- **Notifications:** Telegram, ntfy, Pushover, Gotify, Discord, Slack, webhook, e-mail (SMTP); for outages, certificates, full disks, temperature, memory and restarting containers; delay, quiet time, muting per service, quiet during container updates.
+- **Configuration:** export (optionally with logins), import of HomeBento files and of Homepage, Dashy, Homer, Heimdall and browser bookmarks; daily backups with restore.
+- **Kiosk mode:** full screen, pages change by themselves, darker at night; as a link for another device.
+- **About 55 more integrations** (now about 100), among them Unraid, Synology, OpenMediaVault, Proxmox Backup Server, Kubernetes, EVCC, OpenDTU, OPNsense, pfSense, OpenWrt, MikroTik, FRITZ!Box, CrowdSec, Headscale, authentik, Audiobookshelf, Navidrome, Komga, Mealie, Paperless, Miniflux, Firefly III.
+- **Updates right from the service details** when a newer version is known – also when the service itself reports one.
+- **Layout:** a width slider (more columns on wide pages instead of wider tiles), the service list as compact columns per area, the problem strip in one row, Jellyfin with viewers and new posters side by side, windows on top of each other dim the one behind.
+- **Tailscale:** the folder is mounted (harmless without Tailscale), `TAILSCALE=off` leaves it out.
+- **Demo:** `node demo/server.js` – everything filled with made-up data.
+
 ## 0.12.0 – 2026-10-18
 
 - 32 integrations as plugins (`lib/plugins/`): Plex, Emby, Tautulli, Overseerr/Jellyseerr, Lidarr, Readarr, Bazarr, SABnzbd, NZBGet, Transmission, Deluge, Pi-hole, AdGuard Home, Traefik, Nginx Proxy Manager, wg-easy, UniFi, Proxmox VE, TrueNAS, Glances, Portainer, Syncthing, Scrutiny, Uptime Kuma, Prometheus, Grafana, Speedtest Tracker, Home Assistant, Immich, Nextcloud, Frigate, Paperless-ngx, Gitea/Forgejo, Vaultwarden.

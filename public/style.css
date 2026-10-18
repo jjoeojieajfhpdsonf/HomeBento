@@ -878,3 +878,4 @@ body.wide .wrap { max-width: none; }
 
 .ts-port-hint { color: var(--accent); font: inherit; padding: 0; }
 .ts-port-hint:hover { text-decoration: underline; }
+.upd-box .grow { flex: 1; min-width: 0; }

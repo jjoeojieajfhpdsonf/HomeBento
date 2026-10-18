@@ -2,15 +2,16 @@
 
 A dashboard for the services at home that does more than link to them: every tile shows what its service is doing, problems come with the action to fix them, and everything is set up in the browser – no YAML.
 
-- **Tiles with content:** what's playing on Jellyfin and what was added, what Sonarr and Radarr bring next (one calendar), what qBittorrent downloads, what the solar plant produces, CPU / memory / disk of the server, uptime of every service over 24 hours.
-- **Status with history:** every service is checked regularly. You see response times, uptime over 30 days and when something went down, not just a green dot.
-- **Actions:** start, stop and restart Docker containers and read their logs right from the dashboard. MagicMirror can be restarted through [MagicMirror Manager](https://github.com/jjoeojieajfhpdsonf/magicMirrorManager).
-- **Sets itself up:** one click turns your running containers into services with matching tiles. The web port is found by trying the container's ports, and the API keys of Sonarr, Radarr and Prowlarr are read from their containers.
-- **Set up in the browser:** add services and tiles, arrange them by dragging, change sizes, several pages. Docker containers are suggested with name, address and icon (`homepage.*` labels are understood too).
-- **Updates:** subscribe to the GitHub repositories of your services and see new versions with their release notes.
+- **Tiles with content:** what's playing on Jellyfin and what was added, what Sonarr and Radarr bring next, what's downloading, weather, appointments (iCal and private CalDAV calendars), news (RSS), shares and exchange rates, Swiss public holidays, countdowns, a camera picture, the server's CPU / memory / disks / network, uptime of every service – and any JSON API you point it at.
+- **About 100 integrations:** Jellyfin, Plex, the *arr apps, download clients, Pi-hole, AdGuard, Proxmox, TrueNAS, Unraid, Synology, Home Assistant, Immich, Nextcloud, Frigate, Uptime Kuma, OPNsense, FRITZ!Box, EVCC and many more – each with its key figures, a list and warnings. New ones are a small plugin file.
+- **Status with history:** every service is checked regularly – over HTTP (optionally for a text or certain status codes), a TCP port, ping or a DNS answer. Response times, uptime over 30 days, status changes, certificates that are about to expire.
+- **Notifications:** Telegram, ntfy, Pushover, Gotify, Discord, Slack, a webhook or e-mail – when a service goes down, a certificate runs out, a disk fills up, the CPU gets hot or a container keeps restarting. With a delay, quiet times and muting per service.
+- **Actions:** start, stop, restart and update Docker containers (with automatic rollback) and read their logs right from the dashboard.
+- **Sets itself up:** one click turns your running containers into services with matching tiles. API keys of Sonarr, Radarr and Prowlarr are read from their containers. Coming from Homepage, Dashy, Homer or Heimdall? Import their configuration.
+- **Set up in the browser:** add services and tiles, arrange them by dragging, several pages, a width slider. Export, import and daily backups of the configuration.
+- **Kiosk mode:** full screen for a tablet on the wall – pages change by themselves, darker at night.
 - **Command palette:** ⌘K (or Ctrl K, or "/") finds services, actions, pages and links – "son restart" restarts Sonarr.
-- **Notifications:** optional push message when a service goes down or comes back (ntfy or any URL that takes a POST).
-- **Light:** one Node.js process, **no dependencies**, phone and laptop layouts, German and English.
+- **Light:** one Node.js process, **no dependencies**, German and English.
 
 Icons come from [dashboard-icons](https://github.com/homarr-labs/dashboard-icons).
 
