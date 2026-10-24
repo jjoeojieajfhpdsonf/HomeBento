@@ -247,7 +247,7 @@ route("GET", "/api/live", async (body, p, query, req) => {
 		// versions the apps tell themselves (for images that don't say), asked all at once
 		const asked = new Map(await Promise.all(sugs.map(async (x) => {
 			const s = cfg.services.find((y) => y.id === x.service);
-			return [x.service, s ? await askedVersion(s, integrations.ctx(s)) : null];
+			return [x.service, s ? await askedVersion(s, integrations.ctx(s), x.repo) : null];
 		})));
 		for (const x of sugs) {
 			rel[x.repo].service = x.service;
@@ -324,7 +324,7 @@ route("GET", "/api/services/:id", async (body, p) => {
 		out.container = c ? { state: c.state, status: c.status, image: c.image, cpu: st.cpu ?? null, memory: st.memory ?? null } : { error: docker.available === false ? "Docker is not connected" : `Container "${s.container}" not found` };
 		// a newer release than the container runs? (GitHub, cached like the Updates tile)
 		const sug = releases.suggest([s], monitor.containers)[0];
-		const running = runningVersion(c) || (sug ? await askedVersion(s, integrations.ctx(s)) : null);
+		const running = runningVersion(c) || (sug ? await askedVersion(s, integrations.ctx(s), sug.repo) : null);
 		if (sug && running) {
 			const r = await releases.get(sug.repo).catch(() => null);
 			if (r && r.latest) out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
