@@ -639,6 +639,8 @@ function widthField() {
 // ---------- appearance: background, main colour, tile style ----------
 
 const BG_PRESETS = [["#101012", "default"], ["#000000", "black"], ["#17181c", "graphite"], ["#0c1220", "midnight"], ["#0d1512", "forest"], ["#150f1a", "plum"]];
+// the same idea for the light mode: soft paper tones
+const BG_PRESETS_LIGHT = [["#eef0f3", "default"], ["#ffffff", "white"], ["#f3efe7", "sand"], ["#e6eef8", "sky"], ["#e7f2ec", "mint"], ["#efe9f5", "lavender"]];
 // backgrounds with colour in them – what makes glass tiles shine. [dark, light]: [base, layers]
 const BG_GRADIENTS = {
 	aurora: [["#0b0d18", "radial-gradient(55% 45% at 12% 8%, rgba(124,92,255,.42), transparent 62%), radial-gradient(45% 45% at 88% 18%, rgba(0,200,180,.30), transparent 62%), radial-gradient(60% 55% at 55% 105%, rgba(255,90,170,.22), transparent 62%)"],
@@ -707,6 +709,7 @@ function applyTheme(th) {
 	// a dark colour chosen for the dark mode becomes a light tint of it in the light mode
 	let bg = grad ? grad[0] : th.bg || null;
 	if (bg && !grad && light && lumOf(bg) < 0.5) bg = lightTint(bg);
+	else if (bg && !grad && !light && lumOf(bg) >= 0.5) bg = `color-mix(in srgb, ${bg} 10%, #101012)`;
 	// the tiles: a little lighter than the background (in the light mode: nearly white), three steps
 	if (bg) {
 		root.setProperty("--bg", bg);
@@ -769,7 +772,7 @@ function themeField(init) {
 	};
 	const bgItems = [
 		{ value: "auto", css: "conic-gradient(from 200deg, #0b1a3a, #2a7be0, #ff9a5a, #6b3fa0, #0b1a3a)", title: t("theme.auto"), cls: "auto" },
-		...BG_PRESETS.map(([c]) => ({ value: c, css: light ? lightTint(c) : c })),
+		...(light ? BG_PRESETS_LIGHT : BG_PRESETS).map(([c]) => ({ value: c, css: c })),
 		...Object.entries(BG_GRADIENTS).map(([k, v]) => [k, v[light ? 1 : 0]]).map(([k, [base, g]]) => ({ value: k, css: `${g.replace(/transparent \d+%/g, "transparent 100%")}, ${base}`, title: t(`theme.g.${k}`) }))
 	];
 	const autoHelp = h("div", { class: "help" });
@@ -802,8 +805,8 @@ function themeField(init) {
 		} });
 	const root = h("div", { class: "theme-fields" },
 		h("div", { class: "field" }, h("label", {}, t("theme.mode")), seg("mode", [["", "theme.dark"], ["light", "theme.light"], ["auto", "theme.system"]])),
-		h("div", { class: "field" }, h("label", {}, t("theme.bg")), swatches(bgItems, "bg", "#101012", showAuto), autoHelp),
-		h("div", { class: "field" }, h("label", {}, t("theme.accent")), swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff")),
+		h("div", { class: "field" }, h("label", {}, t("theme.bg")), swatches(bgItems, "bg", light ? "#eef0f3" : "#101012", showAuto), autoHelp),
+		h("div", { class: "field" }, h("label", {}, t("theme.accent")), swatches(ACCENTS.map((c, i) => ({ value: c, css: i === 0 && light ? "#3d6fd6" : c })), "accent", "#9dbcff")),
 		h("div", { class: "field" }, h("label", {}, t("theme.style")), seg("style", [["", "theme.solid"], ["glass", "theme.glass"], ["outline", "theme.outline"]]), h("div", { class: "help" }, t("theme.styleHelp"))),
 		range("radius", 0, 32, 2, 22, (v) => `${v} px`, t("theme.radius")),
 		h("div", { class: "field" }, h("label", {}, t("theme.image")), img, h("div", { class: "help" }, t("theme.imageHelp"))),
