@@ -523,8 +523,10 @@ document.addEventListener("click", (e) => {
 	e.stopPropagation();
 	const tile = noteTile(md);
 	if (!tile) return;
-	const ta = h("textarea", { class: "md-edit", spellcheck: "true", value: notesText(tile) });
+	const ta = h("textarea", { class: "md-edit", spellcheck: "true", value: notesText(tile), placeholder: t("notes.placeholder") });
+	const hint = h("div", { class: "md-hint" }, t("notes.editHint", { k: IS_MAC ? "⌘↩" : "Ctrl+↩" }));
 	md.replaceWith(ta);
+	ta.after(hint);
 	ta.focus();
 	ta.setSelectionRange(ta.value.length, ta.value.length);
 	let done = false;
@@ -539,6 +541,7 @@ document.addEventListener("click", (e) => {
 		const el = ta.closest(".t");
 		if (el) el.dataset.html = "";
 		// leave the editor first, else the tile counts as "being typed in" and isn't redrawn
+		hint.remove();
 		ta.remove();
 		saveNotes(tile);
 	};
@@ -669,7 +672,7 @@ function openTileDetails(tile) {
 	if (["notes", "links", "clock", "ical", "rss", "iframe", "markets", "holidays", "countdown", "api"].includes(tile.type)) return;
 	if (tile.type === "camera") return cameraView(tile);
 	if (tile.type === "disks" || tile.type === "network") return hostSheet();
-	if (tile.type === "weather") return tileOptions(tile);
+	if (tile.type === "weather") return weatherSheet(tile);
 	if (tile.type === "tailscale") return tailscaleSheet();
 	const s = { jellyfin: x.ofKind("jellyfin")[0], recent: x.ofKind("jellyfin")[0], downloads: x.ofKind("qbittorrent")[0], solar: x.ofKind("solar")[0], calendar: x.ofKind("sonarr")[0] || x.ofKind("radarr")[0] }[tile.type];
 	if (s) serviceSheet(s.id);
@@ -1107,47 +1110,134 @@ async function statusSheet() {
 }
 
 // Server details; follows the live data like the tile does. Click a value for its 24 h chart.
+// The server: every figure as a card with its last 24 hours right there; a click shows the big chart.
 function hostSheet() {
 	if (!S.live || !S.live.host) return;
 	const sheet = openSheet();
 	let open = null;
 	let points = null;
-	const loadHistory = async () => {
-		const r = await api("GET", "/api/host/history").catch(() => null);
-		points = r ? r.points : [];
-		fill();
-	};
+	api("GET", "/api/host/history").then((r) => ((points = r.points || []), fill()), () => ((points = []), fill()));
 	// [t, cpu, mem, disk, rx, tx, temp, load]
 	const SERIES = { cpu: [[1, "#9dbcff"]], memory: [[2, "#f5b83d"]], disk: [[3, "#9aa4b2"]], net: [[4, "#5fd39a"], [5, "#9dbcff"]], temp: [[6, "#ff8a65"]], load: [[7, "#c792ea"]] };
 	const UNIT = { cpu: (v) => `${nf(v, 0)} %`, memory: (v) => `${nf(v, 1)} %`, disk: (v) => `${nf(v, 1)} %`, net: (v) => `${fmtBytes(v)}/s`, temp: (v) => `${nf(v, 0)} °C`, load: (v) => nf(v, 2) };
+	// a small line of the last 24 h, no axes
+	const spark = (key) => {
+		if (!points) return `<div class="hc-spark wait"></div>`;
+		const series = SERIES[key];
+		const pts = points.filter((p) => series.some(([i]) => p[i] !== null && p[i] !== undefined));
+		if (pts.length < 2) return `<div class="hc-spark wait"></div>`;
+		const t0 = Date.now() - 24 * 3600 * 1000;
+		const max = Math.max(...pts.flatMap((p) => series.map(([i]) => p[i] || 0)), key === "cpu" || key === "memory" || key === "disk" ? 10 : 0.01) * 1.08;
+		const lines = series.map(([i, c]) => {
+			const d = pts.filter((p) => p[i] !== null && p[i] !== undefined).map((p, k) => `${k ? "L" : "M"}${(((p[0] - t0) / 864e5) * 100).toFixed(2)},${(30 - (p[i] / max) * 28).toFixed(2)}`).join("");
+			return `<path d="${d}" fill="none" stroke="${c}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+		});
+		return `<svg class="hc-spark" viewBox="0 0 100 30" preserveAspectRatio="none">${lines.join("")}</svg>`;
+	};
+	const stat = (key, i) => {
+		if (!points || !points.length) return "";
+		const v = points.map((p) => p[i]).filter((x) => x !== null && x !== undefined);
+		return v.length ? `${t("host.max")} ${UNIT[key](Math.max(...v))} · Ø ${UNIT[key](v.reduce((a, b) => a + b, 0) / v.length)}` : "";
+	};
 	const fill = () => {
 		const hst = S.live && S.live.host;
 		if (!hst) return;
 		const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 		sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
-		const row = (key, k, v) => {
-			const isOpen = open === key;
-			const r = [h("button", { class: `host-row${isOpen ? " open" : ""}`, onclick: () => ((open = isOpen ? null : key), !points && open ? loadHistory() : fill()) }, h("span", {}, k), h("span", { class: "num" }, v, h("span", { class: "chev", html: svg("<path d='M9 6l6 6-6 6'/>", 2) })))];
-			if (isOpen) r.push(h("div", { class: "host-chart" }, points ? chart(points, SERIES[key], UNIT[key], key === "net" ? [t("host.down"), t("host.upNet")] : null) : h("div", { class: "faint sm" }, "…")));
-			return r;
-		};
+		const card = (key, label, value, sub, i) => h("button", { class: `hcard${open === key ? " on" : ""}`, onclick: () => ((open = open === key ? null : key), fill()) },
+			h("div", { class: "hc-l" }, label), h("div", { class: "hc-v num" }, value), sub ? h("div", { class: "hc-s" }, sub) : null,
+			html(spark(key)), h("div", { class: "hc-st" }, stat(key, i)));
+		const cards = [
+			card("cpu", t("host.cpu"), `${hst.cpu} %`, `${hst.cores} ${t("host.coresShort")} · ${t("host.load")} ${nf(hst.load, 2)}`, 1),
+			card("memory", t("host.memory"), `${pct(hst.memUsed, hst.memTotal)} %`, t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) }), 2),
+			hst.diskTotal ? card("disk", t("host.disk"), `${pct(hst.diskUsed, hst.diskTotal)} %`, t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) }), 3) : null,
+			hst.net ? card("net", t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s`, `↑ ${fmtBytes(hst.net.tx)}/s`, 4) : null,
+			hst.temp !== null ? card("temp", t("host.temp"), `${hst.temp} °C`, null, 6) : null,
+			card("load", t("host.load"), nf(hst.load, 2), t("host.loadOf", { n: hst.cores }), 7)
+		].filter(Boolean);
 		const top = sheet.body.scrollTop;
 		sheet.body.replaceChildren(
-			h("div", { class: "box kv host-kv" },
-				row("cpu", t("host.cpu"), `${hst.cpu} %`),
-				h("div", {}, h("span", {}, t("host.cores")), h("span", { class: "num" }, String(hst.cores))),
-				row("load", t("host.load"), nf(hst.load, 2)),
-				row("memory", t("host.memory"), `${t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })} (${pct(hst.memUsed, hst.memTotal)} %)`),
-				hst.diskTotal ? row("disk", t("host.disk"), `${t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) })} (${pct(hst.diskUsed, hst.diskTotal)} %)`) : null,
-				hst.net ? row("net", t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s · ↑ ${fmtBytes(hst.net.tx)}/s`) : null,
-				hst.temp !== null ? row("temp", t("host.temp"), `${hst.temp} °C`) : null),
-			h("div", { class: "note", style: "margin-top:12px" }, t("host.loadHelp"))
+			h("div", { class: "hcards" }, cards),
+			open ? h("div", { class: "box host-chart", style: "margin-top:12px" }, points ? chart(points, SERIES[open], UNIT[open], open === "net" ? [t("host.down"), t("host.upNet")] : null) : h("div", { class: "faint sm" }, "…")) : null,
+			h("div", { class: "help", style: "margin:12px 2px 0" }, t("host.loadHelp"))
 		);
 		sheet.body.scrollTop = top;
 	};
 	fill();
 	S.hostFill = fill;
 	sheet.onclose = () => (S.hostFill = null);
+}
+
+// ---------- weather in detail ----------
+
+const uvWord = (v) => (v === null || v === undefined ? "" : t(v < 3 ? "wx.uvLow" : v < 6 ? "wx.uvMid" : v < 8 ? "wx.uvHigh" : v < 11 ? "wx.uvVery" : "wx.uvExtreme"));
+const compass = (d) => (d === null || d === undefined ? "" : t("wx.dirs").split(",")[Math.round(d / 45) % 8]);
+
+function weatherSheet(tile) {
+	const w = S.live && S.live.weather && S.live.weather[tile.id];
+	if (!w || !w.now) return tileOptions(tile);
+	const sheet = openSheet({ wide: true });
+	const n = w.now;
+	const today = w.days[0] || {};
+	const hm = (iso) => (iso ? iso.slice(11, 16) : "–");
+	const dur = (sec) => (sec ? `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min` : "–");
+	sheet.head(html(wxIcon(n.code, n.day, "wx-i")), h("div", { class: "tt" }, h("b", {}, w.place.name), h("span", { class: "sub" }, n.at ? t("wx.updated", { t: new Date(n.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }) : "")),
+		h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.changePlace")));
+	const fact = (k, v, sub) => h("div", { class: "wxd-fact" }, h("span", {}, k), h("b", { class: "num" }, v), sub ? h("span", { class: "faint" }, sub) : null);
+
+	// the next 48 hours: temperature as a line, rain as bars, a day mark at midnight
+	const hrs = w.hours.slice(0, 48);
+	let chartHtml = "";
+	if (hrs.length > 2) {
+		const W = 960, H = 170, top = 26, bot = 34;
+		const temps = hrs.map((x) => x.temp);
+		const lo = Math.min(...temps) - 1, hi = Math.max(...temps) + 1;
+		const X = (i) => (i / (hrs.length - 1)) * W;
+		const Y = (v) => top + (1 - (v - lo) / (hi - lo || 1)) * (H - top - bot);
+		const line = hrs.map((x, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(x.temp).toFixed(1)}`).join("");
+		const area = `${line}L${W},${H - bot}L0,${H - bot}Z`;
+		const bw = W / hrs.length;
+		const bars = hrs.map((x, i) => (x.rain ? `<rect x="${(X(i) - bw / 2 + 1).toFixed(1)}" y="${(H - bot - (x.rain / 100) * 26).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${((x.rain / 100) * 26).toFixed(1)}" rx="2" fill="rgba(111,179,255,${0.15 + (x.rain / 100) * 0.35})"/>` : "")).join("");
+		const marks = hrs.map((x, i) => {
+			const d = new Date(x.t);
+			const out = [];
+			if (d.getHours() === 0 && i) out.push(`<line x1="${X(i)}" x2="${X(i)}" y1="6" y2="${H - bot}" stroke="rgba(255,255,255,.08)"/><text x="${X(i) + 6}" y="14" class="wxd-daylab">${esc(d.toLocaleDateString(LOCALE, { weekday: "short" }))}</text>`);
+			if (i % 3 === 0) out.push(`<text x="${X(i)}" y="${H - 14}" class="wxd-hour" text-anchor="middle">${i === 0 ? esc(t("wx.now")) : d.getHours()}</text>`);
+			return out.join("");
+		}).join("");
+		const iMax = temps.indexOf(Math.max(...temps));
+		const iMin = temps.indexOf(Math.min(...temps));
+		const lab = (i, below) => `<text x="${Math.min(W - 16, Math.max(16, X(i)))}" y="${Y(temps[i]) + (below ? 16 : -8)}" class="wxd-tlab" text-anchor="middle">${deg(temps[i])}</text>`;
+		chartHtml = `<svg class="wxd-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="wxg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgba(245,184,61,.28)"/><stop offset="1" stop-color="rgba(245,184,61,0)"/></linearGradient></defs>${marks}${bars}<path d="${area}" fill="url(#wxg)"/><path d="${line}" fill="none" stroke="#f5b83d" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${lab(iMax, false)}${iMin !== iMax ? lab(iMin, true) : ""}</svg>
+			<div class="wxd-icons" style="--n:${Math.ceil(hrs.length / 3)}">${hrs.filter((x, i) => i % 3 === 0).map((x) => wxIcon(x.code, x.day)).join("")}</div>`;
+	}
+
+	// the week: a bar from the week's lowest to highest temperature
+	const lo = Math.min(...w.days.map((d) => d.min));
+	const hi = Math.max(...w.days.map((d) => d.max));
+	const pos = (v) => (((v - lo) / (hi - lo || 1)) * 100).toFixed(1);
+	const dayName = (d, i) => (i === 0 ? t("wx.today") : i === 1 ? t("wx.tomorrow") : new Date(`${d.date}T12:00`).toLocaleDateString(LOCALE, { weekday: "long" }));
+	const week = w.days.map((d, i) => `<div class="wxd-day"><span class="wxd-dn">${esc(dayName(d, i))}</span>${wxIcon(d.code, true)}<span class="wxd-dt">${esc(wxText(d.code))}</span>
+		<span class="wxd-rain">${d.rain >= 10 ? `${d.rain} %${d.mm ? ` · ${nf(d.mm, 1)} mm` : ""}` : ""}</span><span class="wxd-wind faint">${d.wind !== undefined ? `${Math.round(d.wind)} km/h` : ""}</span>
+		<span class="faint num">${deg(d.min)}</span><span class="wx-bar"><i style="left:${pos(d.min)}%;right:${100 - pos(d.max)}%"></i></span><span class="num">${deg(d.max)}</span></div>`).join("");
+
+	sheet.body.replaceChildren(
+		h("div", { class: "wxd-now" },
+			h("div", { class: "wxd-big" }, html(wxIcon(n.code, n.day, "wx-i huge")), h("div", {}, h("div", { class: "wxd-temp num" }, deg(n.temp)), h("div", { class: "muted" }, wxText(n.code)), h("div", { class: "faint sm" }, `${deg(today.max)} / ${deg(today.min)}`))),
+			h("div", { class: "wxd-facts" },
+				fact(t("wx.feelsLike"), deg(n.feels)),
+				fact(t("wx.humidity"), `${n.humidity} %`),
+				fact(t("wx.wind"), `${Math.round(n.wind)} km/h`, [compass(n.dir), n.gusts ? t("wx.gusts", { v: Math.round(n.gusts) }) : ""].filter(Boolean).join(" · ")),
+				fact(t("wx.precip"), `${nf(n.rain || 0, 1)} mm`, today.mm ? t("wx.precipToday", { v: nf(today.mm, 1) }) : ""),
+				n.uv !== undefined ? fact(t("wx.uv"), nf(n.uv || 0, 0), uvWord(today.uv ?? n.uv) ? `${t("wx.uvToday")} ${nf(today.uv ?? n.uv, 0)} · ${uvWord(today.uv ?? n.uv)}` : "") : null,
+				n.pressure ? fact(t("wx.pressure"), `${Math.round(n.pressure)} hPa`) : null,
+				fact(t("wx.sunrise"), hm(today.sunrise), t("wx.sunset") + " " + hm(today.sunset)),
+				today.daylight ? fact(t("wx.daylight"), dur(today.daylight)) : null)),
+		chartHtml ? h("div", { class: "sec" }, t("wx.next48")) : null,
+		chartHtml ? h("div", { class: "box wxd-48", html: chartHtml }) : null,
+		h("div", { class: "sec" }, t("wx.week")),
+		h("div", { class: "box wxd-week", html: week })
+	);
 }
 
 // A 24 h line chart with min/max/now and an hour axis. series: [[index in point, colour]]
