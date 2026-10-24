@@ -1111,61 +1111,43 @@ async function statusSheet() {
 }
 
 // Server details; follows the live data like the tile does. Click a value for its 24 h chart.
-// The server: every figure as a card with its last 24 hours right there; a click shows the big chart.
+// The server: a tab per figure with its value now; below, the chosen one's last 24 hours.
 function hostSheet() {
 	if (!S.live || !S.live.host) return;
-	const sheet = openSheet();
-	let open = null;
+	const sheet = openSheet({ wide: true });
+	let open = "cpu";
 	let points = null;
-	api("GET", "/api/host/history").then((r) => ((points = r.points || []), fill()), () => ((points = []), fill()));
+	api("GET", "/api/host/history").then((r) => ((points = r.points || []), fill(true)), () => ((points = []), fill(true)));
 	// [t, cpu, mem, disk, rx, tx, temp, load]
 	const SERIES = { cpu: [[1, "#9dbcff"]], memory: [[2, "#f5b83d"]], disk: [[3, "#9aa4b2"]], net: [[4, "#5fd39a"], [5, "#9dbcff"]], temp: [[6, "#ff8a65"]], load: [[7, "#c792ea"]] };
 	const UNIT = { cpu: (v) => `${nf(v, 0)} %`, memory: (v) => `${nf(v, 1)} %`, disk: (v) => `${nf(v, 1)} %`, net: (v) => `${fmtBytes(v)}/s`, temp: (v) => `${nf(v, 0)} °C`, load: (v) => nf(v, 2) };
-	// a small line of the last 24 h, no axes
-	const spark = (key) => {
-		if (!points) return `<div class="hc-spark wait"></div>`;
-		const series = SERIES[key];
-		const pts = points.filter((p) => series.some(([i]) => p[i] !== null && p[i] !== undefined));
-		if (pts.length < 2) return `<div class="hc-spark wait"></div>`;
-		const t0 = Date.now() - 24 * 3600 * 1000;
-		const max = Math.max(...pts.flatMap((p) => series.map(([i]) => p[i] || 0)), key === "cpu" || key === "memory" || key === "disk" ? 10 : 0.01) * 1.08;
-		const lines = series.map(([i, c]) => {
-			const d = pts.filter((p) => p[i] !== null && p[i] !== undefined).map((p, k) => `${k ? "L" : "M"}${(((p[0] - t0) / 864e5) * 100).toFixed(2)},${(30 - (p[i] / max) * 28).toFixed(2)}`).join("");
-			return `<path d="${d}" fill="none" stroke="${c}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
-		});
-		return `<svg class="hc-spark" viewBox="0 0 100 30" preserveAspectRatio="none">${lines.join("")}</svg>`;
-	};
-	const stat = (key, i) => {
-		if (!points || !points.length) return "";
-		const v = points.map((p) => p[i]).filter((x) => x !== null && x !== undefined);
-		return v.length ? `${t("host.max")} ${UNIT[key](Math.max(...v))} · Ø ${UNIT[key](v.reduce((a, b) => a + b, 0) / v.length)}` : "";
-	};
-	const fill = () => {
+	const chartBox = h("div", { class: "box host-chart" });
+	const tabs = h("div", { class: "host-tabs", role: "tablist" });
+	const info = h("div", { class: "host-info" });
+	const fill = (redraw) => {
 		const hst = S.live && S.live.host;
 		if (!hst) return;
 		const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 		sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
-		const card = (key, label, value, sub, i) => h("button", { class: `hcard${open === key ? " on" : ""}`, onclick: () => ((open = open === key ? null : key), fill()) },
-			h("div", { class: "hc-l" }, label), h("div", { class: "hc-v num" }, value), sub ? h("div", { class: "hc-s" }, sub) : null,
-			html(spark(key)), h("div", { class: "hc-st" }, stat(key, i)));
-		const cards = [
-			card("cpu", t("host.cpu"), `${hst.cpu} %`, `${hst.cores} ${t("host.coresShort")} · ${t("host.load")} ${nf(hst.load, 2)}`, 1),
-			card("memory", t("host.memory"), `${pct(hst.memUsed, hst.memTotal)} %`, t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) }), 2),
-			hst.diskTotal ? card("disk", t("host.disk"), `${pct(hst.diskUsed, hst.diskTotal)} %`, t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) }), 3) : null,
-			hst.net ? card("net", t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s`, `↑ ${fmtBytes(hst.net.tx)}/s`, 4) : null,
-			hst.temp !== null ? card("temp", t("host.temp"), `${hst.temp} °C`, null, 6) : null,
-			card("load", t("host.load"), nf(hst.load, 2), t("host.loadOf", { n: hst.cores }), 7)
+		const list = [
+			["cpu", t("host.cpu"), `${hst.cpu} %`, `${hst.cores} ${t("host.coresShort")}`],
+			["memory", t("host.memory"), `${pct(hst.memUsed, hst.memTotal)} %`, t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })],
+			hst.diskTotal ? ["disk", t("host.disk"), `${pct(hst.diskUsed, hst.diskTotal)} %`, t("host.of", { a: fmtBytes(hst.diskUsed), b: fmtBytes(hst.diskTotal) })] : null,
+			hst.net ? ["net", t("host.net"), `↓ ${fmtBytes(hst.net.rx)}/s`, `↑ ${fmtBytes(hst.net.tx)}/s`] : null,
+			hst.temp !== null ? ["temp", t("host.temp"), `${hst.temp} °C`, ""] : null,
+			["load", t("host.load"), nf(hst.load, 2), t("host.loadOf", { n: hst.cores })]
 		].filter(Boolean);
-		const top = sheet.body.scrollTop;
-		sheet.body.replaceChildren(
-			h("div", { class: "hcards" }, cards),
-			open ? h("div", { class: "box host-chart", style: "margin-top:12px" }, points ? chart(points, SERIES[open], UNIT[open], open === "net" ? [t("host.down"), t("host.upNet")] : null) : h("div", { class: "faint sm" }, "…")) : null,
-			h("div", { class: "help", style: "margin:12px 2px 0" }, t("host.loadHelp"))
-		);
-		sheet.body.scrollTop = top;
+		tabs.style.setProperty("--n", list.length);
+		tabs.replaceChildren(...list.map(([key, label, value, sub]) => h("button", { class: `host-tab${open === key ? " on" : ""}`, role: "tab", "aria-selected": open === key, style: `--tc:${SERIES[key][0][1]}`, onclick: () => ((open = key), fill(true)) },
+			h("span", { class: "ht-l" }, label), h("span", { class: "ht-v num" }, value), sub ? h("span", { class: "ht-s" }, sub) : null)));
+		const cur = list.find((x) => x[0] === open);
+		info.replaceChildren(h("div", { class: "help" }, t("host.loadHelp")));
+		// the chart is only redrawn when the tab or the history changes, so hovering isn't disturbed every few seconds
+		if (redraw || !chartBox.firstChild) chartBox.replaceChildren(h("div", { class: "chart-h" }, `${cur ? cur[1] : ""} · ${t("host.last24")}`), points ? chart(points, SERIES[open], UNIT[open], open === "net" ? [t("host.down"), t("host.upNet")] : null) : h("div", { class: "faint sm", style: "padding:20px 0" }, "…"));
+		if (!sheet.body.contains(tabs)) sheet.body.replaceChildren(tabs, chartBox, info);
 	};
-	fill();
-	S.hostFill = fill;
+	fill(true);
+	S.hostFill = () => fill(false);
 	sheet.onclose = () => (S.hostFill = null);
 }
 
@@ -1241,20 +1223,27 @@ function weatherSheet(tile) {
 	);
 }
 
-// A 24 h line chart with min/max/now and an hour axis. series: [[index in point, colour]]
+// A 24 h line chart with min/max/now, an hour axis and values on the left. Hovering shows the
+// time and the values at that moment. series: [[index in point, colour]]
 function chart(points, series, unit, names) {
-	const w = 520, hh = 130;
+	const w = 520, hh = 150;
 	const pts = points.filter((p) => series.some(([i]) => p[i] !== null && p[i] !== undefined));
 	if (pts.length < 2) return h("div", { class: "faint sm" }, t("host.noHistory"));
 	const t0 = Date.now() - 24 * 3600 * 1000;
 	const vals = pts.flatMap((p) => series.map(([i]) => p[i]).filter((v) => v !== null && v !== undefined));
-	const max = Math.max(...vals, 1) * 1.1;
+	// the range: from zero for amounts, around the values for things like a temperature
+	let lo = Math.min(...vals);
+	let hi = Math.max(...vals, 0.01);
+	const fromZero = lo <= 0 || (hi - lo) / hi > 0.6;
+	lo = fromZero ? 0 : lo - (hi - lo) * 0.15 - 0.5;
+	hi = hi + (hi - lo) * 0.12;
 	const x = (tm) => ((tm - t0) / (24 * 3600 * 1000)) * w;
-	const y = (v) => hh - (v / max) * (hh - 6);
+	const y = (v) => hh - ((v - lo) / (hi - lo || 1)) * (hh - 8) - 4;
 	const paths = series.map(([i, color]) => {
 		const d = pts.filter((p) => p[i] !== null && p[i] !== undefined).map((p, k) => `${k ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[i]).toFixed(1)}`).join("");
 		return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
 	});
+	const ticks = [0.25, 0.5, 0.75].map((f) => lo + (hi - lo) * (1 - f));
 	const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${w}" y1="${hh * f}" y2="${hh * f}" stroke="rgba(255,255,255,.05)"/>`).join("");
 	const last = pts[pts.length - 1];
 	const stat = series.map(([i, color], k) => {
@@ -1262,9 +1251,39 @@ function chart(points, series, unit, names) {
 		return h("span", { class: "chart-stat" }, h("i", { style: `background:${color}` }), names ? `${names[k]} ` : "", `${t("host.now")} ${unit(last[i] ?? 0)} · ${t("host.max")} ${unit(Math.max(...v))} · Ø ${unit(v.reduce((a, b) => a + b, 0) / v.length)}`);
 	});
 	const hours = [0, 6, 12, 18, 24].map((hr) => new Date(t0 + hr * 3600 * 1000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }));
+	// the hover: a line, a dot per series and a label, placed in percent so nothing stretches
+	const cross = h("div", { class: "cx-line" });
+	const dots = series.map(([, color]) => h("div", { class: "cx-dot", style: `background:${color}` }));
+	const tip = h("div", { class: "cx-tip" });
+	const plot = h("div", { class: "cx-plot", html: `<svg class="host-svg" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none">${grid}${paths.join("")}</svg>` }, cross, ...dots, tip);
+	const show = (clientX) => {
+		const r = plot.getBoundingClientRect();
+		const f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+		const tm = t0 + f * 24 * 3600 * 1000;
+		// the closest point in time
+		let best = pts[0];
+		for (const p of pts) if (Math.abs(p[0] - tm) < Math.abs(best[0] - tm)) best = p;
+		const px = (x(best[0]) / w) * 100;
+		cross.style.left = `${px}%`;
+		series.forEach(([i], k) => {
+			const v = best[i];
+			dots[k].style.display = v === null || v === undefined ? "none" : "";
+			if (v !== null && v !== undefined) Object.assign(dots[k].style, { left: `${px}%`, top: `${(y(v) / hh) * 100}%` });
+		});
+		tip.replaceChildren(
+			h("b", {}, new Date(best[0]).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" })),
+			...series.map(([i, color], k) => h("div", {}, h("i", { style: `background:${color}` }), names ? `${names[k]} ` : "", best[i] === null || best[i] === undefined ? "–" : unit(best[i])))
+		);
+		tip.style.left = `${px}%`;
+		tip.classList.toggle("flip", px > 70);
+		plot.classList.add("hover");
+	};
+	plot.addEventListener("mousemove", (e) => show(e.clientX));
+	plot.addEventListener("touchmove", (e) => (e.preventDefault(), show(e.touches[0].clientX)), { passive: false });
+	plot.addEventListener("mouseleave", () => plot.classList.remove("hover"));
 	return h("div", {},
-		h("div", { html: `<svg class="host-svg" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none">${grid}${paths.join("")}</svg>` }),
-		h("div", { class: "axis", style: "padding:4px 0 0" }, hours.map((x2) => h("span", {}, x2))),
+		h("div", { class: "cx-wrap" }, h("div", { class: "cx-y" }, ticks.map((v, k) => h("span", { style: `top:${(k + 1) * 25}%` }, unit(v)))), plot),
+		h("div", { class: "axis", style: "padding:4px 0 0 46px" }, hours.map((x2) => h("span", {}, x2))),
 		h("div", { class: "chart-stats" }, stat));
 }
 
