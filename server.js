@@ -13,7 +13,7 @@ const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
-const { Releases, parseRepo, runningVersion, sameVersion } = require("./lib/releases");
+const { Releases, parseRepo, runningVersion, askedVersion, sameVersion } = require("./lib/releases");
 const widgets = require("./lib/widgets");
 const apiwidget = require("./lib/apiwidget");
 const markets = require("./lib/markets");
@@ -243,13 +243,18 @@ route("GET", "/api/live", async (body, p, query, req) => {
 	if (repos.length) {
 		rel = Object.fromEntries((await Promise.all(repos.map((r) => releases.get(r)))).map((r) => [r.repo, r]));
 		// which service a repository belongs to (name and icon in the tile)
-		for (const x of releases.suggest(cfg.services, monitor.containers)) {
-			if (!rel[x.repo]) continue;
+		const sugs = releases.suggest(cfg.services, monitor.containers).filter((x) => rel[x.repo]);
+		// versions the apps tell themselves (for images that don't say), asked all at once
+		const asked = new Map(await Promise.all(sugs.map(async (x) => {
+			const s = cfg.services.find((y) => y.id === x.service);
+			return [x.service, s ? await askedVersion(s, integrations.ctx(s)) : null];
+		})));
+		for (const x of sugs) {
 			rel[x.repo].service = x.service;
 			// compare with what the container runs
 			const s = cfg.services.find((y) => y.id === x.service);
 			const c = s && s.container && (monitor.containers || []).find((y) => y.name === s.container);
-			const running = runningVersion(c);
+			const running = runningVersion(c) || asked.get(x.service);
 			if (running) {
 				rel[x.repo].running = running;
 				rel[x.repo].current = sameVersion(running, rel[x.repo].latest && rel[x.repo].latest.tag);
@@ -319,7 +324,7 @@ route("GET", "/api/services/:id", async (body, p) => {
 		out.container = c ? { state: c.state, status: c.status, image: c.image, cpu: st.cpu ?? null, memory: st.memory ?? null } : { error: docker.available === false ? "Docker is not connected" : `Container "${s.container}" not found` };
 		// a newer release than the container runs? (GitHub, cached like the Updates tile)
 		const sug = releases.suggest([s], monitor.containers)[0];
-		const running = runningVersion(c);
+		const running = runningVersion(c) || (sug ? await askedVersion(s, integrations.ctx(s)) : null);
 		if (sug && running) {
 			const r = await releases.get(sug.repo).catch(() => null);
 			if (r && r.latest) out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
