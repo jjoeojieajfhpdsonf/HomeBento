@@ -1108,3 +1108,10 @@ body.light.tiles-glass .t, body.light.tiles-glass .svc-col, body.light.tiles-gla
 body.tiles-glass .svc-chips .chip { background: color-mix(in srgb, var(--tile) 52%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
 body.tiles-glass .svc-chips .chip.on { background: rgba(var(--hl),.16); }
 .wxo-picks .chip { padding: 5px 11px; border-radius: 999px; background: var(--tile-3); color: var(--muted); font-size: 12.5px; font-weight: 560; }
+
+/* settings: two columns side by side */
+.sheet.settings-sheet { width: 1000px; }
+.settings-sheet .theme-seg { max-width: none; }
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.settings-col > .sec:first-of-type { margin-top: 0; }
+@media (max-width: 860px) { .settings-grid { grid-template-columns: 1fr; } }

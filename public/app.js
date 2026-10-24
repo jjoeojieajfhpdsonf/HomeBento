@@ -2428,7 +2428,8 @@ document.addEventListener("keydown", (e) => {
 // ---------- settings and login ----------
 
 function settingsSheet() {
-	const sheet = openSheet();
+	const sheet = openSheet({ wide: true });
+	sheet.el.classList.add("settings-sheet");
 	sheet.head(h("div", { class: "tt" }, h("b", {}, t("app.settings"))));
 	const title = h("input", { class: "input", value: S.state.config.title || "", placeholder: t("app.title"), maxlength: 40, onchange: async (e) => {
 		if (await guard(() => api("POST", "/api/settings", { title: e.target.value }))) {
@@ -2454,12 +2455,12 @@ function settingsSheet() {
 	const placeNow = h("div", { class: "place-now" });
 	const showPlace = () => placeNow.replaceChildren(S.state.config.location ? h("span", {}, S.state.config.location.name) : h("span", { class: "faint" }, t("settings.placeNone")));
 	showPlace();
-	sheet.body.append(
+	// two columns: the board and the rest on the left, its look on the right
+	sheet.body.append(h("div", { class: "settings-grid" }, h("div", { class: "settings-col" },
 		h("div", { class: "box" },
 			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
 			widthField(),
 			columnsField(),
-			themeField(),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
 				if (await guard(() => api("POST", "/api/settings", { location: p }))) {
@@ -2479,8 +2480,8 @@ function settingsSheet() {
 			h("div", {}, h("span", {}, t("settings.checks")), h("span", {}, t("settings.checksEvery", { n: S.state.checkSeconds }))),
 
 			h("div", {}, h("span", {}, t("settings.version")), h("span", {}, S.state.version))),
-		S.state.auth ? h("div", { class: "acts" }, h("button", { class: "btn", onclick: async () => (await fetch("/api/logout", { method: "POST" }), location.reload()) }, t("settings.logout"))) : null
-	);
+		S.state.auth ? h("div", { class: "acts" }, h("button", { class: "btn", onclick: async () => (await fetch("/api/logout", { method: "POST" }), location.reload()) }, t("settings.logout"))) : null),
+		h("div", { class: "settings-col" }, h("div", { class: "box" }, themeField()))));
 }
 
 const SELF_LOGO = `<span class="logo" style="--c:var(--accent)"><img src="icon.svg" alt=""></span>`;
