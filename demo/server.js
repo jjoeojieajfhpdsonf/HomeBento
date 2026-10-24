@@ -606,6 +606,10 @@ route("GET", "/api/updates/:id", (body, p) => {
 	const dt = now() - j.started;
 	const log = j.steps.filter(([at]) => at <= dt).map(([at, line]) => `${new Date(j.started + at).toLocaleTimeString("de-CH")} ${line}`);
 	const done = dt > 12000;
+	// which step runs, and how far the download is (143 MB in 9 layers over 2.5 s)
+	const step = dt < 2500 ? "pull" : dt < 6000 ? "swap" : dt < 8500 ? "start" : dt < 11500 ? "check" : "clean";
+	const f = Math.min(1, dt / 2500);
+	const progress = { layers: 9, done: Math.floor(f * 9), current: Math.round(f * 143e6), total: 143e6 };
 	if (done && j.rel && !j.applied) {
 		// from now on it runs the new version
 		const r = RELEASES[j.rel.repo];
@@ -613,7 +617,7 @@ route("GET", "/api/updates/:id", (body, p) => {
 		j.applied = true;
 		EVENTS.unshift([now(), j.name, "action", "Updated"]);
 	}
-	return { id: j.id, sid: j.sid, name: j.name, state: done ? "done" : "running", log, updated: done, started: j.started };
+	return { id: j.id, sid: j.sid, name: j.name, state: done ? "done" : "running", step, progress, log, updated: done, started: j.started };
 });
 route("POST", "/api/services/:id/tailscale", () => tailscale());
 route("POST", "/api/tailscale/remove", () => tailscale());

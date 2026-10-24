@@ -1650,12 +1650,28 @@ async function updateService(s, d, image) {
 	const sheet = openSheet({ wide: true });
 	sheet.head(...headOf(s));
 	const status = h("div", { class: "note" }, t("upd.running"));
+	// the steps with a tick each, the download with its size; the log below for the details
+	const STEPS = ["pull", "swap", "start", "check", "clean"];
+	const steps = h("div", { class: "box upd-steps" });
+	const mb = (b) => `${(b / 1e6).toFixed(b < 1e7 ? 1 : 0)} MB`;
+	const drawSteps = (j) => {
+		const at = j.state === "done" ? STEPS.length : Math.max(0, STEPS.indexOf(j.step));
+		steps.replaceChildren(...STEPS.map((k, i) => {
+			const st = i < at || (j.state === "done") ? "done" : i === at ? (j.state === "failed" ? "bad" : "now") : "";
+			const p = k === "pull" && j.progress;
+			return h("div", { class: `upd-step ${st}` }, h("span", { class: "upd-mark" }, st === "done" ? "✓" : st === "bad" ? "✕" : ""),
+				h("div", { class: "grow" }, h("div", {}, t(`upd.step.${k}`)),
+					p && p.total ? h("div", { class: "upd-prog" }, h("div", { class: "prog" }, h("i", { style: `width:${Math.min(100, (p.current / p.total) * 100).toFixed(1)}%` })), h("span", { class: "num" }, `${mb(p.current)} / ${mb(p.total)} · ${t("upd.layers", { a: p.done, b: p.layers })}`)) : null));
+		}));
+	};
 	const log = h("div", { class: "log" }, "");
-	sheet.body.append(status, log);
+	sheet.body.append(status, steps, h("div", { class: "upd-log-h" }, t("upd.log")), log);
+	drawSteps({ state: "running", step: "pull" });
 	for (;;) {
-		await new Promise((res) => setTimeout(res, 1500));
+		await new Promise((res) => setTimeout(res, 1000));
 		const j = await api("GET", `/api/updates/${r.job}`).catch(() => null);
 		if (!j) break;
+		drawSteps(j);
 		log.textContent = j.log.join("\n");
 		log.scrollTop = log.scrollHeight;
 		if (j.state === "running") continue;

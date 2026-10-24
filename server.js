@@ -538,7 +538,7 @@ route("POST", "/api/services/:id/update", (body, p) => {
 		log(`Changing the image to ${image}`);
 	}
 	docker
-		.update(s.container, { log, healthy, image })
+		.update(s.container, { log, healthy, image, step: (k) => (job.step = k), progress: (p) => (job.progress = p) })
 		.then((r) => {
 			job.state = "done";
 			job.updated = r.updated;
