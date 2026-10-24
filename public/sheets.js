@@ -639,49 +639,100 @@ function widthField() {
 // ---------- appearance: background, main colour, tile style ----------
 
 const BG_PRESETS = [["#101012", "default"], ["#000000", "black"], ["#17181c", "graphite"], ["#0c1220", "midnight"], ["#0d1512", "forest"], ["#150f1a", "plum"]];
-// backgrounds with colour in them – what makes glass tiles shine
+// backgrounds with colour in them – what makes glass tiles shine. [dark, light]: [base, layers]
 const BG_GRADIENTS = {
-	aurora: ["#0b0d18", "radial-gradient(55% 45% at 12% 8%, rgba(124,92,255,.42), transparent 62%), radial-gradient(45% 45% at 88% 18%, rgba(0,200,180,.30), transparent 62%), radial-gradient(60% 55% at 55% 105%, rgba(255,90,170,.22), transparent 62%)"],
-	ocean: ["#06111c", "radial-gradient(70% 60% at 20% 0%, rgba(30,120,220,.40), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,200,.22), transparent 62%), linear-gradient(170deg, #0a2440, #06111c 65%)"],
-	sunset: ["#150b14", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.40), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.34), transparent 62%), radial-gradient(40% 40% at 50% 50%, rgba(255,70,110,.14), transparent 70%)"],
-	northern: ["#07120f", "radial-gradient(60% 45% at 30% 0%, rgba(60,220,150,.34), transparent 62%), radial-gradient(45% 45% at 85% 25%, rgba(40,160,230,.26), transparent 62%), radial-gradient(50% 50% at 15% 95%, rgba(140,90,255,.18), transparent 62%)"]
+	aurora: [["#0b0d18", "radial-gradient(55% 45% at 12% 8%, rgba(124,92,255,.42), transparent 62%), radial-gradient(45% 45% at 88% 18%, rgba(0,200,180,.30), transparent 62%), radial-gradient(60% 55% at 55% 105%, rgba(255,90,170,.22), transparent 62%)"],
+		["#eeeef6", "radial-gradient(55% 45% at 12% 8%, rgba(124,92,255,.22), transparent 62%), radial-gradient(45% 45% at 88% 18%, rgba(0,200,180,.18), transparent 62%), radial-gradient(60% 55% at 55% 105%, rgba(255,90,170,.14), transparent 62%)"]],
+	ocean: [["#06111c", "radial-gradient(70% 60% at 20% 0%, rgba(30,120,220,.40), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,200,.22), transparent 62%), linear-gradient(170deg, #0a2440, #06111c 65%)"],
+		["#eaf2f9", "radial-gradient(70% 60% at 20% 0%, rgba(30,120,220,.22), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,200,.16), transparent 62%)"]],
+	sunset: [["#150b14", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.40), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.34), transparent 62%), radial-gradient(40% 40% at 50% 50%, rgba(255,70,110,.14), transparent 70%)"],
+		["#f6efef", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.24), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.18), transparent 62%)"]],
+	northern: [["#07120f", "radial-gradient(60% 45% at 30% 0%, rgba(60,220,150,.34), transparent 62%), radial-gradient(45% 45% at 85% 25%, rgba(40,160,230,.26), transparent 62%), radial-gradient(50% 50% at 15% 95%, rgba(140,90,255,.18), transparent 62%)"],
+		["#ebf5f1", "radial-gradient(60% 45% at 30% 0%, rgba(60,200,140,.22), transparent 62%), radial-gradient(45% 45% at 85% 25%, rgba(40,160,230,.16), transparent 62%), radial-gradient(50% 50% at 15% 95%, rgba(140,90,255,.12), transparent 62%)"]]
 };
+// the automatic background: the sky of the moment – by time of day, and by the weather
+const SKIES = {
+	night: [["#070a14", "radial-gradient(60% 50% at 20% 0%, rgba(70,80,190,.34), transparent 64%), radial-gradient(40% 40% at 88% 12%, rgba(140,110,255,.16), transparent 62%)"], ["#ecedf5", "radial-gradient(60% 50% at 20% 0%, rgba(70,80,190,.16), transparent 64%), radial-gradient(40% 40% at 88% 12%, rgba(140,110,255,.12), transparent 62%)"]],
+	dawn: [["#120d18", "radial-gradient(60% 55% at 15% 100%, rgba(255,150,90,.34), transparent 62%), radial-gradient(55% 50% at 85% 0%, rgba(120,110,230,.30), transparent 62%)"], ["#f6f0ee", "radial-gradient(60% 55% at 15% 100%, rgba(255,150,90,.24), transparent 62%), radial-gradient(55% 50% at 85% 0%, rgba(120,110,230,.16), transparent 62%)"]],
+	day: [["#071423", "radial-gradient(70% 60% at 20% 0%, rgba(40,140,240,.42), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,210,.20), transparent 62%)"], ["#e9f2fb", "radial-gradient(70% 60% at 20% 0%, rgba(40,140,240,.24), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,210,.14), transparent 62%)"]],
+	dusk: [["#150b14", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.38), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.32), transparent 62%)"], ["#f6eeee", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.24), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.16), transparent 62%)"]],
+	clouds: [["#0d1117", "radial-gradient(70% 60% at 30% 0%, rgba(140,155,175,.22), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(90,110,140,.18), transparent 62%)"], ["#eef0f3", "radial-gradient(70% 60% at 30% 0%, rgba(120,135,160,.18), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(90,110,140,.12), transparent 62%)"]],
+	rain: [["#080d16", "radial-gradient(70% 60% at 25% 0%, rgba(70,110,170,.34), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(60,90,140,.22), transparent 62%)"], ["#e9eef4", "radial-gradient(70% 60% at 25% 0%, rgba(70,110,170,.22), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(60,90,140,.14), transparent 62%)"]],
+	snow: [["#0c1018", "radial-gradient(70% 60% at 30% 0%, rgba(200,215,240,.22), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(150,180,230,.16), transparent 62%)"], ["#f1f4f9", "radial-gradient(70% 60% at 30% 0%, rgba(150,180,230,.24), transparent 65%), radial-gradient(50% 50% at 85% 100%, rgba(170,190,230,.16), transparent 62%)"]],
+	storm: [["#0b0812", "radial-gradient(60% 50% at 20% 0%, rgba(120,80,200,.32), transparent 64%), radial-gradient(50% 50% at 85% 100%, rgba(60,70,130,.25), transparent 62%)"], ["#efedf5", "radial-gradient(60% 50% at 20% 0%, rgba(120,80,200,.18), transparent 64%), radial-gradient(50% 50% at 85% 100%, rgba(60,70,130,.14), transparent 62%)"]]
+};
+function skyNow() {
+	const w = Object.values((S.live && S.live.weather) || {}).find((x) => x && x.now);
+	const now = Date.now();
+	if (w) {
+		const k = wxKind(w.now.code, w.now.day);
+		if (k === "rain") return "rain";
+		if (k === "snow") return "snow";
+		if (k === "storm") return "storm";
+		if (k === "cloud" || k === "fog") return w.now.day ? "clouds" : "night";
+		const d = w.days[0] || {};
+		const rise = d.sunrise ? new Date(d.sunrise).getTime() : null;
+		const set = d.sunset ? new Date(d.sunset).getTime() : null;
+		if (rise && set) {
+			const near = (x) => Math.abs(now - x) < 50 * 60 * 1000;
+			if (near(rise)) return "dawn";
+			if (near(set)) return "dusk";
+			return now > rise && now < set ? "day" : "night";
+		}
+	}
+	const hr = new Date().getHours();
+	return hr >= 6 && hr < 8 ? "dawn" : hr >= 8 && hr < 18 ? "day" : hr >= 18 && hr < 20 ? "dusk" : "night";
+}
 const ACCENTS = ["#9dbcff", "#b18cff", "#5fd39a", "#4dd0e1", "#f5b83d", "#ff8a65", "#ff7eb6"];
 
 // light or dark text on a colour
-const inkOn = (hex) => {
+const lumOf = (hex) => {
 	const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-	return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#0b1530" : "#ffffff";
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
+// a dark background colour as a light tint, for the light mode
+const lightTint = (hex) => `color-mix(in srgb, ${hex} 14%, #eef0f3)`;
+const inkOn = (hex) => (lumOf(hex) > 0.55 ? "#0b1530" : "#ffffff");
+
+const prefersLight = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+if (prefersLight) prefersLight.addEventListener("change", () => S.state && applyTheme(S.state.config.theme));
 
 function applyTheme(th) {
 	const root = document.documentElement.style;
 	th = th || {};
-	const grad = BG_GRADIENTS[th.bg];
-	const bg = grad ? grad[0] : th.bg || "#101012";
-	root.setProperty("--bg", bg);
-	// the tiles: a little lighter than the background, three steps
-	if (th.bg) {
-		root.setProperty("--tile", `color-mix(in srgb, ${bg} 92%, #ffffff)`);
-		root.setProperty("--tile-2", `color-mix(in srgb, ${bg} 88%, #ffffff)`);
-		root.setProperty("--tile-3", `color-mix(in srgb, ${bg} 84%, #ffffff)`);
+	const light = th.mode === "light" || (th.mode === "auto" && !!prefersLight && prefersLight.matches);
+	document.body.classList.toggle("light", light);
+	document.documentElement.style.colorScheme = light ? "light" : "dark";
+	const grad = th.bg === "auto" ? SKIES[skyNow()][light ? 1 : 0] : BG_GRADIENTS[th.bg] ? BG_GRADIENTS[th.bg][light ? 1 : 0] : null;
+	// a dark colour chosen for the dark mode becomes a light tint of it in the light mode
+	let bg = grad ? grad[0] : th.bg || null;
+	if (bg && !grad && light && lumOf(bg) < 0.5) bg = lightTint(bg);
+	// the tiles: a little lighter than the background (in the light mode: nearly white), three steps
+	if (bg) {
+		root.setProperty("--bg", bg);
+		const mix = light ? [[22, "#ffffff"], [55, "#ffffff"], [94, "#000000"]] : [[92, "#ffffff"], [88, "#ffffff"], [84, "#ffffff"]];
+		["--tile", "--tile-2", "--tile-3"].forEach((v, i) => root.setProperty(v, `color-mix(in srgb, ${bg} ${mix[i][0]}%, ${mix[i][1]})`));
 	} else ["--bg", "--tile", "--tile-2", "--tile-3"].forEach((v) => root.removeProperty(v));
 	if (th.accent) {
 		root.setProperty("--accent", th.accent);
 		root.setProperty("--accent-ink", inkOn(th.accent));
 	} else ["--accent", "--accent-ink"].forEach((v) => root.removeProperty(v));
+	if (Number.isFinite(th.radius)) root.setProperty("--r", `${th.radius}px`);
+	else root.removeProperty("--r");
 	// a picture behind everything (dimmed), else the gradient
 	document.body.classList.toggle("bg-image", !!th.image);
+	const base = bg || (light ? "#eef0f3" : "#101012");
 	if (th.image) {
 		const dim = Math.round((th.dim ?? 0.6) * 100);
-		document.body.style.backgroundImage = `linear-gradient(color-mix(in srgb, ${bg} ${dim}%, transparent), color-mix(in srgb, ${bg} ${dim}%, transparent)), url("${th.image.replace(/"/g, "%22")}")`;
+		document.body.style.backgroundImage = `linear-gradient(color-mix(in srgb, ${base} ${dim}%, transparent), color-mix(in srgb, ${base} ${dim}%, transparent)), url("${th.image.replace(/"/g, "%22")}")`;
 	} else document.body.style.backgroundImage = grad ? grad[1] : "";
 	document.body.classList.toggle("tiles-glass", th.style === "glass");
 	document.body.classList.toggle("tiles-outline", th.style === "outline");
 }
 
-function themeField() {
-	const th = { ...(S.state.config.theme || {}) };
+function themeField(init) {
+	const th = init || { ...(S.state.config.theme || {}) };
+	const light = document.body.classList.contains("light");
 	let timer;
 	const save = () => {
 		applyTheme(th);
@@ -692,30 +743,56 @@ function themeField() {
 	};
 	// round swatches; the last one opens the system's colour picker. The picker's input is never
 	// rebuilt while it's open – only the marks move.
-	const swatches = (items, key, fallback) => {
+	const swatches = (items, key, fallback, after) => {
 		const wrap = h("div", { class: "swatches" });
 		const mark = () => {
 			const cur = th[key] || fallback;
 			wrap.querySelectorAll("[data-v]").forEach((b) => b.classList.toggle("on", b.dataset.v === cur));
 			custom.classList.toggle("on", !items.some((x) => x.value === cur));
+			if (after) after();
 		};
 		const picker = h("input", { type: "color", value: /^#/.test(th[key] || fallback) ? th[key] || fallback : "#101012", oninput: (e) => ((th[key] = e.target.value), mark(), save()) });
 		const custom = h("label", { class: "sw custom", title: t("theme.custom") }, picker);
-		wrap.append(...items.map((x) => h("button", { class: "sw", "data-v": x.value, style: `--sw:${x.css}`, title: x.title || x.value, onclick: () => ((th[key] = x.value === fallback ? undefined : x.value), mark(), save()) })), custom);
+		wrap.append(...items.map((x) => h("button", { class: `sw${x.cls ? ` ${x.cls}` : ""}`, "data-v": x.value, style: `--sw:${x.css}`, title: x.title || x.value, onclick: () => ((th[key] = x.value === fallback ? undefined : x.value), mark(), save()) })), custom);
 		mark();
 		return wrap;
 	};
-	const bgItems = [...BG_PRESETS.map(([c]) => ({ value: c, css: c })), ...Object.entries(BG_GRADIENTS).map(([k, [base, g]]) => ({ value: k, css: `${g.replace(/transparent \d+%/g, "transparent 100%")}, ${base}`, title: t(`theme.g.${k}`) }))];
-	const styleSeg = h("div", { class: "seg theme-seg" }, [["", "theme.solid"], ["glass", "theme.glass"], ["outline", "theme.outline"]].map(([v, k]) => h("button", { class: (th.style || "") === v ? "on" : "", onclick: (e) => {
-		th.style = v || undefined;
-		styleSeg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.currentTarget));
-		save();
-	} }, t(k))));
-	const dimLabel = h("span", { class: "num width-val" }, `${Math.round((th.dim ?? 0.6) * 100)} %`);
-	const dim = h("input", { type: "range", class: "width-range", min: 0, max: 90, step: 5, value: Math.round((th.dim ?? 0.6) * 100),
-		oninput: (e) => ((th.dim = Number(e.target.value) / 100), dimLabel.replaceChildren(`${e.target.value} %`), e.target.style.setProperty("--p", `${(e.target.value / 90) * 100}%`), save()) });
-	dim.style.setProperty("--p", `${(((th.dim ?? 0.6) * 100) / 90) * 100}%`);
-	const dimField = h("div", { class: "field", style: th.image ? "" : "display:none" }, h("label", { class: "width-label" }, t("theme.dim"), dimLabel), dim);
+	// a segmented choice
+	const seg = (key, options) => {
+		const el = h("div", { class: "seg theme-seg" }, options.map(([v, k]) => h("button", { class: (th[key] || "") === v ? "on" : "", onclick: (e) => {
+			th[key] = v || undefined;
+			el.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.currentTarget));
+			save();
+			if (key === "mode") root.replaceWith(themeField(th));
+		} }, t(k))));
+		return el;
+	};
+	const bgItems = [
+		{ value: "auto", css: "conic-gradient(from 200deg, #0b1a3a, #2a7be0, #ff9a5a, #6b3fa0, #0b1a3a)", title: t("theme.auto"), cls: "auto" },
+		...BG_PRESETS.map(([c]) => ({ value: c, css: light ? lightTint(c) : c })),
+		...Object.entries(BG_GRADIENTS).map(([k, v]) => [k, v[light ? 1 : 0]]).map(([k, [base, g]]) => ({ value: k, css: `${g.replace(/transparent \d+%/g, "transparent 100%")}, ${base}`, title: t(`theme.g.${k}`) }))
+	];
+	const autoHelp = h("div", { class: "help" });
+	const showAuto = () => {
+		autoHelp.style.display = th.bg === "auto" ? "" : "none";
+		autoHelp.replaceChildren(t("theme.autoHelp", { now: t(`theme.sky.${skyNow()}`) }));
+	};
+	const range = (key, min, max, step, def, fmt, label) => {
+		const val = th[key] ?? def;
+		const out = h("span", { class: "num width-val" }, fmt(val));
+		const input = h("input", { type: "range", class: "width-range", min, max, step, value: val,
+			oninput: (e) => {
+				const v = Number(e.target.value);
+				th[key] = key === "dim" ? v / 100 : v;
+				out.replaceChildren(fmt(v));
+				e.target.style.setProperty("--p", `${((v - min) / (max - min)) * 100}%`);
+				save();
+			} });
+		input.style.setProperty("--p", `${((val - min) / (max - min)) * 100}%`);
+		return h("div", { class: "field" }, h("label", { class: "width-label" }, label, out), input);
+	};
+	const dimField = range("dim", 0, 90, 5, Math.round((th.dim ?? 0.6) * 100), (v) => `${v} %`, t("theme.dim"));
+	dimField.style.display = th.image ? "" : "none";
 	const img = h("input", { class: "input", type: "url", placeholder: "https://…/bild.jpg", value: th.image || "", spellcheck: "false",
 		onchange: (e) => {
 			const v = e.target.value.trim();
@@ -723,23 +800,19 @@ function themeField() {
 			dimField.style.display = th.image ? "" : "none";
 			save();
 		} });
-	const bgBox = h("div", {}, swatches(bgItems, "bg", "#101012"));
-	const acBox = h("div", {}, swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff"));
-	const reset = h("button", { class: "chip", onclick: () => {
-		for (const k of Object.keys(th)) delete th[k];
-		applyTheme(th);
-		guard(() => api("POST", "/api/settings", { theme: {} })).then((ok) => ok && (S.state.config.theme = undefined));
-		img.value = "";
-		dimField.style.display = "none";
-		bgBox.replaceChildren(swatches(bgItems, "bg", "#101012"));
-		acBox.replaceChildren(swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff"));
-		styleSeg.querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", i === 0));
-	} }, t("theme.reset"));
-	return h("div", { class: "theme-fields" },
-		h("div", { class: "field" }, h("label", {}, t("theme.bg")), bgBox),
-		h("div", { class: "field" }, h("label", {}, t("theme.accent")), acBox),
-		h("div", { class: "field" }, h("label", {}, t("theme.style")), styleSeg, h("div", { class: "help" }, t("theme.styleHelp"))),
+	const root = h("div", { class: "theme-fields" },
+		h("div", { class: "field" }, h("label", {}, t("theme.mode")), seg("mode", [["", "theme.dark"], ["light", "theme.light"], ["auto", "theme.system"]])),
+		h("div", { class: "field" }, h("label", {}, t("theme.bg")), swatches(bgItems, "bg", "#101012", showAuto), autoHelp),
+		h("div", { class: "field" }, h("label", {}, t("theme.accent")), swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff")),
+		h("div", { class: "field" }, h("label", {}, t("theme.style")), seg("style", [["", "theme.solid"], ["glass", "theme.glass"], ["outline", "theme.outline"]]), h("div", { class: "help" }, t("theme.styleHelp"))),
+		range("radius", 0, 32, 2, 22, (v) => `${v} px`, t("theme.radius")),
 		h("div", { class: "field" }, h("label", {}, t("theme.image")), img, h("div", { class: "help" }, t("theme.imageHelp"))),
 		dimField,
-		h("div", { class: "field" }, reset));
+		h("div", { class: "field" }, h("button", { class: "chip", onclick: () => {
+			for (const k of Object.keys(th)) delete th[k];
+			applyTheme(th);
+			guard(() => api("POST", "/api/settings", { theme: {} })).then((ok) => ok && (S.state.config.theme = undefined));
+			root.replaceWith(themeField());
+		} }, t("theme.reset"))));
+	return root;
 }
