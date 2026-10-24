@@ -328,7 +328,7 @@ svg.curve { width: 100%; height: 100%; min-height: 40px; display: block; }
 .ms-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .ms-card.off .ms-dot, .ms-card.idle .ms-dot { opacity: .35; }
 .ms-card { background: var(--tile-2); border-radius: 14px; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; gap: 2px; transition: background .2s; }
-.ms-card.on { background: color-mix(in srgb, var(--c) 9%, var(--tile-2)); }
+.ms-card.on { background: color-mix(in srgb, var(--c) 13%, var(--tile-2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 14%, transparent); }
 .ms-card .ms-top { display: flex; align-items: center; gap: 8px; }
 .ms-card .ms-name { font-size: 13px; }
 .ms-card .ms-sub { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.3em; }
@@ -1030,17 +1030,18 @@ body.tiles-outline .t::before { opacity: .5; }
 /* weather in detail – HomeBento's own: dark, a glow in the weather's colour, one curve to read */
 .sheet.wxo { width: 1000px; }
 .sheet.wxo::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(70% 45% at 0% 0%, color-mix(in srgb, var(--wc) 16%, transparent), transparent 70%); }
-.wxo-head { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; margin: -6px 0 14px; position: relative; }
+.wxo-head { display: flex; align-items: center; gap: 28px; flex: 1; min-width: 0; position: relative; }
 .wxo-now { display: flex; align-items: center; gap: 16px; }
-.wx-i.wxo-icon { width: 64px; height: 64px; }
-.wxo-temp { font-size: 52px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.wx-i.wxo-icon { width: 60px; height: 60px; }
+.wxo-temp { font-size: 48px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
 .wxo-cond { font-size: 15px; font-weight: 600; margin-top: 4px; }
 .wxo-place { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .wxo-place span { color: var(--faint); }
-.wxo-today { background: var(--tile-2); border-radius: 16px; padding: 10px 14px; display: grid; gap: 4px; min-width: 250px; }
-.wxo-today-h { font-size: 12px; color: var(--muted); font-weight: 650; margin-bottom: 2px; }
-.wxo-today div:not(.wxo-today-h) { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
-.wxo-today span { color: var(--muted); }
+.wxo-today { display: flex; gap: 24px; margin-left: auto; padding-right: 8px; }
+.wxo-today div { display: grid; gap: 2px; }
+.wxo-today span { font-size: 11.5px; color: var(--muted); font-weight: 560; }
+.wxo-today b { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.sheet.wxo .hd { align-items: center; padding-top: 22px; }
 .wxo-curve { padding: 12px 14px 10px; position: relative; }
 .wxo-sum { font-size: 13.5px; font-weight: 560; margin-bottom: 8px; }
 .wxo-plot { position: relative; cursor: crosshair; }
@@ -1074,14 +1075,13 @@ body.tiles-outline .t::before { opacity: .5; }
 .wxo-meter i { display: block; height: 100%; border-radius: 4px; }
 .wxo-arrow { width: 16px; height: 16px; fill: var(--muted); }
 @media (max-width: 860px) {
-	.wxo-head, .wxo-cols { grid-template-columns: 1fr; }
-	.wxo-today { min-width: 0; }
+	.wxo-cols { grid-template-columns: 1fr; }
+	.wxo-head { flex-wrap: wrap; gap: 12px; }
+	.wxo-today { margin-left: 0; }
 }
 
 /* the weather's details: pick which ones */
-.wxo-hrow { display: flex; align-items: center; justify-content: space-between; }
-.wxo-edit { font-size: 12px; color: var(--accent); font-weight: 600; }
-.wxo-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.wxo-picks { display: flex; flex-wrap: wrap; gap: 6px; }
 .wxo-picks .chip.on, body .wxo-picks .chip.on { background: color-mix(in srgb, var(--accent) 22%, var(--tile-2)); color: var(--text); }
 
 /* settings: the automatic background swatch */
@@ -1101,7 +1101,7 @@ body.light .cx-tip { box-shadow: 0 10px 24px rgba(0,0,0,.12); }
 
 /* over a coloured background the inner cards, chips and buttons let the colour through too */
 body.tiles-glass .t, body.tiles-glass .svc-col, body.tiles-glass .svc-rows, body.tiles-glass .sheet, body.tiles-glass .bar,
-body.tiles-outline .t, body.tiles-outline .svc-col, body.tiles-outline .svc-rows { --tile-2: rgba(var(--hl),.07); --tile-3: rgba(var(--hl),.12); }
+body.tiles-outline .t, body.tiles-outline .svc-col, body.tiles-outline .svc-rows { --tile-2: color-mix(in srgb, var(--bg) 30%, rgba(var(--hl),.07)); --tile-3: color-mix(in srgb, var(--bg) 25%, rgba(var(--hl),.12)); }
 body.tiles-glass .tabs, body.tiles-glass .icon-btn, body.tiles-glass .pal { background: color-mix(in srgb, var(--tile) 52%, transparent); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); }
 body.tiles-glass .cx-tip { background: var(--tile); }
 body.light.tiles-glass .t, body.light.tiles-glass .svc-col, body.light.tiles-glass .svc-rows, body.light.tiles-glass .sheet { --tile-2: rgba(255,255,255,.55); --tile-3: rgba(0,0,0,.06); }

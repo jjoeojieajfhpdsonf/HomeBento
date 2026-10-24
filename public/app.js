@@ -1178,6 +1178,9 @@ function tempColor(v) {
 	return `rgb(${stops[stops.length - 1][1]})`;
 }
 
+const WX_FACTS = ["feels", "wind", "humidity", "uv", "precip", "pressure", "daylight", "sun", "gusts", "tomorrow"];
+const WX_FACTS_DEFAULT = ["feels", "wind", "humidity", "uv", "precip", "pressure"];
+
 // The weather in detail, in HomeBento's own way: the now on the left, today on the right, the next
 // 48 hours as one curve to read with the mouse, then the week beside the details of now.
 function weatherSheet(tile) {
@@ -1191,7 +1194,6 @@ function weatherSheet(tile) {
 	const glow = wxColor(n.code, n.day);
 	sheet.el.classList.add("wxo");
 	sheet.el.style.setProperty("--wc", glow);
-	sheet.head(h("div", { class: "grow" }), h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.changePlace")));
 
 	// one sentence about the next hours
 	const hrs = w.hours.slice(0, 48);
@@ -1205,16 +1207,17 @@ function weatherSheet(tile) {
 	else summary = t("wx.dry12");
 	if (n.gusts >= 30) summary += ` ${t("wx.gustsUpTo", { v: Math.round(n.gusts) })}`;
 
-	// head: now on the left, today on the right
+	// head: now on the left; today's high and low, rain and sun as plain figures beside it
 	const todayList = [
 		[t("wx.hlShort"), `${deg(today.max)} / ${deg(today.min)}`],
-		[t("wx.precip"), today.mm ? `${nf(today.mm, 1)} mm · ${today.rain} %` : `${today.rain || 0} %`],
+		[t("wx.precip"), today.mm ? `${nf(today.mm, 1)} mm` : `${today.rain || 0} %`],
 		[t("wx.sunShort"), `${hm(today.sunrise)} – ${hm(today.sunset)}`]
 	];
-	const head = h("div", { class: "wxo-head" },
+	sheet.head(h("div", { class: "wxo-head" },
 		h("div", { class: "wxo-now" }, html(wxIcon(n.code, n.day, "wx-i wxo-icon")),
 			h("div", {}, h("div", { class: "wxo-temp num" }, deg(n.temp)), h("div", { class: "wxo-cond" }, wxText(n.code)), h("div", { class: "wxo-place" }, w.place.name, n.at ? h("span", {}, ` · ${t("wx.updated", { t: new Date(n.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) })}`) : null))),
-		h("div", { class: "wxo-today" }, h("div", { class: "wxo-today-h" }, t("wx.today")), todayList.map(([k, v]) => h("div", {}, h("span", {}, k), h("b", { class: "num" }, v)))));
+		h("div", { class: "wxo-today" }, todayList.map(([k, v]) => h("div", {}, h("span", {}, k), h("b", { class: "num" }, v))))),
+		h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.settings")));
 
 	// the 48 hours: a curve of the temperature, bars for rain; hovering reads an hour
 	const curve = h("div", { class: "box wxo-curve" });
@@ -1289,26 +1292,11 @@ function weatherSheet(tile) {
 		gusts: () => [t("wx.gustsMax"), `${Math.round(today.gusts ?? n.gusts ?? 0)} km/h`, t("wx.windMax", { v: Math.round(today.wind ?? n.wind) }), meter(Math.min(1, (today.gusts ?? n.gusts ?? 0) / 100), "#c792ea")],
 		tomorrow: () => (tomorrow.date ? [t("wx.tomorrow"), `${deg(tomorrow.max)} / ${deg(tomorrow.min)}`, `${wxText(tomorrow.code)}${tomorrow.rain ? ` · ${tomorrow.rain} %` : ""}`, ""] : null)
 	};
-	const DEFAULT_FACTS = ["feels", "wind", "humidity", "uv", "precip", "pressure"];
-	let chosen = Array.isArray(tile.wxFacts) && tile.wxFacts.length ? tile.wxFacts.filter((k) => FACTS[k]) : DEFAULT_FACTS;
-	let editing = false;
-	const grid = h("div", { class: "wxo-grid" });
-	const picks = h("div", { class: "wxo-picks" });
-	const editBtn = h("button", { class: "wxo-edit", onclick: () => ((editing = !editing), draw()) });
-	const draw = () => {
-		grid.innerHTML = chosen.map((k) => FACTS[k]()).filter(Boolean).map(([k, v, sub, extra]) => `<div class="wxo-f"><span class="k">${esc(k)}</span><span class="v num">${esc(v)}${extra && extra.startsWith("<svg") ? extra : ""}</span>${extra && !extra.startsWith("<svg") ? extra : ""}${sub ? `<span class="s">${esc(sub)}</span>` : ""}</div>`).join("") || `<div class="faint sm">${esc(t("wx.factsNone"))}</div>`;
-		editBtn.replaceChildren(editing ? t("app.done") : t("wx.customize"));
-		picks.hidden = !editing;
-		picks.replaceChildren(...Object.keys(FACTS).map((k) => h("button", { class: `chip${chosen.includes(k) ? " on" : ""}`, onclick: () => {
-			chosen = chosen.includes(k) ? chosen.filter((x) => x !== k) : Object.keys(FACTS).filter((x) => x === k || chosen.includes(x));
-			updateTile(tile.id, { wxFacts: chosen });
-			draw();
-		} }, t(`wx.f.${k}`))));
-	};
-	draw();
-	const detail = h("div", { class: "box wxo-facts" }, h("div", { class: "wxo-h wxo-hrow" }, h("span", {}, t("wx.nowDetail")), editBtn), picks, grid);
+	const chosen = (Array.isArray(tile.wxFacts) && tile.wxFacts.length ? tile.wxFacts : WX_FACTS_DEFAULT).filter((k) => FACTS[k]);
+	const facts = chosen.map((k) => FACTS[k]()).filter(Boolean);
+	const detail = h("div", { class: "box wxo-facts", html: `<div class="wxo-h">${esc(t("wx.nowDetail"))}</div><div class="wxo-grid">${facts.map(([k, v, sub, extra]) => `<div class="wxo-f"><span class="k">${esc(k)}</span><span class="v num">${esc(v)}${extra && extra.startsWith("<svg") ? extra : ""}</span>${extra && !extra.startsWith("<svg") ? extra : ""}${sub ? `<span class="s">${esc(sub)}</span>` : ""}</div>`).join("")}</div>` });
 
-	sheet.body.replaceChildren(head, curve, h("div", { class: "wxo-cols" }, week, detail));
+	sheet.body.replaceChildren(curve, h("div", { class: "wxo-cols" }, week, detail));
 }
 
 // A 24 h line chart with min/max/now, an hour axis and values on the left. Hovering shows the
@@ -2025,6 +2013,13 @@ async function tileOptions(tile) {
 		sheet.head(h("div", { class: "tt" }, h("b", {}, t("wx.title"))));
 		let place = tile.place || null;
 		const def = S.state.config.location;
+		let facts = Array.isArray(tile.wxFacts) && tile.wxFacts.length ? [...tile.wxFacts] : [...WX_FACTS_DEFAULT];
+		const picks = h("div", { class: "wxo-picks" });
+		const drawPicks = () => picks.replaceChildren(...WX_FACTS.map((k) => h("button", { class: `chip${facts.includes(k) ? " on" : ""}`, onclick: () => {
+			facts = facts.includes(k) ? facts.filter((x) => x !== k) : WX_FACTS.filter((x) => x === k || facts.includes(x));
+			drawPicks();
+		} }, t(`wx.f.${k}`))));
+		drawPicks();
 		const cur = h("div", { class: "place-now" });
 		const reset = h("button", { class: "btn", onclick: () => ((place = null), show()) }, t("wx.useDefault"));
 		const show = () => {
@@ -2033,8 +2028,9 @@ async function tileOptions(tile) {
 		};
 		show();
 		sheet.body.append(
-			h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("wx.place")), cur, placePicker((p) => ((place = p), show())), h("div", { class: "help" }, t("wx.placeHelp")), reset)),
-			saveBtn(() => ({ place: place || undefined }))
+			h("div", { class: "box" }, h("div", { class: "field" }, h("label", {}, t("wx.place")), cur, placePicker((p) => ((place = p), show())), h("div", { class: "help" }, t("wx.placeHelp")), reset),
+				h("div", { class: "field" }, h("label", {}, t("wx.factsLabel")), picks, h("div", { class: "help" }, t("wx.factsHelp")))),
+			saveBtn(() => ({ place: place || undefined, wxFacts: facts }))
 		);
 		return;
 	}
