@@ -1181,6 +1181,26 @@ function tempColor(v) {
 const WX_FACTS = ["feels", "wind", "humidity", "uv", "precip", "pressure", "daylight", "sun", "gusts", "tomorrow"];
 const WX_FACTS_DEFAULT = ["feels", "wind", "humidity", "uv", "precip", "pressure"];
 
+// The tile's settings over the details; closing them goes back to the details, redrawn if
+// the place or the figures changed.
+async function weatherSettings(tile, sheet) {
+	const before = JSON.stringify([tile.place, tile.wxFacts]);
+	await tileOptions(tile);
+	// the newest window (it only gets its "on" in the next frame)
+	const last = [...document.querySelectorAll(".sheet:not([data-closing])")].pop();
+	const opts = last && last.sheet;
+	if (!opts || opts === sheet) return;
+	opts.onclose = async () => {
+		const now = board().tiles.find((x) => x.id === tile.id) || tile;
+		if (JSON.stringify([now.place, now.wxFacts]) === before) return;
+		// the new place's weather first, then the details again
+		await new Promise((r) => setTimeout(r, 500));
+		await loadLive();
+		sheet.close();
+		weatherSheet(now);
+	};
+}
+
 // The weather in detail, in HomeBento's own way: the now on the left, today on the right, the next
 // 48 hours as one curve to read with the mouse, then the week beside the details of now.
 function weatherSheet(tile) {
@@ -1217,7 +1237,7 @@ function weatherSheet(tile) {
 		h("div", { class: "wxo-now" }, html(wxIcon(n.code, n.day, "wx-i wxo-icon")),
 			h("div", {}, h("div", { class: "wxo-temp num" }, deg(n.temp)), h("div", { class: "wxo-cond" }, wxText(n.code)), h("div", { class: "wxo-place" }, w.place.name, n.at ? h("span", {}, ` · ${t("wx.updated", { t: new Date(n.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) })}`) : null))),
 		h("div", { class: "wxo-today" }, todayList.map(([k, v]) => h("div", {}, h("span", {}, k), h("b", { class: "num" }, v))))),
-		h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.settings")));
+		h("button", { class: "btn wx-place-btn", onclick: () => weatherSettings(tile, sheet) }, t("wx.settings")));
 
 	// the 48 hours: a curve of the temperature, bars for rain; hovering reads an hour
 	const curve = h("div", { class: "box wxo-curve" });
