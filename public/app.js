@@ -1684,8 +1684,8 @@ function pinnedSheet(s, d) {
 	sheet.body.append(
 		h("div", { class: "note" }, t("upd.pinnedWhy", { v: d.running, n: d.latest.tag })),
 		h("div", { class: "box pin-steps" },
-			h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep1", { f: p.project ? `${p.project}/docker-compose.yml` : "docker-compose.yml" })), h("div", { class: "pin-from" }, h("code", {}, `image: ${p.from}`)), line(`image: ${p.to}`)),
-			h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep2")), line(p.project ? `cd ${p.project} && docker compose pull && docker compose up -d` : "docker compose pull && docker compose up -d"))),
+			h("div", { class: "field" }, h("label", {}, p.project ? t("upd.pinnedStep1", { f: `${p.project}/docker-compose.yml` }) : t("upd.pinnedStep1Any")), h("div", { class: "pin-from" }, h("code", {}, `image: ${p.from}`)), line(`image: ${p.to}`)),
+			h("div", { class: "field" }, h("label", {}, p.project ? t("upd.pinnedStep2") : t("upd.pinnedStep2Any")), line(p.project ? `cd ${p.project} && docker compose pull && docker compose up -d` : "docker compose pull && docker compose up -d"))),
 		h("div", { class: "help", style: "margin:10px 4px 0" }, t("upd.pinnedTip")));
 }
 
