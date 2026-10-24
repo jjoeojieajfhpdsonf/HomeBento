@@ -631,6 +631,7 @@ route("POST", "/api/settings", (body) => {
 	if (body.location !== undefined) store.setLocation(body.location);
 	if (body.title !== undefined) store.setTitle(body.title);
 	if (body.width !== undefined) store.setWidth(body.width);
+	if (body.theme !== undefined) store.setTheme(body.theme);
 	if (body.columns !== undefined) store.setColumns(body.columns);
 });
 route("GET", "/api/alerts", () => alertsView());

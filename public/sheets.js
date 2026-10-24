@@ -634,3 +634,90 @@ function widthField() {
 	show(now);
 	return h("div", { class: "field" }, h("label", { class: "width-label" }, t("settings.width"), label), range, h("div", { class: "help" }, t("settings.widthHelp")));
 }
+
+
+// ---------- appearance: background and main colour ----------
+
+const BG_PRESETS = [["#101012", "default"], ["#000000", "black"], ["#17181c", "graphite"], ["#0c1220", "midnight"], ["#0d1512", "forest"], ["#150f1a", "plum"]];
+const ACCENTS = ["#9dbcff", "#b18cff", "#5fd39a", "#4dd0e1", "#f5b83d", "#ff8a65", "#ff7eb6"];
+
+// light or dark text on a colour
+const inkOn = (hex) => {
+	const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#0b1530" : "#ffffff";
+};
+
+function applyTheme(th) {
+	const root = document.documentElement.style;
+	th = th || {};
+	const bg = th.bg || "#101012";
+	root.setProperty("--bg", bg);
+	// the tiles: a little lighter than the background, three steps
+	root.setProperty("--tile", `color-mix(in srgb, ${bg} 92%, #ffffff)`);
+	root.setProperty("--tile-2", `color-mix(in srgb, ${bg} 88%, #ffffff)`);
+	root.setProperty("--tile-3", `color-mix(in srgb, ${bg} 84%, #ffffff)`);
+	if (!th.bg) ["--tile", "--tile-2", "--tile-3"].forEach((v) => root.removeProperty(v));
+	if (th.accent) {
+		root.setProperty("--accent", th.accent);
+		root.setProperty("--accent-ink", inkOn(th.accent));
+	} else ["--accent", "--accent-ink"].forEach((v) => root.removeProperty(v));
+	// a picture behind everything, dimmed with the background colour; the tiles go glassy over it
+	document.body.classList.toggle("bg-image", !!th.image);
+	if (th.image) {
+		const dim = th.dim ?? 0.6;
+		document.body.style.backgroundImage = `linear-gradient(color-mix(in srgb, ${bg} ${Math.round(dim * 100)}%, transparent), color-mix(in srgb, ${bg} ${Math.round(dim * 100)}%, transparent)), url("${th.image.replace(/"/g, "%22")}")`;
+	} else document.body.style.backgroundImage = "";
+}
+
+function themeField() {
+	const th = { ...(S.state.config.theme || {}) };
+	let timer;
+	const save = () => {
+		applyTheme(th);
+		clearTimeout(timer);
+		timer = setTimeout(async () => {
+			if (await guard(() => api("POST", "/api/settings", { theme: th }))) S.state.config.theme = { ...th };
+		}, 400);
+	};
+	const swatches = (list, key, fallback) => {
+		const wrap = h("div", { class: "swatches" });
+		const draw = () => {
+			const cur = th[key] || fallback;
+			wrap.replaceChildren(
+				...list.map((c) => h("button", { class: `sw${cur === c ? " on" : ""}`, style: `--sw:${c}`, title: c, onclick: () => ((th[key] = c === fallback ? undefined : c), save(), draw()) })),
+				h("label", { class: `sw custom${list.includes(cur) ? "" : " on"}`, title: t("theme.custom") }, h("input", { type: "color", value: cur, oninput: (e) => ((th[key] = e.target.value), save(), draw()) }))
+			);
+		};
+		draw();
+		return wrap;
+	};
+	const dimLabel = h("span", { class: "num width-val" }, `${Math.round((th.dim ?? 0.6) * 100)} %`);
+	const dim = h("input", { type: "range", class: "width-range", min: 0, max: 90, step: 5, value: Math.round((th.dim ?? 0.6) * 100),
+		oninput: (e) => ((th.dim = Number(e.target.value) / 100), dimLabel.replaceChildren(`${e.target.value} %`), e.target.style.setProperty("--p", `${(e.target.value / 90) * 100}%`), save()) });
+	dim.style.setProperty("--p", `${(((th.dim ?? 0.6) * 100) / 90) * 100}%`);
+	const dimField = h("div", { class: "field", style: th.image ? "" : "display:none" }, h("label", { class: "width-label" }, t("theme.dim"), dimLabel), dim);
+	const img = h("input", { class: "input", type: "url", placeholder: "https://…/bild.jpg", value: th.image || "", spellcheck: "false",
+		onchange: (e) => {
+			const v = e.target.value.trim();
+			th.image = /^https?:\/\//.test(v) ? v : undefined;
+			dimField.style.display = th.image ? "" : "none";
+			save();
+		} });
+	const reset = h("button", { class: "chip", onclick: () => {
+		for (const k of Object.keys(th)) delete th[k];
+		applyTheme(th);
+		guard(() => api("POST", "/api/settings", { theme: {} })).then((ok) => ok && (S.state.config.theme = undefined));
+		img.value = "";
+		dimField.style.display = "none";
+		bgBox.replaceChildren(swatches(BG_PRESETS.map((x) => x[0]), "bg", "#101012"));
+		acBox.replaceChildren(swatches(ACCENTS, "accent", "#9dbcff"));
+	} }, t("theme.reset"));
+	const bgBox = h("div", {}, swatches(BG_PRESETS.map((x) => x[0]), "bg", "#101012"));
+	const acBox = h("div", {}, swatches(ACCENTS, "accent", "#9dbcff"));
+	return h("div", { class: "theme-fields" },
+		h("div", { class: "field" }, h("label", {}, t("theme.bg")), bgBox),
+		h("div", { class: "field" }, h("label", {}, t("theme.accent")), acBox),
+		h("div", { class: "field" }, h("label", {}, t("theme.image")), img, h("div", { class: "help" }, t("theme.imageHelp"))),
+		dimField,
+		h("div", { class: "field" }, reset));
+}

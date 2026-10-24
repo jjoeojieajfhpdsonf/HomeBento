@@ -117,6 +117,7 @@ function render() {
 	);
 	document.title = S.state.config.title || t("app.title");
 	applyWidth(S.state.config.width);
+	applyTheme(S.state.config.theme);
 	renderGrid();
 }
 
@@ -2351,6 +2352,7 @@ function settingsSheet() {
 			h("div", { class: "field" }, h("label", {}, t("settings.title")), title),
 			widthField(),
 			columnsField(),
+			themeField(),
 			h("div", { class: "field" }, h("label", {}, t("settings.lang")), lang),
 			h("div", { class: "field" }, h("label", {}, t("settings.place")), placeNow, placePicker(async (p) => {
 				if (await guard(() => api("POST", "/api/settings", { location: p }))) {
