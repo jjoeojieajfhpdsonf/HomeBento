@@ -1634,6 +1634,7 @@ document.addEventListener("click", (e) => {
 
 // Update a container: ask, then follow the log until it is done (or rolled back).
 async function updateService(s, d) {
+	if (d && d.pinned) return pinnedSheet(s, d);
 	// the versions big (just the numbers), the full build names small below
 	const core = (v) => (/\d+(?:\.\d+)+/.exec(String(v || "")) || [String(v || "")])[0];
 	const from = d && d.running;
@@ -1663,6 +1664,29 @@ async function updateService(s, d) {
 		loadLive();
 		break;
 	}
+}
+
+// The image is fixed to a version: HomeBento can't change the compose file, so it shows the line
+// to change there (pulling would only fetch the same old version).
+function pinnedSheet(s, d) {
+	const sheet = openSheet();
+	sheet.head(...headOf(s));
+	const p = d.pinned;
+	const copy = (text) => h("button", { class: "btn", onclick: async (e) => {
+		try {
+			await navigator.clipboard.writeText(text);
+			e.currentTarget.textContent = t("upd.copied");
+		} catch {
+			// no clipboard (http): the text can still be selected
+		}
+	} }, t("upd.copy"));
+	const line = (text) => h("div", { class: "pin-line" }, h("code", {}, text), copy(text));
+	sheet.body.append(
+		h("div", { class: "note" }, t("upd.pinnedWhy", { v: d.running, n: d.latest.tag })),
+		h("div", { class: "box pin-steps" },
+			h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep1", { f: p.project ? `${p.project}/docker-compose.yml` : "docker-compose.yml" })), h("div", { class: "pin-from" }, h("code", {}, `image: ${p.from}`)), line(`image: ${p.to}`)),
+			h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep2")), line(p.project ? `cd ${p.project} && docker compose pull && docker compose up -d` : "docker compose pull && docker compose up -d"))),
+		h("div", { class: "help", style: "margin:10px 4px 0" }, t("upd.pinnedTip")));
 }
 
 // Release notes; opening them counts as seen.

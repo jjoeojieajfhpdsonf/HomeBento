@@ -13,7 +13,7 @@ const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
-const { Releases, parseRepo, runningVersion, askedVersion, sameVersion } = require("./lib/releases");
+const { Releases, parseRepo, runningVersion, askedVersion, sameVersion, pinnedImage } = require("./lib/releases");
 const widgets = require("./lib/widgets");
 const apiwidget = require("./lib/apiwidget");
 const markets = require("./lib/markets");
@@ -259,6 +259,9 @@ route("GET", "/api/live", async (body, p, query, req) => {
 				rel[x.repo].running = running;
 				rel[x.repo].current = sameVersion(running, rel[x.repo].latest && rel[x.repo].latest.tag);
 			}
+			// fixed to a version: the update is a line in the compose file
+			const pin = c && rel[x.repo].current === false && pinnedImage(c.image, rel[x.repo].latest && rel[x.repo].latest.tag);
+			if (pin) rel[x.repo].pinned = { from: c.image, to: pin, project: (c.labels || {})["com.docker.compose.project.working_dir"] || null };
 		}
 	}
 	// general tiles: weather, disks, network, calendars, news
@@ -327,7 +330,11 @@ route("GET", "/api/services/:id", async (body, p) => {
 		const running = runningVersion(c) || (sug ? await askedVersion(s, integrations.ctx(s), sug.repo) : null);
 		if (sug && running) {
 			const r = await releases.get(sug.repo).catch(() => null);
-			if (r && r.latest) out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
+			if (r && r.latest) {
+				out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
+				const pin = out.release.current === false && pinnedImage(c.image, r.latest.tag);
+				if (pin) out.release.pinned = { from: c.image, to: pin, project: (c.labels || {})["com.docker.compose.project.working_dir"] || null };
+			}
 		}
 	}
 	return out;
