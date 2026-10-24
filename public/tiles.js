@@ -40,7 +40,7 @@ function iconOf(s) {
 const slug = (name) => String(name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 function colorOf(s) {
-	if (!s) return "#9dbcff";
+	if (!s) return "var(--accent)";
 	const i = iconOf(s);
 	if (COLORS[i]) return COLORS[i];
 	if (s.kind === "solar" || i === "glyph:sun") return "#f5b83d";
@@ -132,7 +132,7 @@ function dayCurve(points, color, id) {
 	const xy = points.map(([m, v]) => [(m / 1440) * w, hh - (v / max) * (hh - 2)]);
 	const d = xy.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
 	const last = xy[xy.length - 1];
-	return `<svg class="curve" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none"><defs><linearGradient id="g${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="${d}L${last[0].toFixed(1)},${hh}L${xy[0][0].toFixed(1)},${hh}Z" fill="url(#g${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+	return `<svg class="curve" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none"><defs><linearGradient id="g${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:${color}" stop-opacity=".35"/><stop offset="1" style="stop-color:${color}" stop-opacity="0"/></linearGradient></defs><path d="${d}L${last[0].toFixed(1)},${hh}L${xy[0][0].toFixed(1)},${hh}Z" fill="url(#g${id})"/><path d="${d}" fill="none" style="stroke:${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
 }
 
 // ---------- what a service is doing, in a few words ----------
@@ -383,7 +383,7 @@ function netChart(points, id) {
 	const up = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0])},${(mid - (p[1] / maxRx) * (mid - 2)).toFixed(1)}`).join("");
 	const down = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0])},${(mid + (p[2] / maxTx) * (hh - mid - 2)).toFixed(1)}`).join("");
 	const close = (d) => `${d}L${x(t1)},${mid}L${x(t0)},${mid}Z`;
-	return `<svg class="net-chart" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none"><path d="${close(up)}" fill="#9dbcff" fill-opacity=".22"/><path d="${up}" fill="none" stroke="#9dbcff" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="${close(down)}" fill="#5fd39a" fill-opacity=".18"/><path d="${down}" fill="none" stroke="#5fd39a" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="M0,${mid}H${w}" stroke="rgba(255,255,255,.08)" vector-effect="non-scaling-stroke"/></svg>`;
+	return `<svg class="net-chart" viewBox="0 0 ${w} ${hh}" preserveAspectRatio="none"><path d="${close(up)}" style="fill:var(--accent)" fill-opacity=".22"/><path d="${up}" fill="none" style="stroke:var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="${close(down)}" fill="#5fd39a" fill-opacity=".18"/><path d="${down}" fill="none" stroke="#5fd39a" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><path d="M0,${mid}H${w}" stroke="rgba(255,255,255,.08)" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
 const optsHint = (text) => `<div class="opts-hint"><span>${esc(text)}</span><button class="btn" data-tile-opts>${t("tile.setUp")}</button></div>`;
@@ -462,7 +462,7 @@ const TILES = {
 		if (tile.h > 1 && h.diskTotal) rows.push(bar(t("host.disk"), disk, t("host.of", { a: fmtBytes(h.diskUsed), b: fmtBytes(h.diskTotal) })));
 		if (tile.h > 1 && h.net) rows.push(`<div class="b"><div class="top"><span>${t("host.net")}</span><span class="num">↓ ${fmtBytes(h.net.rx)}/s · ↑ ${fmtBytes(h.net.tx)}/s</span></div></div>`);
 		const meta = [h.temp !== null ? `${h.temp}°` : "", t("host.up", { t: fmtDuration(h.uptime) })].filter(Boolean).join(" · ");
-		return { c: "#9dbcff", html: `<div class="th"><span class="n">${esc(h.name)}</span><span class="meta">${esc(meta)}</span></div><div class="bars">${rows.join("")}</div>` };
+		return { c: "var(--accent)", html: `<div class="th"><span class="n">${esc(h.name)}</span><span class="meta">${esc(meta)}</span></div><div class="bars">${rows.join("")}</div>` };
 	},
 
 	uptime(tile, x) {
@@ -586,14 +586,14 @@ const TILES = {
 	events(tile, x) {
 		const list = (x.live.events || []).slice(0, tile.h * 2 + 1);
 		const head = `<div class="th"><span class="n">${t("ev.title")}</span><span class="meta">${t("ev.sub")}</span></div>`;
-		if (!list.length) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("ev.none")}</div>` };
+		if (!list.length) return { c: "var(--accent)", html: `${head}<div class="sm faint bottom">${t("ev.none")}</div>` };
 		const s = (id) => x.service(id);
 		const rows = list.map((e) => {
 			const svc = s(e.sid);
 			const cls = e.to === "down" ? "bad" : e.to === "slow" ? "warn" : e.to === "up" ? "ok" : "info";
 			return `<div class="e"><span class="w">${esc(fmtAgo(e.t))}</span><div class="mid"><div class="tt">${esc(svc ? svc.name : e.name)} <span class="ev-${cls}">${t(`ev.${e.to}`)}</span></div>${e.detail ? `<div class="ss">${esc(t(`evd.${e.detail}`, {}) === `evd.${e.detail}` ? e.detail : t(`evd.${e.detail}`))}</div>` : ""}</div></div>`;
 		});
-		return { c: "#9dbcff", html: `${head}<div class="cal">${rows.join("")}</div>` };
+		return { c: "var(--accent)", html: `${head}<div class="cal">${rows.join("")}</div>` };
 	},
 
 	tailscale(tile, x) {
@@ -605,7 +605,7 @@ const TILES = {
 			const svc = x.services().find((s) => ts.links && ts.links[s.id] === m.url);
 			const port = m.proxy && (/:(\d+)/.exec(m.proxy) || [])[1];
 			const isSelf = !svc && ts.self && ts.self.url === m.url;
-			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svc ? logo(svc) : isSelf ? `<span class="logo" style="--c:#9dbcff"><img src="icon.svg" alt=""></span>` : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : isSelf ? "HomeBento" : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
+			return `<a class="ts-item" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${svc ? logo(svc) : isSelf ? `<span class="logo" style="--c:var(--accent)"><img src="icon.svg" alt=""></span>` : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<span class="ts-name">${esc(svc ? svc.name : isSelf ? "HomeBento" : port ? t("ts.port", { p: port }) : m.proxy || "–")}</span><span class="ts-url">:${m.port}</span></a>`;
 		});
 		return { c: "#9aa4b2", cls: "ts-tile", html: `${head}<div class="ts-items">${rows.join("") || `<div class="sm faint">${t("ts.none")}</div>`}</div><button class="md-clear" data-ts-manage>${t("ts.manage")}</button>` };
 	},
@@ -617,7 +617,7 @@ const TILES = {
 		const updates = items.filter((i) => i.update).length;
 		const gh = `<span class="logo" style="--c:var(--text)">${svg("<path d='M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 00-1.3-3.2 4.2 4.2 0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 00-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 00-.1 3.2A4.6 4.6 0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21'/>", 1.7)}</span>`;
 		const head = `<div class="th">${gh}<span class="n">${tile.title ? esc(tile.title) : t("rel.title")}</span><span class="meta">${items.length ? (updates ? `<span class="rel-new-count">${t(updates === 1 ? "rel.update1" : "rel.updates", { n: updates })}</span>` : fresh ? `<span class="rel-new-count">${t("rel.new", { n: fresh })}</span>` : t("rel.upToDate")) : ""}</span></div>`;
-		if (!items.length) return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="sm faint" style="margin-top:8px">${t("rel.none")}</div><div class="md-btns"><button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
+		if (!items.length) return { c: "var(--accent)", cls: "rel-tile", html: `${head}<div class="sm faint" style="margin-top:8px">${t("rel.none")}</div><div class="md-btns"><button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 		// rows of 47 px below the head, above the buttons
 		const fit = Math.max(1, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 88) / 47));
 		const rows = items.slice(0, fit).map((i) => {
@@ -625,7 +625,7 @@ const TILES = {
 			const l = i.d && i.d.latest;
 			return `<div class="rel-row${i.isNew ? " new" : ""}${i.update ? " upd" : ""}"${l ? ` data-release="${esc(i.repo)}|${esc(l.tag)}"` : ""}>${svc ? logo(svc) : `<span class="logo" style="--c:var(--muted)">${svg(GLYPHS.globe)}</span>`}<div class="mid"><div class="tt">${esc(svc ? svc.name : i.repo.split("/")[1])}</div><div class="ss">${i.d && i.d.error ? esc(i.d.error) : esc(i.repo)}</div></div>${i.update && svc && svc.container ? `<button class="rel-upd-btn" data-rel-update>${t("upd.short")}</button>` : ""}<div class="rel-ver"><div class="v">${l ? esc(l.tag.replace(/^release-/i, "")) : "–"}</div><div class="ss">${i.d && i.d.current === true ? `<span class="rel-ok">✓ ${t("rel.current")}</span>` : i.update ? `<span class="rel-upd">${t("rel.runs", { v: esc(i.d.running) })}</span>` : l && l.date ? esc(fmtAgo(l.date)) : ""}</div></div></div>`;
 		});
-		return { c: "#9dbcff", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
+		return { c: "var(--accent)", cls: "rel-tile", html: `${head}<div class="rel-list">${rows.join("")}</div><div class="md-btns">${fresh ? `<button class="md-clear" data-rel-seen>${t("rel.allSeen")}</button>` : ""}<button class="md-clear" data-rel-manage>${t("rel.manage")}</button></div>` };
 	},
 
 	// myStrom plugs: the power now, then one small card per device with its switch
@@ -678,7 +678,7 @@ const TILES = {
 		const max = Math.max(td.yield || 0, td.use || 0, 1);
 		const bar = (label, wh, color) => `<div class="b"><div class="top"><span>${label}</span><span class="num">${fmtWh(wh)}</span></div><div class="track"><div class="fill" style="width:${Math.round(((wh || 0) / max) * 100)}%;background:${color}"></div></div></div>`;
 		const soc = d.data.battery;
-		return { c: "#f5b83d", html: `${head}<div class="en-kpis"><div><div class="v num">${autarky ?? "–"} %</div><div class="l">${t("en.autarky")}</div></div><div><div class="v num">${own ?? "–"} %</div><div class="l">${t("en.own")}</div></div>${soc !== null && soc !== undefined ? `<div><div class="v num">${soc} %</div><div class="l">${t("en.battery")}</div></div>` : ""}</div><div class="bars">${bar(t("en.yield"), td.yield, "#f5b83d")}${bar(t("en.use"), td.use, "#9dbcff")}${tile.h > 2 ? bar(t("en.feed"), td.feed, "#5fd39a") + bar(t("en.import"), td.import, "#ff8a65") : ""}</div>` };
+		return { c: "#f5b83d", html: `${head}<div class="en-kpis"><div><div class="v num">${autarky ?? "–"} %</div><div class="l">${t("en.autarky")}</div></div><div><div class="v num">${own ?? "–"} %</div><div class="l">${t("en.own")}</div></div>${soc !== null && soc !== undefined ? `<div><div class="v num">${soc} %</div><div class="l">${t("en.battery")}</div></div>` : ""}</div><div class="bars">${bar(t("en.yield"), td.yield, "#f5b83d")}${bar(t("en.use"), td.use, "var(--accent)")}${tile.h > 2 ? bar(t("en.feed"), td.feed, "#5fd39a") + bar(t("en.import"), td.import, "#ff8a65") : ""}</div>` };
 	},
 
 	// MagicMirror: which modules are on, version, uptime, restart through the manager
@@ -733,20 +733,20 @@ const TILES = {
 		// analog: a face with hands (turned every second), the date beside it
 		const ticks = Array.from({ length: 12 }, (_, i) => `<line x1="50" y1="${i % 3 ? 8 : 6}" x2="50" y2="${i % 3 ? 12 : 15}" transform="rotate(${i * 30} 50 50)" class="${i % 3 ? "tk" : "tk big"}"/>`).join("");
 		const analog = `<svg class="clk-face" viewBox="0 0 100 100" data-analog><circle cx="50" cy="50" r="47" class="rim"/>${ticks}<line class="ah" x1="50" y1="50" x2="50" y2="27"/><line class="am" x1="50" y1="50" x2="50" y2="15"/>${tile.seconds ? `<line class="as" x1="50" y1="58" x2="50" y2="12"/>` : ""}<circle cx="50" cy="50" r="2.6" class="hub"/></svg>`;
-		if (tile.analog) return { c: "#9dbcff", cls: `clk-tile analog${zones.length ? " has-zones" : ""}`, html: `${analog}<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div>${more}</div>` };
-		return { c: "#9dbcff", cls: `clk-tile${zones.length ? " has-zones" : ""}`, html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
+		if (tile.analog) return { c: "var(--accent)", cls: `clk-tile analog${zones.length ? " has-zones" : ""}`, html: `${analog}<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div>${more}</div>` };
+		return { c: "var(--accent)", cls: `clk-tile${zones.length ? " has-zones" : ""}`, html: `<div class="clk" data-clock${tile.seconds ? " data-sec" : ""}><div class="clk-t num"></div><div class="clk-d muted"></div></div>${more}` };
 	},
 
 	// all file systems of the host
 	disks(tile, x) {
 		const list = x.live.disks || [];
 		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("disks.title")}</span><span class="meta">${list.length ? t("disks.free", { v: fmtBytes(list.reduce((a, d) => a + d.total - d.used, 0)) }) : ""}</span></div>`;
-		if (!list.length) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("disks.none")}</div>` };
+		if (!list.length) return { c: "var(--accent)", html: `${head}<div class="sm faint bottom">${t("disks.none")}</div>` };
 		const rows = list.slice(0, tile.h * 3).map((d) => {
 			const pct = d.total ? Math.round((d.used / d.total) * 100) : 0;
 			return `<div class="b"><div class="top"><span title="${esc(d.device)}">${esc(d.mount)}</span><span class="num">${tile.w > 1 ? `${fmtBytes(d.used)} / ${fmtBytes(d.total)} · ` : ""}${pct} %</span></div><div class="track"><div class="fill${pct > 85 ? " hot" : ""}" style="width:${pct}%"></div></div></div>`;
 		});
-		return { c: "#9dbcff", html: `${head}<div class="bars">${rows.join("")}</div>` };
+		return { c: "var(--accent)", html: `${head}<div class="bars">${rows.join("")}</div>` };
 	},
 
 	// network traffic of the host over the last hours
@@ -756,20 +756,20 @@ const TILES = {
 		const valid = pts.filter((p) => p[1] !== null);
 		const peak = valid.length ? Math.max(...valid.map((p) => p[1])) : null;
 		const head = `<div class="th"><span class="n">${t("net.title")}</span><span class="meta">${valid.length > 1 ? t("net.span", { t: fmtDuration(valid[valid.length - 1][0] - valid[0][0]) }) : ""}</span></div>`;
-		if (!last || last[1] === null) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("net.wait")}</div>` };
-		const now = `<div class="net-now"><div><span class="net-k" style="color:#9dbcff">↓</span><span class="num">${fmtBytes(last[1])}/s</span></div><div><span class="net-k" style="color:#5fd39a">↑</span><span class="num">${fmtBytes(last[2])}/s</span></div>${tile.w > 1 && peak !== null ? `<div class="faint">${t("net.peak", { v: `${fmtBytes(peak)}/s` })}</div>` : ""}</div>`;
-		return { c: "#9dbcff", html: `${head}${now}${tile.h > 1 || tile.w > 1 ? `<div class="net-box">${netChart(pts, tile.id)}</div>` : ""}` };
+		if (!last || last[1] === null) return { c: "var(--accent)", html: `${head}<div class="sm faint bottom">${t("net.wait")}</div>` };
+		const now = `<div class="net-now"><div><span class="net-k" style="color:var(--accent)">↓</span><span class="num">${fmtBytes(last[1])}/s</span></div><div><span class="net-k" style="color:#5fd39a">↑</span><span class="num">${fmtBytes(last[2])}/s</span></div>${tile.w > 1 && peak !== null ? `<div class="faint">${t("net.peak", { v: `${fmtBytes(peak)}/s` })}</div>` : ""}</div>`;
+		return { c: "var(--accent)", html: `${head}${now}${tile.h > 1 || tile.w > 1 ? `<div class="net-box">${netChart(pts, tile.id)}</div>` : ""}` };
 	},
 
 	// calendars by link (iCal): the next appointments, by day
 	ical(tile, x) {
 		const cals = tile.calendars || [];
 		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("ical.title")}</span><span class="meta">${cals.length > 1 ? cals.map((c) => `<i class="cal-dot" style="background:${esc(c.color)}" title="${esc(c.name)}"></i>`).join("") : esc((cals[0] && cals[0].name) || "")}</span></div>`;
-		if (!cals.length) return { c: "#9dbcff", html: head + optsHint(t("ical.empty")) };
+		if (!cals.length) return { c: "var(--accent)", html: head + optsHint(t("ical.empty")) };
 		const d = x.live.ical && x.live.ical[tile.id];
-		if (!d) return { c: "#9dbcff", html: head };
+		if (!d) return { c: "var(--accent)", html: head };
 		const err = d.errors.length ? `<div class="sm warn-text" title="${esc(d.errors.join("\n"))}">⚠ ${esc(d.errors[0])}</div>` : "";
-		if (!d.events.length) return { c: "#9dbcff", html: `${head}${err}<div class="sm faint bottom">${t("ical.none")}</div>` };
+		if (!d.events.length) return { c: "var(--accent)", html: `${head}${err}<div class="sm faint bottom">${t("ical.none")}</div>` };
 		// fill the height that's there (measured): a day title 25 px, an entry 29 px, 46 px with its place
 		let room = tile.h * 118 + (tile.h - 1) * 12 - 28 - 26 - (err ? 18 : 0);
 		const out = [];
@@ -786,9 +786,9 @@ const TILES = {
 			}
 			const c = cals[e.cal] || {};
 			const time = e.allDay ? t("ical.allDay") : new Date(e.t).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
-			out.push(`<div class="ic-ev" style="--cc:${esc(c.color || "#9dbcff")}"><span class="ic-time num">${esc(time)}</span><div class="mid"><div class="tt">${esc(e.title)}</div>${e.where && tile.w > 1 ? `<div class="ss">${esc(e.where)}</div>` : ""}</div></div>`);
+			out.push(`<div class="ic-ev" style="--cc:${esc(c.color || "var(--accent)")}"><span class="ic-time num">${esc(time)}</span><div class="mid"><div class="tt">${esc(e.title)}</div>${e.where && tile.w > 1 ? `<div class="ss">${esc(e.where)}</div>` : ""}</div></div>`);
 		}
-		return { c: "#9dbcff", cls: "ic-tile", html: `${head}${err}<div class="ic-list">${out.join("")}</div>` };
+		return { c: "var(--accent)", cls: "ic-tile", html: `${head}${err}<div class="ic-list">${out.join("")}</div>` };
 	},
 
 	// news from RSS / Atom feeds, newest first
@@ -805,8 +805,8 @@ const TILES = {
 
 	// any web page in a frame
 	iframe(tile) {
-		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("frame.title")}</span></div>${optsHint(t("frame.empty"))}` };
-		return { c: "#9dbcff", cls: "frame-tile", html: `${tile.title ? `<div class="th"><span class="n">${esc(tile.title)}</span><a class="meta" href="${esc(tile.url)}" target="_blank" rel="noopener noreferrer">↗</a></div>` : ""}<iframe src="${esc(tile.url)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>` };
+		if (!tile.url) return { c: "var(--accent)", html: `<div class="th"><span class="n">${t("frame.title")}</span></div>${optsHint(t("frame.empty"))}` };
+		return { c: "var(--accent)", cls: "frame-tile", html: `${tile.title ? `<div class="th"><span class="n">${esc(tile.title)}</span><a class="meta" href="${esc(tile.url)}" target="_blank" rel="noopener noreferrer">↗</a></div>` : ""}<iframe src="${esc(tile.url)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>` };
 	},
 
 	// Sonarr, Radarr, Prowlarr on their own: key figures, then what's downloading (or what's missing),
@@ -842,7 +842,7 @@ const TILES = {
 		const head = `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("sto.title")}</span></div>`;
 		const radarr = x.ofKind("radarr")[0];
 		const sonarr = x.ofKind("sonarr")[0];
-		if (!radarr && !sonarr) return { c: "#9dbcff", html: `${head}<div class="sm faint bottom">${t("sto.needs")}</div>` };
+		if (!radarr && !sonarr) return { c: "var(--accent)", html: `${head}<div class="sm faint bottom">${t("sto.needs")}</div>` };
 		const v = (s) => (s && x.live.data[s.id] && x.live.data[s.id].data) || null;
 		const r = v(radarr);
 		const so = v(sonarr);
@@ -850,7 +850,7 @@ const TILES = {
 		const list = [{ v: frees.length ? fmtBytes(Math.max(...frees)) : "–", l: t("sto.free") }];
 		if (radarr) list.push({ v: r && r.size !== null && r.size !== undefined ? fmtBytes(r.size) : "–", l: t("m.movies") });
 		if (sonarr) list.push({ v: so && so.size !== null && so.size !== undefined ? fmtBytes(so.size) : "–", l: t("m.series") });
-		return { c: "#9dbcff", html: `${head}${metricsHtml(list)}` };
+		return { c: "var(--accent)", html: `${head}${metricsHtml(list)}` };
 	},
 
 	// own API: chosen values as figures, an optional list below
@@ -863,15 +863,15 @@ const TILES = {
 				return "";
 			}
 		})();
-		const head = `<div class="th"><span class="logo" style="--c:#9dbcff">${svg("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", 2)}</span><span class="n">${esc(tile.title || t("api.title"))}</span><span class="meta">${esc(host)}</span></div>`;
-		if (!tile.api || !tile.api.url) return { c: "#9dbcff", html: head + optsHint(t("api.empty")) };
-		if (!d) return { c: "#9dbcff", html: head };
-		if (d.error) return { c: "#9dbcff", html: `${head}<div class="sm warn-text bottom" title="${esc(d.error)}">⚠ ${esc(d.error)}</div>` };
+		const head = `<div class="th"><span class="logo" style="--c:var(--accent)">${svg("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", 2)}</span><span class="n">${esc(tile.title || t("api.title"))}</span><span class="meta">${esc(host)}</span></div>`;
+		if (!tile.api || !tile.api.url) return { c: "var(--accent)", html: head + optsHint(t("api.empty")) };
+		if (!d) return { c: "var(--accent)", html: head };
+		if (d.error) return { c: "var(--accent)", html: `${head}<div class="sm warn-text bottom" title="${esc(d.error)}">⚠ ${esc(d.error)}</div>` };
 		const vals = (d.values || []).slice(0, tile.w * 2);
 		const nums = vals.length ? `<div class="metrics api-vals" style="--mc:${Math.min(vals.length, tile.w === 1 ? 2 : tile.w * 2)}">${vals.map((v) => `<div class="${v.state === "bad" ? "bad" : v.state === "warn" ? "warn" : ""}"><div class="v" title="${esc(v.text)}">${esc(v.text)}</div><div class="l">${esc(v.label)}</div></div>`).join("")}</div>` : "";
 		const room = Math.max(0, Math.floor((tile.h * 118 + (tile.h - 1) * 12 - 54 - (vals.length ? 52 : 0)) / 24));
 		const items = (d.items || []).slice(0, room).map((i) => `<div class="s pl-item"><i class="st-dot ${i.status === "bad" ? "bad" : i.status === "ok" ? "ok" : ""}"></i><span>${esc(i.title)}</span>${i.sub ? `<span class="faint">${esc(i.sub)}</span>` : ""}</div>`).join("");
-		return { c: "#9dbcff", cls: "api-tile", html: `${head}${nums}${items ? `<div class="api-items">${items}</div>` : ""}${d.stale ? `<div class="sm faint bottom">${t("api.stale")}</div>` : ""}` };
+		return { c: "var(--accent)", cls: "api-tile", html: `${head}${nums}${items ? `<div class="api-items">${items}</div>` : ""}${d.stale ? `<div class="sm faint bottom">${t("api.stale")}</div>` : ""}` };
 	},
 
 	// shares, indices, currencies, coins: price, change, the day as a line
@@ -931,9 +931,9 @@ const TILES = {
 
 	// a camera: still image (refreshed) or MJPEG stream, through HomeBento
 	camera(tile) {
-		if (!tile.url) return { c: "#9dbcff", html: `<div class="th"><span class="n">${t("cam.title")}</span></div>${optsHint(t("cam.empty"))}` };
+		if (!tile.url) return { c: "var(--accent)", html: `<div class="th"><span class="n">${t("cam.title")}</span></div>${optsHint(t("cam.empty"))}` };
 		const img = tile.mode === "mjpeg" ? `<img class="cam-img" src="/api/camera/${tile.id}" alt="">` : `<img class="cam-img" data-cam="${tile.id}" data-cam-refresh="${tile.refresh || 5}" src="/api/camera/${tile.id}" alt="">`;
-		return { c: "#9dbcff", cls: "cam-tile", html: `${img}<div class="cam-label"><span class="cam-dot"></span>${esc(tile.title || t("cam.title"))}</div>` };
+		return { c: "var(--accent)", cls: "cam-tile", html: `${img}<div class="cam-label"><span class="cam-dot"></span>${esc(tile.title || t("cam.title"))}</div>` };
 	},
 
 	links(tile) {
@@ -945,8 +945,8 @@ const TILES = {
 			} catch {
 				// invalid
 			}
-			return `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><span class="logo" style="--c:#9dbcff;width:22px;height:22px;border-radius:7px">${svg(GLYPHS.link)}</span>${esc(l.name || hostName)}</a>`;
+			return `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><span class="logo" style="--c:var(--accent);width:22px;height:22px;border-radius:7px">${svg(GLYPHS.link)}</span>${esc(l.name || hostName)}</a>`;
 		});
-		return { c: "#9dbcff", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("links.title")}</span></div>${rows.length ? `<div class="links" style="--lc:${tile.w}">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("links.empty")}</div>`}` };
+		return { c: "var(--accent)", html: `<div class="th"><span class="n">${tile.title ? esc(tile.title) : t("links.title")}</span></div>${rows.length ? `<div class="links" style="--lc:${tile.w}">${rows.join("")}</div>` : `<div class="sm faint bottom">${t("links.empty")}</div>`}` };
 	}
 };

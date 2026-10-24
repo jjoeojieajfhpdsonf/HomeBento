@@ -1119,7 +1119,7 @@ function hostSheet() {
 	let points = null;
 	api("GET", "/api/host/history").then((r) => ((points = r.points || []), fill(true)), () => ((points = []), fill(true)));
 	// [t, cpu, mem, disk, rx, tx, temp, load]
-	const SERIES = { cpu: [[1, "#9dbcff"]], memory: [[2, "#f5b83d"]], disk: [[3, "#9aa4b2"]], net: [[4, "#5fd39a"], [5, "#9dbcff"]], temp: [[6, "#ff8a65"]], load: [[7, "#c792ea"]] };
+	const SERIES = { cpu: [[1, "var(--accent)"]], memory: [[2, "#f5b83d"]], disk: [[3, "#9aa4b2"]], net: [[4, "#5fd39a"], [5, "#9dbcff"]], temp: [[6, "#ff8a65"]], load: [[7, "#c792ea"]] };
 	const UNIT = { cpu: (v) => `${nf(v, 0)} %`, memory: (v) => `${nf(v, 1)} %`, disk: (v) => `${nf(v, 1)} %`, net: (v) => `${fmtBytes(v)}/s`, temp: (v) => `${nf(v, 0)} °C`, load: (v) => nf(v, 2) };
 	const chartBox = h("div", { class: "box host-chart" });
 	const tabs = h("div", { class: "host-tabs", role: "tablist" });
@@ -1128,7 +1128,7 @@ function hostSheet() {
 		const hst = S.live && S.live.host;
 		if (!hst) return;
 		const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-		sheet.head(html(`<span class="logo" style="--c:#9dbcff">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
+		sheet.head(html(`<span class="logo" style="--c:var(--accent)">${svg(GLYPHS.server)}</span>`), h("div", { class: "tt" }, h("b", {}, hst.name), h("span", { class: "sub" }, t("host.up", { t: fmtDuration(hst.uptime) }))));
 		const list = [
 			["cpu", t("host.cpu"), `${hst.cpu} %`, `${hst.cores} ${t("host.coresShort")}`],
 			["memory", t("host.memory"), `${pct(hst.memUsed, hst.memTotal)} %`, t("host.of", { a: fmtBytes(hst.memUsed), b: fmtBytes(hst.memTotal) })],
@@ -1156,71 +1156,96 @@ function hostSheet() {
 const uvWord = (v) => (v === null || v === undefined ? "" : t(v < 3 ? "wx.uvLow" : v < 6 ? "wx.uvMid" : v < 8 ? "wx.uvHigh" : v < 11 ? "wx.uvVery" : "wx.uvExtreme"));
 const compass = (d) => (d === null || d === undefined ? "" : t("wx.dirs").split(",")[Math.round(d / 45) % 8]);
 
+// the sky behind the details, by weather and time of day
+function wxSky(code, day) {
+	const k = wxKind(code, day);
+	const sky = {
+		sun: ["#2f6fd6", "#6aa8ef"], moon: ["#0a1430", "#22305c"], partly: ["#3c6fb5", "#7f9fc8"], partlyNight: ["#121b36", "#2c3858"],
+		cloud: day ? ["#4d5a6e", "#7c8899"] : ["#1b2130", "#353d4f"], fog: day ? ["#5d6672", "#8e959f"] : ["#22262e", "#3a3f48"],
+		rain: day ? ["#344661", "#5f708c"] : ["#141b2b", "#2c364b"], snow: day ? ["#6c7d95", "#aab9cd"] : ["#2a3242", "#4b5568"], storm: ["#2a2140", "#4c3f6a"]
+	}[k];
+	return `linear-gradient(170deg, ${sky[0]}, ${sky[1]})`;
+}
+// a temperature as a colour, cold blue to hot red (for the week's bars)
+function tempColor(v) {
+	const stops = [[-10, [94, 155, 255]], [0, [90, 200, 250]], [10, [76, 217, 140]], [18, [255, 204, 0]], [26, [255, 149, 0]], [34, [255, 69, 58]]];
+	if (v <= stops[0][0]) return `rgb(${stops[0][1]})`;
+	for (let i = 1; i < stops.length; i++)
+		if (v <= stops[i][0]) {
+			const [a0, c0] = stops[i - 1];
+			const [a1, c1] = stops[i];
+			const f = (v - a0) / (a1 - a0);
+			return `rgb(${c0.map((c, k) => Math.round(c + (c1[k] - c) * f)).join(",")})`;
+		}
+	return `rgb(${stops[stops.length - 1][1]})`;
+}
+
 function weatherSheet(tile) {
 	const w = S.live && S.live.weather && S.live.weather[tile.id];
 	if (!w || !w.now) return tileOptions(tile);
 	const sheet = openSheet({ wide: true });
 	const n = w.now;
 	const today = w.days[0] || {};
+	const tomorrow = w.days[1] || {};
 	const hm = (iso) => (iso ? iso.slice(11, 16) : "–");
-	const dur = (sec) => (sec ? `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min` : "–");
-	sheet.head(html(wxIcon(n.code, n.day, "wx-i")), h("div", { class: "tt" }, h("b", {}, w.place.name), h("span", { class: "sub" }, n.at ? t("wx.updated", { t: new Date(n.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) }) : "")),
-		h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.changePlace")));
-	const fact = (k, v, sub) => h("div", { class: "wxd-fact" }, h("span", {}, k), h("b", { class: "num" }, v), sub ? h("span", { class: "faint" }, sub) : null);
+	const hrs = w.hours.slice(0, 36);
+	sheet.el.classList.add("wxa");
+	sheet.el.style.setProperty("--sky", wxSky(n.code, n.day));
+	sheet.head(h("div", { class: "grow" }), h("button", { class: "btn wx-place-btn", onclick: () => (sheet.close(), tileOptions(tile)) }, t("wx.changePlace")));
 
-	// the next 48 hours: temperature as a line, rain as bars, a day mark at midnight
-	const hrs = w.hours.slice(0, 48);
-	let chartHtml = "";
-	if (hrs.length > 2) {
-		const W = 960, H = 170, top = 26, bot = 34;
-		const temps = hrs.map((x) => x.temp);
-		const lo = Math.min(...temps) - 1, hi = Math.max(...temps) + 1;
-		const X = (i) => (i / (hrs.length - 1)) * W;
-		const Y = (v) => top + (1 - (v - lo) / (hi - lo || 1)) * (H - top - bot);
-		const line = hrs.map((x, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(x.temp).toFixed(1)}`).join("");
-		const area = `${line}L${W},${H - bot}L0,${H - bot}Z`;
-		const bw = W / hrs.length;
-		const bars = hrs.map((x, i) => (x.rain ? `<rect x="${(X(i) - bw / 2 + 1).toFixed(1)}" y="${(H - bot - (x.rain / 100) * 26).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${((x.rain / 100) * 26).toFixed(1)}" rx="2" fill="rgba(111,179,255,${0.15 + (x.rain / 100) * 0.35})"/>` : "")).join("");
-		const marks = hrs.map((x, i) => {
-			const d = new Date(x.t);
-			const out = [];
-			if (d.getHours() === 0 && i) out.push(`<line x1="${X(i)}" x2="${X(i)}" y1="6" y2="${H - bot}" stroke="rgba(255,255,255,.08)"/><text x="${X(i) + 6}" y="14" class="wxd-daylab">${esc(d.toLocaleDateString(LOCALE, { weekday: "short" }))}</text>`);
-			if (i % 3 === 0) out.push(`<text x="${X(i)}" y="${H - 14}" class="wxd-hour" text-anchor="middle">${i === 0 ? esc(t("wx.now")) : d.getHours()}</text>`);
-			return out.join("");
-		}).join("");
-		const iMax = temps.indexOf(Math.max(...temps));
-		const iMin = temps.indexOf(Math.min(...temps));
-		const lab = (i, below) => `<text x="${Math.min(W - 16, Math.max(16, X(i)))}" y="${Y(temps[i]) + (below ? 16 : -8)}" class="wxd-tlab" text-anchor="middle">${deg(temps[i])}</text>`;
-		chartHtml = `<svg class="wxd-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="wxg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgba(245,184,61,.28)"/><stop offset="1" stop-color="rgba(245,184,61,0)"/></linearGradient></defs>${marks}${bars}<path d="${area}" fill="url(#wxg)"/><path d="${line}" fill="none" stroke="#f5b83d" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${lab(iMax, false)}${iMin !== iMax ? lab(iMin, true) : ""}</svg>
-			<div class="wxd-icons" style="--n:${Math.ceil(hrs.length / 3)}">${hrs.filter((x, i) => i % 3 === 0).map((x) => wxIcon(x.code, x.day)).join("")}</div>`;
-	}
+	// one sentence about the next hours
+	const wet = (x) => x.rain >= 50;
+	let summary;
+	const firstWet = hrs.findIndex(wet);
+	if (firstWet === 0) {
+		const dry = hrs.findIndex((x) => !wet(x));
+		summary = dry > 0 ? t("wx.rainUntil", { t: new Date(hrs[dry].t).getHours() }) : t("wx.rainOn");
+	} else if (firstWet > 0 && firstWet < 13) summary = t("wx.rainFrom", { t: new Date(hrs[firstWet].t).getHours() });
+	else summary = t("wx.dry12");
+	if (n.gusts >= 30) summary += ` ${t("wx.gustsUpTo", { v: Math.round(n.gusts) })}`;
 
-	// the week: a bar from the week's lowest to highest temperature
+	const hourly = hrs.map((x, i) => `<div class="wxa-h"><span class="wxa-ht">${i === 0 ? esc(t("wx.now")) : new Date(x.t).getHours()}</span>${wxIcon(x.code, x.day, "wx-i mid")}<span class="wxa-hr">${x.rain >= 20 ? `${x.rain} %` : ""}</span><span class="wxa-hv num">${deg(x.temp)}</span></div>`).join("");
+
+	// the week: each day's range on the week's scale, coloured by temperature; a dot for now on today
 	const lo = Math.min(...w.days.map((d) => d.min));
 	const hi = Math.max(...w.days.map((d) => d.max));
-	const pos = (v) => (((v - lo) / (hi - lo || 1)) * 100).toFixed(1);
-	const dayName = (d, i) => (i === 0 ? t("wx.today") : i === 1 ? t("wx.tomorrow") : new Date(`${d.date}T12:00`).toLocaleDateString(LOCALE, { weekday: "long" }));
-	const week = w.days.map((d, i) => `<div class="wxd-day"><span class="wxd-dn">${esc(dayName(d, i))}</span>${wxIcon(d.code, true)}<span class="wxd-dt">${esc(wxText(d.code))}</span>
-		<span class="wxd-rain">${d.rain >= 10 ? `${d.rain} %${d.mm ? ` · ${nf(d.mm, 1)} mm` : ""}` : ""}</span><span class="wxd-wind faint">${d.wind !== undefined ? `${Math.round(d.wind)} km/h` : ""}</span>
-		<span class="faint num">${deg(d.min)}</span><span class="wx-bar"><i style="left:${pos(d.min)}%;right:${100 - pos(d.max)}%"></i></span><span class="num">${deg(d.max)}</span></div>`).join("");
+	const pct = (v) => ((v - lo) / (hi - lo || 1)) * 100;
+	const dayName = (d, i) => (i === 0 ? t("wx.today") : new Date(`${d.date}T12:00`).toLocaleDateString(LOCALE, { weekday: "short" }));
+	const week = w.days.map((d, i) => `<div class="wxa-d"><span class="wxa-dn">${esc(dayName(d, i))}</span><span class="wxa-di">${wxIcon(d.code, true, "wx-i mid")}${d.rain >= 30 ? `<em>${d.rain} %</em>` : ""}</span>
+		<span class="wxa-dl num">${deg(d.min)}</span><span class="wxa-bar"><i style="left:${pct(d.min)}%;right:${100 - pct(d.max)}%;background:linear-gradient(90deg, ${tempColor(d.min)}, ${tempColor(d.max)})"></i>${i === 0 && n.temp >= d.min && n.temp <= d.max ? `<b style="left:${pct(n.temp)}%"></b>` : ""}</span><span class="wxa-dh num">${deg(d.max)}</span></div>`).join("");
 
-	sheet.body.replaceChildren(
-		h("div", { class: "wxd-now" },
-			h("div", { class: "wxd-big" }, html(wxIcon(n.code, n.day, "wx-i huge")), h("div", {}, h("div", { class: "wxd-temp num" }, deg(n.temp)), h("div", { class: "muted" }, wxText(n.code)), h("div", { class: "faint sm" }, `${deg(today.max)} / ${deg(today.min)}`))),
-			h("div", { class: "wxd-facts" },
-				fact(t("wx.feelsLike"), deg(n.feels)),
-				fact(t("wx.humidity"), `${n.humidity} %`),
-				fact(t("wx.wind"), `${Math.round(n.wind)} km/h`, [compass(n.dir), n.gusts ? t("wx.gusts", { v: Math.round(n.gusts) }) : ""].filter(Boolean).join(" · ")),
-				fact(t("wx.precip"), `${nf(n.rain || 0, 1)} mm`, today.mm ? t("wx.precipToday", { v: nf(today.mm, 1) }) : ""),
-				n.uv !== undefined ? fact(t("wx.uv"), nf(n.uv || 0, 0), uvWord(today.uv ?? n.uv) ? `${t("wx.uvToday")} ${nf(today.uv ?? n.uv, 0)} · ${uvWord(today.uv ?? n.uv)}` : "") : null,
-				n.pressure ? fact(t("wx.pressure"), `${Math.round(n.pressure)} hPa`) : null,
-				fact(t("wx.sunrise"), hm(today.sunrise), t("wx.sunset") + " " + hm(today.sunset)),
-				today.daylight ? fact(t("wx.daylight"), dur(today.daylight)) : null)),
-		chartHtml ? h("div", { class: "sec" }, t("wx.next48")) : null,
-		chartHtml ? h("div", { class: "box wxd-48", html: chartHtml }) : null,
-		h("div", { class: "sec" }, t("wx.week")),
-		h("div", { class: "box wxd-week", html: week })
-	);
+	// cards
+	const card = (icon, label, body, cls = "") => `<div class="wxa-card ${cls}"><div class="wxa-ch">${svg(icon, 2)}<span>${esc(label)}</span></div>${body}</div>`;
+	const uv = today.uv ?? n.uv ?? 0;
+	const uvCard = card("<circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M2 12h2M20 12h2'/>", t("wx.uv"), `<div class="wxa-big num">${nf(n.uv ?? 0, 0)}</div><div class="wxa-w">${esc(uvWord(n.uv ?? 0))}</div><div class="wxa-uvbar"><b style="left:${Math.min(100, ((n.uv ?? 0) / 11) * 100)}%"></b></div><div class="wxa-t">${esc(t("wx.uvMax", { v: nf(uv, 0), w: uvWord(uv) }))}</div>`);
+	// the sun's way from rise to set, and where it is now
+	const rise = today.sunrise ? Date.parse(today.sunrise) : null;
+	const set = today.sunset ? Date.parse(today.sunset) : null;
+	const f = rise && set ? Math.max(0, Math.min(1, (Date.now() - rise) / (set - rise))) : 0;
+	const sx = 10 + f * 80;
+	const sy = 44 - Math.sin(f * Math.PI) * 34;
+	const up = rise && set && Date.now() > rise && Date.now() < set;
+	const sunCard = card("<circle cx='12' cy='14' r='4'/><path d='M3 18h18M12 4v3M5 9l2 2M19 9l-2 2'/>", up ? t("wx.sunsetCap") : t("wx.sunriseCap"), `<div class="wxa-big num">${up ? hm(today.sunset) : hm(Date.now() > (set || 0) ? tomorrow.sunrise : today.sunrise)}</div>
+		<svg class="wxa-arc" viewBox="0 0 100 52"><path d="M10 44 Q50 -24 90 44" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5" stroke-dasharray="2 3"/><line x1="0" x2="100" y1="44" y2="44" stroke="rgba(255,255,255,.2)"/>${up ? `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="4.5" fill="#ffd25e"/>` : ""}</svg>
+		<div class="wxa-t">${esc(up ? `${t("wx.sunrise")} ${hm(today.sunrise)}` : `${t("wx.sunset")} ${hm(today.sunset)}`)}</div>`);
+	const dir = n.dir ?? 0;
+	const windCard = card("<path d='M3 8h11a3 3 0 10-3-3M3 12h15a3 3 0 11-3 3M3 16h7'/>", t("wx.wind"), `<div class="wxa-wind"><svg viewBox="0 0 100 100" class="wxa-compass"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5"/>${t("wx.dirs").split(",").filter((x, i) => i % 2 === 0).map((d, i) => `<text x="${50 + Math.sin((i * Math.PI) / 2) * 34}" y="${54 - Math.cos((i * Math.PI) / 2) * 34}" text-anchor="middle">${d}</text>`).join("")}<g transform="rotate(${dir + 180} 50 50)"><path d="M50 14 L55 26 L50 23 L45 26 Z" fill="#fff"/><line x1="50" y1="24" x2="50" y2="78" stroke="#fff" stroke-width="2"/></g></svg>
+		<div><div class="wxa-big num">${Math.round(n.wind)}<small> km/h</small></div><div class="wxa-t">${esc([compass(n.dir), n.gusts ? t("wx.gusts", { v: Math.round(n.gusts) }) : ""].filter(Boolean).join(" · "))}</div></div></div>`, "wide");
+	const rainCard = card("<path d='M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z'/>", t("wx.precip"), `<div class="wxa-big num">${nf(today.mm || 0, 1)}<small> mm</small></div><div class="wxa-w">${esc(t("wx.today"))}</div><div class="wxa-t">${esc(tomorrow.mm ? t("wx.precipTomorrow", { v: nf(tomorrow.mm, 1) }) : t("wx.precipNone"))}</div>`);
+	const feelText = n.feels < n.temp - 2 ? t("wx.feelsColder") : n.feels > n.temp + 2 ? t("wx.feelsWarmer") : t("wx.feelsSame");
+	const feelCard = card("<path d='M14 14.8V5a2 2 0 10-4 0v9.8a4 4 0 104 0z'/>", t("wx.feelsLike"), `<div class="wxa-big num">${deg(n.feels)}</div><div class="wxa-t">${esc(feelText)}</div>`);
+	const humCard = card("<path d='M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z'/><path d='M9 14a3 3 0 003 3'/>", t("wx.humidity"), `<div class="wxa-big num">${n.humidity} %</div><div class="wxa-t">${esc(n.humidity >= 80 ? t("wx.humid") : n.humidity <= 35 ? t("wx.dryAir") : t("wx.humidOk"))}</div>`);
+	const pressCard = n.pressure ? card("<circle cx='12' cy='12' r='9'/><path d='M12 12l4-4'/>", t("wx.pressure"), `<div class="wxa-big num">${Math.round(n.pressure)}<small> hPa</small></div>`) : "";
+	const dayCard = today.daylight ? card("<path d='M12 3a9 9 0 100 18 9 9 0 000-18zM12 3v18'/>", t("wx.daylight"), `<div class="wxa-big num">${Math.floor(today.daylight / 3600)}<small> h </small>${Math.round((today.daylight % 3600) / 60)}<small> min</small></div>`) : "";
+
+	sheet.body.innerHTML = `
+		<div class="wxa-hero"><div class="wxa-place">${esc(w.place.name)}</div><div class="wxa-temp num">${deg(n.temp)}</div><div class="wxa-cond">${esc(wxText(n.code))}</div><div class="wxa-hl num">${esc(t("wx.hl", { h: deg(today.max), l: deg(today.min) }))}</div></div>
+		<div class="wxa-grid">
+			<div class="wxa-card span2"><div class="wxa-sum">${esc(summary)}</div><div class="wxa-hours">${hourly}</div></div>
+			<div class="wxa-card wxa-week"><div class="wxa-ch">${svg("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4'/>", 2)}<span>${esc(t("wx.week"))}</span></div>${week}</div>
+			<div class="wxa-cards">${uvCard}${sunCard}${windCard}${rainCard}${feelCard}${humCard}${pressCard}${dayCard}</div>
+		</div>
+		<div class="wxa-foot">${n.at ? esc(t("wx.updated", { t: new Date(n.at).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) })) : ""} · Open-Meteo</div>`;
 }
 
 // A 24 h line chart with min/max/now, an hour axis and values on the left. Hovering shows the
@@ -1241,7 +1266,7 @@ function chart(points, series, unit, names) {
 	const y = (v) => hh - ((v - lo) / (hi - lo || 1)) * (hh - 8) - 4;
 	const paths = series.map(([i, color]) => {
 		const d = pts.filter((p) => p[i] !== null && p[i] !== undefined).map((p, k) => `${k ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[i]).toFixed(1)}`).join("");
-		return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+		return `<path d="${d}" fill="none" style="stroke:${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
 	});
 	const ticks = [0.25, 0.5, 0.75].map((f) => lo + (hi - lo) * (1 - f));
 	const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${w}" y1="${hh * f}" y2="${hh * f}" stroke="rgba(255,255,255,.05)"/>`).join("");
@@ -1791,11 +1816,11 @@ async function addTileSheet(query) {
 			toast(t("add.added"));
 			draw();
 		}, { type: tile.type });
-		content.push(row(glyphLogo("server", "#9dbcff"), t("add.host"), t("add.hostSub"), add({ type: "host" }), onBoard((x) => x.type === "host") && t("add.onBoard")));
+		content.push(row(glyphLogo("server", "var(--accent)"), t("add.host"), t("add.hostSub"), add({ type: "host" }), onBoard((x) => x.type === "host") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M4 18V8M9 18V5M14 18v-7M19 18V9'/>", "#5fd39a"), t("add.uptime"), t("add.uptimeSub"), add({ type: "uptime" }), onBoard((x) => x.type === "uptime") && t("add.onBoard")));
 		if (S.state.docker) content.push(row(glyphLogo("<path d='M3 13h18a6 6 0 01-6 6H9a6 6 0 01-6-6z'/><path d='M5 13V9h3v4M8 13V9h3v4M11 13V9h3v4M8 9V5h3v4M14 13V9h3v4'/>", "#2496ed"), "Docker", t("add.dockerSub"), add({ type: "docker" }), onBoard((x) => x.type === "docker") && t("add.onBoard")));
-		content.push(row(glyphLogo("<path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='8.5'/>", "#9dbcff"), t("ev.title"), t("add.eventsSub"), add({ type: "events" }), onBoard((x) => x.type === "events") && t("add.onBoard")));
-		content.push(row(glyphLogo("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", "#9dbcff"), t("rel.title"), t("add.releasesSub"), async () => {
+		content.push(row(glyphLogo("<path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='8.5'/>", "var(--accent)"), t("ev.title"), t("add.eventsSub"), add({ type: "events" }), onBoard((x) => x.type === "events") && t("add.onBoard")));
+		content.push(row(glyphLogo("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", "var(--accent)"), t("rel.title"), t("add.releasesSub"), async () => {
 			// start with the repositories of the services
 			const s0 = await api("GET", "/api/releases/suggest").catch(() => ({ items: [] }));
 			addTile({ type: "releases", repos: [...new Set(s0.items.map((x) => x.repo))], seen: {} });
@@ -1820,24 +1845,24 @@ async function addTileSheet(query) {
 			tileOptions(added);
 		}, { type: tile.type });
 		content.push(row(glyphLogo("<path d='M7 17.5h10a4 4 0 00.5-8 5.8 5.8 0 00-10.9-1.2A4.6 4.6 0 007 17.5z'/>", "#6fb3ff"), t("wx.title"), t("add.weatherSub"), S.state.config.location ? add({ type: "weather" }) : addAndSetUp({ type: "weather" })));
-		content.push(row(glyphLogo("<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5V12l3 2'/>", "#9dbcff"), t("clk.title"), t("add.clockSub"), add({ type: "clock" }), onBoard((x) => x.type === "clock") && t("add.onBoard")));
-		content.push(row(glyphLogo("<ellipse cx='12' cy='6' rx='7.5' ry='2.8'/><path d='M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8'/>", "#9dbcff"), t("disks.title"), t("add.disksSub"), add({ type: "disks" }), onBoard((x) => x.type === "disks") && t("add.onBoard")));
+		content.push(row(glyphLogo("<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5V12l3 2'/>", "var(--accent)"), t("clk.title"), t("add.clockSub"), add({ type: "clock" }), onBoard((x) => x.type === "clock") && t("add.onBoard")));
+		content.push(row(glyphLogo("<ellipse cx='12' cy='6' rx='7.5' ry='2.8'/><path d='M4.5 6v12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V6M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8'/>", "var(--accent)"), t("disks.title"), t("add.disksSub"), add({ type: "disks" }), onBoard((x) => x.type === "disks") && t("add.onBoard")));
 		content.push(row(glyphLogo("<path d='M7 4v14M3.5 14.5L7 18l3.5-3.5M17 20V6M13.5 9.5L17 6l3.5 3.5'/>", "#5fd39a"), t("net.title"), t("add.netSub"), add({ type: "network" }), onBoard((x) => x.type === "network") && t("add.onBoard")));
-		content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4M8 14h3'/>", "#9dbcff"), t("ical.title"), t("add.icalSub"), addAndSetUp({ type: "ical", calendars: [] })));
+		content.push(row(glyphLogo("<rect x='4' y='5' width='16' height='15' rx='3'/><path d='M4 10h16M9 3v4M15 3v4M8 14h3'/>", "var(--accent)"), t("ical.title"), t("add.icalSub"), addAndSetUp({ type: "ical", calendars: [] })));
 		content.push(row(glyphLogo("<path d='M5 5a14 14 0 0114 14M5 11a8 8 0 018 8'/><circle cx='6' cy='18' r='1.3'/>", "#ff9f5a"), t("rss.title"), t("add.rssSub"), addAndSetUp({ type: "rss", feeds: [] })));
-		content.push(row(glyphLogo("<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17M7 6.8h.01M9.5 6.8h.01'/>", "#9dbcff"), t("frame.title"), t("add.frameSub"), addAndSetUp({ type: "iframe" })));
-		content.push(row(glyphLogo("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", "#9dbcff"), t("api.title"), t("add.apiSub"), addAndSetUp({ type: "api", api: { url: "", method: "GET", headers: [], fields: [], ttl: 60 } })));
+		content.push(row(glyphLogo("<rect x='3.5' y='4.5' width='17' height='15' rx='3'/><path d='M3.5 9h17M7 6.8h.01M9.5 6.8h.01'/>", "var(--accent)"), t("frame.title"), t("add.frameSub"), addAndSetUp({ type: "iframe" })));
+		content.push(row(glyphLogo("<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'/>", "var(--accent)"), t("api.title"), t("add.apiSub"), addAndSetUp({ type: "api", api: { url: "", method: "GET", headers: [], fields: [], ttl: 60 } })));
 		content.push(row(glyphLogo("<path d='M4 17l5-5 4 3 7-8'/><path d='M15 7h5v5'/>", "#5fd39a"), t("mk.title"), t("add.marketsSub"), addAndSetUp({ type: "markets", symbols: ["^GSPC"], fx: ["EUR", "USD"], crypto: [], base: "CHF" })));
 		content.push(row(glyphLogo("<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>", "#ff6066"), t("hol.title"), t("add.holidaysSub"), addAndSetUp({ type: "holidays", canton: "ZH" })));
 		content.push(row(glyphLogo("<circle cx='12' cy='13' r='7.5'/><path d='M12 9v4l2.5 2M9.5 2.5h5'/>", "#c792ea"), t("cd.title"), t("add.countdownSub"), addAndSetUp({ type: "countdown", items: [] })));
-		content.push(row(glyphLogo("<rect x='3' y='6' width='13' height='12' rx='2.5'/><path d='M16 10l5-3v10l-5-3'/>", "#9dbcff"), t("cam.title"), t("add.cameraSub"), addAndSetUp({ type: "camera", mode: "snapshot", refresh: 5 })));
-		content.push(row(glyphLogo("link", "#9dbcff"), t("add.links"), t("add.linksSub"), add({ type: "links", links: [] })));
+		content.push(row(glyphLogo("<rect x='3' y='6' width='13' height='12' rx='2.5'/><path d='M16 10l5-3v10l-5-3'/>", "var(--accent)"), t("cam.title"), t("add.cameraSub"), addAndSetUp({ type: "camera", mode: "snapshot", refresh: 5 })));
+		content.push(row(glyphLogo("link", "var(--accent)"), t("add.links"), t("add.linksSub"), add({ type: "links", links: [] })));
 		content.push(row(glyphLogo("<rect x='5' y='4' width='14' height='16' rx='3'/><path d='M9 9h6M9 13h6M9 17h3'/>", "#f5b83d"), t("add.notes"), t("add.notesSub"), add({ type: "notes", notes: [] })));
 		const mine = services().map((s) => row(logo(s), s.name, s.url.replace(/^https?:\/\//, ""), add({ type: "service", service: s.id }), onBoard((x) => x.type === "service" && x.service === s.id) && t("add.onBoard")));
 		sheet.body.replaceChildren(
 			h("div", { class: "sec" }, t("add.docker")),
 			dockerBox,
-			h("div", { class: "box rows", style: "margin-top:8px" }, row(`<span class="logo" style="--c:#9dbcff">${UI.plus}</span>`, t("add.new"), t("add.newSub"), () => serviceForm(null, {}, (svc) => (addTile({ type: "service", service: svc.id }), draw())))),
+			h("div", { class: "box rows", style: "margin-top:8px" }, row(`<span class="logo" style="--c:var(--accent)">${UI.plus}</span>`, t("add.new"), t("add.newSub"), () => serviceForm(null, {}, (svc) => (addTile({ type: "service", service: svc.id }), draw())))),
 			mine.length ? h("div", { class: "sec" }, t("add.services")) : null,
 			mine.length ? h("div", { class: "box rows" }, mine) : null,
 			h("div", { class: "sec" }, t("add.content")),
@@ -2383,7 +2408,7 @@ function settingsSheet() {
 		h("div", { class: "sec" }),
 		h("div", { class: "box rows settings-more" },
 			h("button", { onclick: () => alertsSheet() }, html(`<span class="logo" style="--c:#f5b83d">${svg("<path d='M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20a2 2 0 004 0'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("al.title")), h("div", { class: "sub" }, S.state.notify ? t("settings.notifyOn") : t("al.none"))), h("span", { class: "plus" }, "›")),
-			h("button", { onclick: () => configSheet() }, html(`<span class="logo" style="--c:#9dbcff">${svg("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("cfg.title")), h("div", { class: "sub" }, t("cfg.sub"))), h("span", { class: "plus" }, "›")),
+			h("button", { onclick: () => configSheet() }, html(`<span class="logo" style="--c:var(--accent)">${svg("<path d='M12 3v12M7 10l5 5 5-5M5 21h14'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("cfg.title")), h("div", { class: "sub" }, t("cfg.sub"))), h("span", { class: "plus" }, "›")),
 			h("button", { onclick: () => kioskSheet() }, html(`<span class="logo" style="--c:#5fd39a">${svg("<rect x='3' y='4' width='18' height='13' rx='2.5'/><path d='M8 21h8M12 17v4'/>", 2)}</span>`), h("div", { class: "grow" }, h("div", { class: "title" }, t("ki.title")), h("div", { class: "sub" }, t("ki.sub"))), h("span", { class: "plus" }, "›"))),
 		h("div", { class: "sec" }),
 		h("div", { class: "box kv" },
@@ -2395,7 +2420,7 @@ function settingsSheet() {
 	);
 }
 
-const SELF_LOGO = `<span class="logo" style="--c:#9dbcff"><img src="icon.svg" alt=""></span>`;
+const SELF_LOGO = `<span class="logo" style="--c:var(--accent)"><img src="icon.svg" alt=""></span>`;
 
 function tailscaleSheet() {
 	const sheet = openSheet();

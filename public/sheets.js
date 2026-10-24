@@ -636,9 +636,16 @@ function widthField() {
 }
 
 
-// ---------- appearance: background and main colour ----------
+// ---------- appearance: background, main colour, tile style ----------
 
 const BG_PRESETS = [["#101012", "default"], ["#000000", "black"], ["#17181c", "graphite"], ["#0c1220", "midnight"], ["#0d1512", "forest"], ["#150f1a", "plum"]];
+// backgrounds with colour in them – what makes glass tiles shine
+const BG_GRADIENTS = {
+	aurora: ["#0b0d18", "radial-gradient(55% 45% at 12% 8%, rgba(124,92,255,.42), transparent 62%), radial-gradient(45% 45% at 88% 18%, rgba(0,200,180,.30), transparent 62%), radial-gradient(60% 55% at 55% 105%, rgba(255,90,170,.22), transparent 62%)"],
+	ocean: ["#06111c", "radial-gradient(70% 60% at 20% 0%, rgba(30,120,220,.40), transparent 65%), radial-gradient(50% 50% at 90% 90%, rgba(0,190,200,.22), transparent 62%), linear-gradient(170deg, #0a2440, #06111c 65%)"],
+	sunset: ["#150b14", "radial-gradient(60% 55% at 10% 100%, rgba(255,120,60,.40), transparent 62%), radial-gradient(55% 50% at 90% 10%, rgba(170,70,200,.34), transparent 62%), radial-gradient(40% 40% at 50% 50%, rgba(255,70,110,.14), transparent 70%)"],
+	northern: ["#07120f", "radial-gradient(60% 45% at 30% 0%, rgba(60,220,150,.34), transparent 62%), radial-gradient(45% 45% at 85% 25%, rgba(40,160,230,.26), transparent 62%), radial-gradient(50% 50% at 15% 95%, rgba(140,90,255,.18), transparent 62%)"]
+};
 const ACCENTS = ["#9dbcff", "#b18cff", "#5fd39a", "#4dd0e1", "#f5b83d", "#ff8a65", "#ff7eb6"];
 
 // light or dark text on a colour
@@ -650,23 +657,27 @@ const inkOn = (hex) => {
 function applyTheme(th) {
 	const root = document.documentElement.style;
 	th = th || {};
-	const bg = th.bg || "#101012";
+	const grad = BG_GRADIENTS[th.bg];
+	const bg = grad ? grad[0] : th.bg || "#101012";
 	root.setProperty("--bg", bg);
 	// the tiles: a little lighter than the background, three steps
-	root.setProperty("--tile", `color-mix(in srgb, ${bg} 92%, #ffffff)`);
-	root.setProperty("--tile-2", `color-mix(in srgb, ${bg} 88%, #ffffff)`);
-	root.setProperty("--tile-3", `color-mix(in srgb, ${bg} 84%, #ffffff)`);
-	if (!th.bg) ["--tile", "--tile-2", "--tile-3"].forEach((v) => root.removeProperty(v));
+	if (th.bg) {
+		root.setProperty("--tile", `color-mix(in srgb, ${bg} 92%, #ffffff)`);
+		root.setProperty("--tile-2", `color-mix(in srgb, ${bg} 88%, #ffffff)`);
+		root.setProperty("--tile-3", `color-mix(in srgb, ${bg} 84%, #ffffff)`);
+	} else ["--bg", "--tile", "--tile-2", "--tile-3"].forEach((v) => root.removeProperty(v));
 	if (th.accent) {
 		root.setProperty("--accent", th.accent);
 		root.setProperty("--accent-ink", inkOn(th.accent));
 	} else ["--accent", "--accent-ink"].forEach((v) => root.removeProperty(v));
-	// a picture behind everything, dimmed with the background colour; the tiles go glassy over it
+	// a picture behind everything (dimmed), else the gradient
 	document.body.classList.toggle("bg-image", !!th.image);
 	if (th.image) {
-		const dim = th.dim ?? 0.6;
-		document.body.style.backgroundImage = `linear-gradient(color-mix(in srgb, ${bg} ${Math.round(dim * 100)}%, transparent), color-mix(in srgb, ${bg} ${Math.round(dim * 100)}%, transparent)), url("${th.image.replace(/"/g, "%22")}")`;
-	} else document.body.style.backgroundImage = "";
+		const dim = Math.round((th.dim ?? 0.6) * 100);
+		document.body.style.backgroundImage = `linear-gradient(color-mix(in srgb, ${bg} ${dim}%, transparent), color-mix(in srgb, ${bg} ${dim}%, transparent)), url("${th.image.replace(/"/g, "%22")}")`;
+	} else document.body.style.backgroundImage = grad ? grad[1] : "";
+	document.body.classList.toggle("tiles-glass", th.style === "glass");
+	document.body.classList.toggle("tiles-outline", th.style === "outline");
 }
 
 function themeField() {
@@ -679,18 +690,27 @@ function themeField() {
 			if (await guard(() => api("POST", "/api/settings", { theme: th }))) S.state.config.theme = { ...th };
 		}, 400);
 	};
-	const swatches = (list, key, fallback) => {
+	// round swatches; the last one opens the system's colour picker. The picker's input is never
+	// rebuilt while it's open – only the marks move.
+	const swatches = (items, key, fallback) => {
 		const wrap = h("div", { class: "swatches" });
-		const draw = () => {
+		const mark = () => {
 			const cur = th[key] || fallback;
-			wrap.replaceChildren(
-				...list.map((c) => h("button", { class: `sw${cur === c ? " on" : ""}`, style: `--sw:${c}`, title: c, onclick: () => ((th[key] = c === fallback ? undefined : c), save(), draw()) })),
-				h("label", { class: `sw custom${list.includes(cur) ? "" : " on"}`, title: t("theme.custom") }, h("input", { type: "color", value: cur, oninput: (e) => ((th[key] = e.target.value), save(), draw()) }))
-			);
+			wrap.querySelectorAll("[data-v]").forEach((b) => b.classList.toggle("on", b.dataset.v === cur));
+			custom.classList.toggle("on", !items.some((x) => x.value === cur));
 		};
-		draw();
+		const picker = h("input", { type: "color", value: /^#/.test(th[key] || fallback) ? th[key] || fallback : "#101012", oninput: (e) => ((th[key] = e.target.value), mark(), save()) });
+		const custom = h("label", { class: "sw custom", title: t("theme.custom") }, picker);
+		wrap.append(...items.map((x) => h("button", { class: "sw", "data-v": x.value, style: `--sw:${x.css}`, title: x.title || x.value, onclick: () => ((th[key] = x.value === fallback ? undefined : x.value), mark(), save()) })), custom);
+		mark();
 		return wrap;
 	};
+	const bgItems = [...BG_PRESETS.map(([c]) => ({ value: c, css: c })), ...Object.entries(BG_GRADIENTS).map(([k, [base, g]]) => ({ value: k, css: `${g.replace(/transparent \d+%/g, "transparent 100%")}, ${base}`, title: t(`theme.g.${k}`) }))];
+	const styleSeg = h("div", { class: "seg theme-seg" }, [["", "theme.solid"], ["glass", "theme.glass"], ["outline", "theme.outline"]].map(([v, k]) => h("button", { class: (th.style || "") === v ? "on" : "", onclick: (e) => {
+		th.style = v || undefined;
+		styleSeg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === e.currentTarget));
+		save();
+	} }, t(k))));
 	const dimLabel = h("span", { class: "num width-val" }, `${Math.round((th.dim ?? 0.6) * 100)} %`);
 	const dim = h("input", { type: "range", class: "width-range", min: 0, max: 90, step: 5, value: Math.round((th.dim ?? 0.6) * 100),
 		oninput: (e) => ((th.dim = Number(e.target.value) / 100), dimLabel.replaceChildren(`${e.target.value} %`), e.target.style.setProperty("--p", `${(e.target.value / 90) * 100}%`), save()) });
@@ -703,20 +723,22 @@ function themeField() {
 			dimField.style.display = th.image ? "" : "none";
 			save();
 		} });
+	const bgBox = h("div", {}, swatches(bgItems, "bg", "#101012"));
+	const acBox = h("div", {}, swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff"));
 	const reset = h("button", { class: "chip", onclick: () => {
 		for (const k of Object.keys(th)) delete th[k];
 		applyTheme(th);
 		guard(() => api("POST", "/api/settings", { theme: {} })).then((ok) => ok && (S.state.config.theme = undefined));
 		img.value = "";
 		dimField.style.display = "none";
-		bgBox.replaceChildren(swatches(BG_PRESETS.map((x) => x[0]), "bg", "#101012"));
-		acBox.replaceChildren(swatches(ACCENTS, "accent", "#9dbcff"));
+		bgBox.replaceChildren(swatches(bgItems, "bg", "#101012"));
+		acBox.replaceChildren(swatches(ACCENTS.map((c) => ({ value: c, css: c })), "accent", "#9dbcff"));
+		styleSeg.querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", i === 0));
 	} }, t("theme.reset"));
-	const bgBox = h("div", {}, swatches(BG_PRESETS.map((x) => x[0]), "bg", "#101012"));
-	const acBox = h("div", {}, swatches(ACCENTS, "accent", "#9dbcff"));
 	return h("div", { class: "theme-fields" },
 		h("div", { class: "field" }, h("label", {}, t("theme.bg")), bgBox),
 		h("div", { class: "field" }, h("label", {}, t("theme.accent")), acBox),
+		h("div", { class: "field" }, h("label", {}, t("theme.style")), styleSeg, h("div", { class: "help" }, t("theme.styleHelp"))),
 		h("div", { class: "field" }, h("label", {}, t("theme.image")), img, h("div", { class: "help" }, t("theme.imageHelp"))),
 		dimField,
 		h("div", { class: "field" }, reset));
