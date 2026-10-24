@@ -1633,8 +1633,8 @@ document.addEventListener("click", (e) => {
 }, true);
 
 // Update a container: ask, then follow the log until it is done (or rolled back).
-async function updateService(s, d) {
-	if (d && d.pinned) return pinnedSheet(s, d);
+async function updateService(s, d, image) {
+	if (d && d.pinned && !image) return pinnedSheet(s, d);
 	// the versions big (just the numbers), the full build names small below
 	const core = (v) => (/\d+(?:\.\d+)+/.exec(String(v || "")) || [String(v || "")])[0];
 	const from = d && d.running;
@@ -1645,7 +1645,7 @@ async function updateService(s, d) {
 				core(from) !== from || core(to) !== to ? h("div", { class: "upd-builds" }, `${from} → ${to}`) : null)
 		: null;
 	if (!(await confirmSheet({ title: t("upd.confirmTitle", { n: s.name }), body, help: t("upd.confirmHelp") }, t("upd.go")))) return;
-	const r = await guard(() => api("POST", `/api/services/${s.id}/update`));
+	const r = await guard(() => api("POST", `/api/services/${s.id}/update`, image ? { image } : {}));
 	if (!r) return;
 	const sheet = openSheet({ wide: true });
 	sheet.head(...headOf(s));
@@ -1681,12 +1681,28 @@ function pinnedSheet(s, d) {
 		}
 	} }, t("upd.copy"));
 	const line = (text) => h("div", { class: "pin-line" }, h("code", {}, text), copy(text));
-	sheet.body.append(
-		h("div", { class: "note" }, t("upd.pinnedWhy", { v: d.running, n: d.latest.tag })),
-		h("div", { class: "box pin-steps" },
-			h("div", { class: "field" }, h("label", {}, p.project ? t("upd.pinnedStep1", { f: `${p.project}/docker-compose.yml` }) : t("upd.pinnedStep1Any")), h("div", { class: "pin-from" }, h("code", {}, `image: ${p.from}`)), line(`image: ${p.to}`)),
-			h("div", { class: "field" }, h("label", {}, p.project ? t("upd.pinnedStep2") : t("upd.pinnedStep2Any")), line(p.project ? `cd ${p.project} && docker compose pull && docker compose up -d` : "docker compose pull && docker compose up -d"))),
-		h("div", { class: "help", style: "margin:10px 4px 0" }, t("upd.pinnedTip")));
+	const change = h("div", { class: "pin-from" }, h("code", {}, `image: ${p.from}`));
+	const where = {
+		// started with docker run: no file brings the old version back, so HomeBento can do it
+		run: () => [
+			h("div", { class: "note" }, t("upd.runWhy", { v: d.running, n: d.latest.tag })),
+			h("div", { class: "acts" }, h("button", { class: "btn primary", onclick: () => (sheet.close(), updateService(s, { ...d, pinned: null }, p.to)) }, t("upd.toVersion", { v: d.latest.tag })))
+		],
+		portainer: () => [
+			h("div", { class: "note" }, t("upd.pinnedWhy", { v: d.running, n: d.latest.tag })),
+			h("div", { class: "box pin-steps" },
+				h("div", { class: "field" }, h("label", {}, t("upd.portainerStep1", { p: p.project || "?" })), change, line(`image: ${p.to}`)),
+				h("div", { class: "field" }, h("label", {}, t("upd.portainerStep2"))))
+		],
+		compose: () => [
+			h("div", { class: "note" }, t("upd.pinnedWhy", { v: d.running, n: d.latest.tag })),
+			h("div", { class: "box pin-steps" },
+				h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep1", { f: (p.files || [])[0] || "docker-compose.yml" })), change, line(`image: ${p.to}`)),
+				h("div", { class: "field" }, h("label", {}, t("upd.pinnedStep2")), line(`cd ${p.dir || "."} && docker compose pull${p.service ? ` ${p.service}` : ""} && docker compose up -d${p.service ? ` ${p.service}` : ""}`))),
+			h("div", { class: "help", style: "margin:10px 4px 0" }, t("upd.pinnedTip"))
+		]
+	};
+	sheet.body.append(...(where[p.source] || where.compose)());
 }
 
 // Release notes; opening them counts as seen.

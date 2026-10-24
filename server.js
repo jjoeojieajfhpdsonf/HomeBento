@@ -13,7 +13,7 @@ const { Host } = require("./lib/host");
 const { Integrations } = require("./lib/integrations");
 const { Auth } = require("./lib/auth");
 const { Tailscale, targetFor } = require("./lib/tailscale");
-const { Releases, parseRepo, runningVersion, askedVersion, sameVersion, pinnedImage } = require("./lib/releases");
+const { Releases, parseRepo, runningVersion, askedVersion, sameVersion, pinnedImage, setupOf } = require("./lib/releases");
 const widgets = require("./lib/widgets");
 const apiwidget = require("./lib/apiwidget");
 const markets = require("./lib/markets");
@@ -261,7 +261,7 @@ route("GET", "/api/live", async (body, p, query, req) => {
 			}
 			// fixed to a version: the update is a line in the compose file
 			const pin = c && rel[x.repo].current === false && pinnedImage(c.image, rel[x.repo].latest && rel[x.repo].latest.tag);
-			if (pin) rel[x.repo].pinned = { from: c.image, to: pin, project: (c.labels || {})["com.docker.compose.project.working_dir"] || null };
+			if (pin) rel[x.repo].pinned = { from: c.image, to: pin, ...setupOf(c) };
 		}
 	}
 	// general tiles: weather, disks, network, calendars, news
@@ -333,7 +333,7 @@ route("GET", "/api/services/:id", async (body, p) => {
 			if (r && r.latest) {
 				out.release = { repo: sug.repo, latest: r.latest, running, current: sameVersion(running, r.latest.tag) };
 				const pin = out.release.current === false && pinnedImage(c.image, r.latest.tag);
-				if (pin) out.release.pinned = { from: c.image, to: pin, project: (c.labels || {})["com.docker.compose.project.working_dir"] || null };
+				if (pin) out.release.pinned = { from: c.image, to: pin, ...setupOf(c) };
 			}
 		}
 	}
@@ -528,8 +528,17 @@ route("POST", "/api/services/:id/update", (body, p) => {
 	updateJobs.set(job.id, job);
 	const log = (line) => job.log.push(`${new Date().toLocaleTimeString("de-CH")} ${line}`);
 	const healthy = s.url ? async () => (await monitor.probe(s)).status !== "down" : null;
+	// another version of the image: only for containers not set up by compose (it would bring the old one back)
+	let image;
+	if (body && body.image) {
+		const c = (monitor.containers || []).find((x) => x.name === s.container);
+		if (!c || setupOf(c).source !== "run") throw new UserError("Set up with compose – change the version in its compose file");
+		if (!/^[\w./:-]{1,300}$/.test(String(body.image)) || !/:v?\d+\.\d+[\w.-]*$/.test(String(body.image))) throw new UserError("Invalid image");
+		image = String(body.image);
+		log(`Changing the image to ${image}`);
+	}
 	docker
-		.update(s.container, { log, healthy })
+		.update(s.container, { log, healthy, image })
 		.then((r) => {
 			job.state = "done";
 			job.updated = r.updated;
