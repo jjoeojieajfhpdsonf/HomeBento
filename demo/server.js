@@ -569,6 +569,7 @@ route("POST", "/api/services/:id/check", (body, p) => {
 });
 route("POST", "/api/services/:id/action", (body, p) => {
 	const s = svc(p.id);
+	if (body.what === "recheck") return { ok: true, indexers: 5, valid: 5 };
 	EVENTS.unshift([now(), s.name, "action", body.what === "relay" ? "Switched" : "Restarted"]);
 	return { container: { state: "running", status: "Up 1 second" } };
 });

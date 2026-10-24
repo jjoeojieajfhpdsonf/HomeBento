@@ -885,7 +885,24 @@ async function serviceSheet(sid) {
 		if (warnings.length) {
 			const statusPage = s.url && ["sonarr", "radarr", "prowlarr"].includes(s.kind) ? `${urlFor(s).replace(/\/+$/, "")}/system/status` : null;
 			parts.push(
-				h("div", { class: "sec" }, h("span", {}, t("sheet.warnings"), h("span", { class: "sec-n" }, String(warnings.length))), statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", class: "sec-link" }, t("sheet.openIn", { n: s.name })) : null),
+				h("div", { class: "sec" }, h("span", {}, t("sheet.warnings"), h("span", { class: "sec-n" }, String(warnings.length))),
+					// after an outage: test the indexers and check again, right from here
+					statusPage ? h("button", { class: "sec-link sec-btn", onclick: async (e) => {
+						const b = e.currentTarget;
+						b.classList.add("busy");
+						b.textContent = t("sheet.rechecking");
+						try {
+							const r = await api("POST", `/api/services/${s.id}/action`, { what: "recheck" });
+							toast(r.indexers ? t("sheet.rechecked", { ok: r.valid, n: r.indexers }) : t("sheet.recheckedNone"));
+							await loadLive();
+							serviceSheet(s.id);
+						} catch (err) {
+							toast(err.message);
+							b.classList.remove("busy");
+							b.textContent = t("sheet.recheck");
+						}
+					} }, t("sheet.recheck")) : null,
+					statusPage ? h("a", { href: statusPage, target: "_blank", rel: "noopener", class: "sec-link" }, t("sheet.openIn", { n: s.name })) : null),
 				// the service itself says there's an update: update the container right from here
 				h("div", { class: "box warn-list" }, warnings.map((w) => h("div", {}, h("span", { class: "warn-dot" }), h("span", { class: "grow" }, w), s.container && UPDATE_RE.test(w) ? h("button", { class: "btn warn-act", onclick: () => updateService(s, null) }, t("upd.go")) : null)))
 			);
